@@ -14,7 +14,7 @@ import pdb
 from tqdm import tqdm
 from torchray.attribution.grad_cam import grad_cam
 from torchvision import datasets, models, transforms
-from models import MyCustomResnet18
+from models import MyCustomResnet18, AdvisingNetwork
 from params import RunningParams
 from helpers import HelperFunctions
 
@@ -28,8 +28,6 @@ RunningParams = RunningParams()
 
 model1_name = 'resnet18'
 MODEL1 = models.resnet18(pretrained=True).eval().cuda()
-print(MODEL1)
-exit(-1)
 
 data_dir = '/home/giang/Downloads/advising_net_training/'
 virtual_train_dataset = '{}/train'.format(data_dir)
@@ -124,28 +122,36 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 optimizer.zero_grad()
 
                 with torch.set_grad_enabled(phase == 'train'):
-                    ds_output, fc_output = model(inputs)
-                    # print(fc_output[0][0])
-                    model2_p = torch.nn.functional.softmax(fc_output, dim=1)
-                    p = torch.nn.functional.softmax(ds_output, dim=1)
-                    _, preds = torch.max(p, 1)
+                    if RunningParams.advising_network is True:
+                        output = model(x, saliency, model1_p)
+                        p = torch.nn.functional.softmax(output, dim=1)
+                        _, preds = torch.max(p, 1)
+                        loss = criterion(p, labels)
+                        # why val loss is so slow? debug the p and preds here
 
-                    p2 = torch.nn.functional.softmax(fc_output, dim=1)
-                    score2, _ = torch.topk(p2, 1, dim=1)
-
-                    if RunningParams.top1 is True:
-                        confidence_loss = pdist(score.squeeze(), score2.squeeze())
                     else:
-                        confidence_loss = pdist(model2_p, model1_p).mean()
+                        ds_output, fc_output = model(inputs)
+                        # print(fc_output[0][0])
+                        model2_p = torch.nn.functional.softmax(fc_output, dim=1)
+                        p = torch.nn.functional.softmax(ds_output, dim=1)
+                        _, preds = torch.max(p, 1)
 
-                    label_loss = criterion(p, labels)
-                    # If true --> penalize the old softmax -> 1 at the place, all other 0
-                    # If wrong --> penalize the top-1 -> 0 at the place, all other
-                    # TODO: add criterion to penalize the softmax score
-                    if RunningParams.confidence_loss is True:
-                        loss = 0.5 * confidence_loss + 0.5 * label_loss
-                    else:
-                        loss = label_loss
+                        p2 = torch.nn.functional.softmax(fc_output, dim=1)
+                        score2, _ = torch.topk(p2, 1, dim=1)
+
+                        if RunningParams.top1 is True:
+                            confidence_loss = pdist(score.squeeze(), score2.squeeze())
+                        else:
+                            confidence_loss = pdist(model2_p, model1_p).mean()
+
+                        label_loss = criterion(p, labels)
+                        # If true --> penalize the old softmax -> 1 at the place, all other 0
+                        # If wrong --> penalize the top-1 -> 0 at the place, all other
+                        # TODO: add criterion to penalize the softmax score
+                        if RunningParams.confidence_loss is True:
+                            loss = 0.5 * confidence_loss + 0.5 * label_loss
+                        else:
+                            loss = label_loss
 
                     # backward + optimize only if in training phase
                     if phase == 'train':
@@ -199,10 +205,14 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     return model, best_acc
 
 
-model2_name = 'MyCustomResnet18'
-model_ft = MyCustomResnet18(pretrained=True, fine_tune=RunningParams.fine_tune)
+if RunningParams.advising_network is True:
+    model2_name = 'AdvisingNetwork'
+    MODEL2 = AdvisingNetwork()
+else:
+    model2_name = 'MyCustomResnet18'
+    MODEL2 = MyCustomResnet18(pretrained=True, fine_tune=RunningParams.fine_tune)
 
-MODEL2 = model_ft.cuda()
+MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
 criterion = nn.CrossEntropyLoss()
@@ -231,6 +241,7 @@ config = {"train": train_dataset,
           'confidence_loss': RunningParams.confidence_loss,
           'top1': RunningParams.top1,
           'fine_tuning': RunningParams.fine_tune,
+          'advising_net': RunningParams.advising_network,
           }
 
 
@@ -241,7 +252,7 @@ wandb.init(
     config=config
 )
 
-model_ft, best_acc = train_model(
+_, best_acc = train_model(
     MODEL2,
     criterion,
     optimizer_ft,
