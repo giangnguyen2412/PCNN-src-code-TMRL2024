@@ -41,8 +41,8 @@ class AdvisingNetwork(nn.Module):
     def __init__(self):
         super(AdvisingNetwork, self).__init__()
         resnet = models.resnet18(pretrained=True)
-        for param in resnet.parameters():
-            param.requires_grad = False
+        # for param in resnet.parameters():
+        #     param.requires_grad = False
 
         conv_features = list(resnet.children())[:-1]  # delete the last fc layer
 
