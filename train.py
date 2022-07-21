@@ -242,6 +242,8 @@ config = {"train": train_dataset,
           'top1': RunningParams.top1,
           'fine_tuning': RunningParams.fine_tune,
           'advising_net': RunningParams.advising_network,
+          'query_frozen': RunningParams.query_frozen,
+          'heatmap_frozen': RunningParams.heatmap_frozen,
           }
 
 

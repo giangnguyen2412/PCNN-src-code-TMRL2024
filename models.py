@@ -41,13 +41,15 @@ class AdvisingNetwork(nn.Module):
     def __init__(self):
         super(AdvisingNetwork, self).__init__()
         resnet = models.resnet18(pretrained=True)
-        # for param in resnet.parameters():
-        #     param.requires_grad = False
-
+        if RunningParams.query_frozen is True:
+            for param in resnet.parameters():
+                param.requires_grad = False
         conv_features = list(resnet.children())[:-1]  # delete the last fc layer
-
         self.resnet = nn.Sequential(*conv_features)
 
+        if RunningParams.heatmap_frozen is True:
+            for param in resnet.parameters():
+                param.requires_grad = False
         resnet_hm = models.resnet18(pretrained=True)
         conv_features_hm = list(resnet_hm.children())[:-1]  # delete the last fc layer
         self.resnet_hm = nn.Sequential(*conv_features_hm)
@@ -73,12 +75,13 @@ class AdvisingNetwork(nn.Module):
     def forward(self, images, heatmaps, scores):
         input_feat = self.resnet(images).squeeze()
         input_feat = input_feat / input_feat.amax(dim=1, keepdim=True)
+
         heatmaps = torch.cat([heatmaps, heatmaps, heatmaps], dim=1)
-
         explanation_feat = self.resnet_hm(heatmaps).squeeze()
-
         explanation_feat = explanation_feat / explanation_feat.amax(dim=1, keepdim=True)
+
         scores = scores / scores.amax(dim=1, keepdim=True)
+
         if RunningParams.XAI_method == 'No-XAI':
             concat_feat = torch.concat([input_feat, scores], dim=1)
         elif RunningParams.XAI_method == 'GradCAM':
