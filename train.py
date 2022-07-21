@@ -88,7 +88,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             if RunningParams.FFCV_loader is True:
                 data_loader = Loader('ffcv_output/imagenet_{}.beton'.format(phase),
                                      batch_size=RunningParams.batch_size,
-                                     num_workers=8, order=OrderOption.RANDOM,
+                                     num_workers=8,
+                                     order=OrderOption.RANDOM,
+                                     os_cache=True,
                                      drop_last=True,
                                      pipelines={'image': [
                                       RandomResizedCropRGBImageDecoder((224, 224)),
@@ -97,7 +99,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                                       ToDevice(torch.device('cuda:0'), non_blocking=True),
                                       ToTorchImage(),
                                       # Standard torchvision transforms still work!
-                                      NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, np.float32)
+                                      NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, torch.float32)
                                      ], 'label':
                                      [
                                         IntDecoder(),
