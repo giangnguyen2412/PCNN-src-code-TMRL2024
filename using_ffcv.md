@@ -148,5 +148,5 @@ Mine was 11.3, then you can run ```pip install cupy-cuda113``` to get the corres
 __*Note: Don't use ```nvidia-smi``` to get the cuda version because this command does NOT display the CUDA Toolkit version installed on your system (there could be multiple versions!).
 
 
-#### 2. Slow training
+#### 3. Slow training
 TBD
