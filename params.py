@@ -12,8 +12,9 @@ class RunningParams(object):
         self.top1 = False
         self.fine_tune = False
         self.advising_network = True
-        self.query_frozen = True  # freeze?
+        self.query_frozen = False  # freeze?
         self.heatmap_frozen = True  # freeze?
+        self.FFCV_loader = True
 
         self.data_transforms = {
             'train': transforms.Compose([

@@ -18,6 +18,15 @@ from models import MyCustomResnet18, AdvisingNetwork
 from params import RunningParams
 from helpers import HelperFunctions
 
+from ffcv.loader import Loader, OrderOption
+from ffcv.fields.decoders import \
+    RandomResizedCropRGBImageDecoder
+from ffcv.fields.basics import IntDecoder
+from ffcv.transforms import ToTensor, Convert, ToDevice, Squeeze, NormalizeImage, \
+    RandomHorizontalFlip, ToTorchImage
+from ffcv.transforms import *
+import torchvision as tv
+
 torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
@@ -57,6 +66,12 @@ class_names = image_datasets['train'].classes
 pdist = nn.PairwiseDistance(p=2)
 
 
+
+IMAGENET_MEAN = np.array([0.485, 0.456, 0.406]) * 255
+IMAGENET_STD = np.array([0.229, 0.224, 0.225]) * 255
+DEFAULT_CROP_RATIO = 224/256
+
+
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
 
@@ -69,13 +84,36 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
-            data_loader = torch.utils.data.DataLoader(
-                image_datasets[phase],
-                batch_size=RunningParams.batch_size,
-                shuffle=True,  # turn shuffle to True
-                num_workers=8,
-                pin_memory=True,
-            )
+
+            if RunningParams.FFCV_loader is True:
+                data_loader = Loader('ffcv_output/imagenet_{}.beton'.format(phase),
+                                     batch_size=RunningParams.batch_size,
+                                     num_workers=8, order=OrderOption.RANDOM,
+                                     drop_last=True,
+                                     pipelines={'image': [
+                                      RandomResizedCropRGBImageDecoder((224, 224)),
+                                      RandomHorizontalFlip(),
+                                      ToTensor(),
+                                      ToDevice(torch.device('cuda:0'), non_blocking=True),
+                                      ToTorchImage(),
+                                      # Standard torchvision transforms still work!
+                                      NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, np.float32)
+                                     ], 'label':
+                                     [
+                                        IntDecoder(),
+                                        ToTensor(),
+                                        Squeeze(),
+                                        ToDevice(torch.device('cuda:0'), non_blocking=True),
+                                            ]}
+                                     )
+            else:
+                data_loader = torch.utils.data.DataLoader(
+                    image_datasets[phase],
+                    batch_size=RunningParams.batch_size,
+                    shuffle=True,  # turn shuffle to True
+                    num_workers=8,
+                    pin_memory=True,
+                )
 
             if phase == 'train':
                 model.train()  # Training mode
