@@ -27,6 +27,35 @@ from ffcv.transforms import ToTensor, Convert, ToDevice, Squeeze, NormalizeImage
 from ffcv.transforms import *
 import torchvision as tv
 
+import os
+import sys
+import tempfile
+import torch
+import torch.distributed as dist
+import torch.nn as nn
+import torch.optim as optim
+import torch.multiprocessing as mp
+
+from torch.nn.parallel import DistributedDataParallel as DDP
+
+
+def find_free_port():
+    """ https://stackoverflow.com/questions/1365265/on-localhost-how-do-i-pick-a-free-port-number """
+    import socket
+    from contextlib import closing
+
+    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+        s.bind(('', 0))
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        return str(s.getsockname()[1])
+
+
+def cleanup():
+    dist.destroy_process_group()
+
+world_size = 4
+rank = 4
+
 torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
@@ -36,7 +65,7 @@ plt.ion()   # interactive mode
 RunningParams = RunningParams()
 
 model1_name = 'resnet18'
-MODEL1 = models.resnet18(pretrained=True).eval().cuda()
+# MODEL1 = models.resnet18(pretrained=True).eval().cuda()
 
 data_dir = '/home/giang/Downloads/advising_net_training/'
 virtual_train_dataset = '{}/train'.format(data_dir)
@@ -65,13 +94,39 @@ dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 class_names = image_datasets['train'].classes
 pdist = nn.PairwiseDistance(p=2)
 
+
+
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406]) * 255
 IMAGENET_STD = np.array([0.229, 0.224, 0.225]) * 255
 DEFAULT_CROP_RATIO = 224/256
 
 
-def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
+def train_model(rnk, master_addr, master_port, world_size ,model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
+
+    backend = 'gloo'
+    # setup_process(rank=mp.current_process()._identity[0], master_addr=master_addr, master_port=master_port, world_size=world_size, backend='gloo')
+    print(f'setting up {rnk=} {world_size=} {backend=}')
+
+    # set up the master's ip address so this child process can coordinate
+    os.environ['MASTER_ADDR'] = master_addr
+    os.environ['MASTER_PORT'] = master_port
+    print(f"{master_addr=} {master_port=}")
+
+    # Initializes the default distributed process group, and this will also initialize the distributed package.
+    dist.init_process_group(backend, rank=rnk, world_size=world_size)
+    print(f"{rnk=} init complete")
+    # dist.destroy_process_group()
+    # print(f"{rnk=} destroy complete")
+
+
+    device = torch.device('cuda:{}'.format(rnk))
+
+    # model1_name = 'resnet18'
+    MODEL1 = models.resnet18(pretrained=True).eval().to(device)
+
+    model = model.to(device)
+    model = DDP(model, device_ids=[rnk])
 
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
@@ -82,6 +137,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
+
             distributed = 1
             order = OrderOption.RANDOM if distributed else OrderOption.QUASI_RANDOM
             if RunningParams.FFCV_loader is True:
@@ -129,8 +185,12 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             true_cnt = 0
 
             for batch_idx, (data, gt) in enumerate(tqdm(data_loader)):
-                x = data.cuda()
-                gts = gt.cuda()
+                # x = data.cuda()
+                # gts = gt.cuda()
+                # x = data # No moveing to cuda based on https://github.com/libffcv/ffcv/issues/179#issuecomment-1058222330
+                # gts = gt
+                x = data.to(device)
+                gts = gt.to(device)
 
                 out = MODEL1(x)
                 model1_p = torch.nn.functional.softmax(out, dim=1)
@@ -138,6 +198,13 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 predicted_ids = index.squeeze()
 
                 model2_gt = (predicted_ids == gts) * 1  # 0 and 1
+
+                # TODO: Incorporate confidence score: Correct = confidence score, Wrong = 1 confidence score
+                # for gt_idx in range(len(model2_gt)):
+                #     if model2_gt[gt_idx].item() == 1:
+                #         model2_gt[gt_idx] = [1 - score[gt_idx].detach().item(), score[gt_idx].detach().item()]
+                #     else:
+                #         model2_gt[gt_idx] = [score[gt_idx].detach().item(), 1 - score[gt_idx].detach().item()]
 
                 saliency = grad_cam(MODEL1, x, index, saliency_layer=RunningParams.GradCAM_RNlayer, resize=True)
                 explanation = torch.amax(saliency, dim=(1, 2, 3,))  # normalize the heatmaps
@@ -206,7 +273,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             yes_ratio = yes_cnt.double() / len(image_datasets[phase])
             true_ratio = true_cnt.double() / len(image_datasets[phase])
 
-            wandb.log({'{}_accuracy'.format(phase): epoch_acc, '{}_loss'.format(phase): epoch_loss})
+            # wandb.log({'{}_accuracy'.format(phase): epoch_acc, '{}_loss'.format(phase): epoch_loss})
 
             print('{} - Loss: {:.4f} Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
                 phase, epoch_loss, epoch_acc*100, yes_ratio * 100, true_ratio*100))
@@ -216,8 +283,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
 
-                ckpt_path = '/home/giang/Downloads/advising_net_training/best_models/best_model_{}.pt'\
-                    .format(wandb.run.name)
+                # ckpt_path = '/home/giang/Downloads/advising_net_training/best_models/best_model_{}.pt'\
+                #     .format(wandb.run.name)
+                ckpt_path = '/home/giang/model.pt'
 
                 torch.save({
                     'epoch': epoch+1,
@@ -225,7 +293,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                     'optimizer_state_dict': optimizer.state_dict(),
                     'val_loss': epoch_loss,
                     'val_acc': epoch_acc*100,
-                    'running_params': RunningParams,
                 }, ckpt_path)
 
         print()
@@ -238,7 +305,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     model.load_state_dict(best_model_wts)
     return model, best_acc
 
-
 if RunningParams.advising_network is True:
     model2_name = 'AdvisingNetwork'
     MODEL2 = AdvisingNetwork()
@@ -246,8 +312,11 @@ else:
     model2_name = 'MyCustomResnet18'
     MODEL2 = MyCustomResnet18(pretrained=True, fine_tune=RunningParams.fine_tune)
 
-MODEL2 = MODEL2.cuda()
-MODEL2 = nn.DataParallel(MODEL2)
+# MODEL2 = MODEL2.cuda()
+# MODEL2 = nn.DataParallel(MODEL2)
+
+# MODEL2 = MODEL2.to(rank)
+# MODEL2 = DDP(MODEL2, device_ids=[rank])
 
 criterion = nn.CrossEntropyLoss()
 
@@ -281,17 +350,39 @@ config = {"train": train_dataset,
           }
 
 
-print(config)
-wandb.init(
-    project="advising-network",
-    entity="luulinh90s",
-    config=config
-)
+# wandb.init(
+#     project="advising-network",
+#     entity="luulinh90s",
+#     config=config
+# )
 
-_, best_acc = train_model(
-    MODEL2,
-    criterion,
-    optimizer_ft,
-    oneLR_scheduler,
-    config["num_epochs"])
-wandb.finish()
+world_size = 4
+
+
+
+def main():
+
+    master_addr = '127.0.0.1'
+    master_port = find_free_port()
+    mp.spawn(fn=train_model, args=(master_addr, master_port, world_size, MODEL2,
+                criterion,
+                optimizer_ft,
+                oneLR_scheduler,)
+               # config['num_epochs'],)
+             , nprocs=world_size, join=True)
+
+
+
+if __name__ == "__main__":
+        main()
+        cleanup()
+
+# _, best_acc = train_model(
+#     MODEL2,
+#     criterion,
+#     optimizer_ft,
+#     oneLR_scheduler,
+#     config["num_epochs"])
+# wandb.finish()
+
+

@@ -31,7 +31,7 @@ Looking from [main site](https://ffcv.io/), it looks easy to convert but you wil
 I can say these important things are missing from this site (at 5:25 p.m Jul 21 2022 CT time).
 
 - label metadata 
-- how to convert dataset (e.g. ImageFolder) to beton format.
+  - how to convert dataset (e.g. ImageFolder) to beton format.
 
 
 It may take time and cause daunting experience (the reason that I wrote this guide).
@@ -76,7 +76,18 @@ Here `write_mode` determines how to compress the images (`raw` - keep the same, 
 __*Note: The size of the dataset can reduce/increase significantly if we change the options.
 
 For example, using `write_mode=proportion` and `max_resolution=500` takes almost 10X times in memory in comparison with using `write_mode=jpg` and `max_resolution=400`. 
-I think reducing the memory footprint (i.e. by using compression) is the key component why FCCV improve the training speed (and of course, potentially reduce the model performance).
+
+```bash
+# `write_mode=proportion` and `max_resolution=500`
+123G    imagenet_train.beton
+16G     imagenet_val.beton
+# `write_mode=jpg` and `max_resolution=400`
+15G     imagenet_train.beton
+1.8G    imagenet_val.beton
+```
+
+I think reducing the memory footprint (i.e. by using compression) is the key component why FCCV improve the training speed (and of course, potentially reduce the model performance). The authors said: ```Generally larger side length will aid in accuracy but decrease throughput.```
+
 
 #### 2. Create dataloader
 
@@ -96,7 +107,7 @@ data_loader = Loader('ffcv_output/imagenet_{}.beton'.format(phase),
                       ToDevice(torch.device('cuda:0'), non_blocking=True),
                       ToTorchImage(),
                       # Standard torchvision transforms still work!
-                      NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, torch.float32)
+                      NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, np.float32)
                      ], 'label':
                      [
                         IntDecoder(),
@@ -130,9 +141,9 @@ If you get this ```HalfTensor``` error:
 RuntimeError: Input type (torch.cuda.HalfTensor) and weight type (torch.cuda.FloatTensor) should be the same
 ```
 
-please change the data type of your tensors to torch.float32 in Loader() function ([example]()).
+please change the data type of your tensors to np.float32 in Loader() function ([example]()).
 The reason for this error is the ```torchvision``` pretrained models accept ```float32``` by default.
-If you follow using torch.float16 like in the [ImageNet example](https://github.com/libffcv/ffcv-imagenet/blob/e97289fdacb4b049de8dfefefb250cc35abb6550/train_imagenet.py#L229), there will be a mismatch.
+If you follow using np.float16 like in the [ImageNet example](https://github.com/libffcv/ffcv-imagenet/blob/e97289fdacb4b049de8dfefefb250cc35abb6550/train_imagenet.py#L229), there will be a mismatch.
 
 #### 2. Failed to import CuPy
 When you run training, you may get problems with ```cupy```. Please locate your cuda version first by:
@@ -148,5 +159,6 @@ Mine was 11.3, then you can run ```pip install cupy-cuda113``` to get the corres
 __*Note: Don't use ```nvidia-smi``` to get the cuda version because this command does NOT display the CUDA Toolkit version installed on your system (there could be multiple versions!).
 
 
-#### 3. Slow training
-TBD
+#### 3. Slow training? 
+
+1. Make sure to set `os_cache=True` for multi-GPU training.

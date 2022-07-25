@@ -3,9 +3,9 @@ from torchvision import transforms
 
 class RunningParams(object):
     def __init__(self):
-        self.batch_size = 128
+        self.batch_size = 256
         self.GradCAM_RNlayer = 'layer4'
-        self.XAI_method = 'GradCAM'
+        self.XAI_method = 'No-XAI'
         self.learning_rate = 0.001
         self.epochs = 25
         self.confidence_loss = False
@@ -14,7 +14,10 @@ class RunningParams(object):
         self.advising_network = True
         self.query_frozen = False  # freeze?
         self.heatmap_frozen = True  # freeze?
-        self.FFCV_loader = True
+        self.FFCV_loader = False
+        self.DDP = False
+        self.MODEL2_ADVISING = True
+        self.advising_steps = 5
 
         self.data_transforms = {
             'train': transforms.Compose([

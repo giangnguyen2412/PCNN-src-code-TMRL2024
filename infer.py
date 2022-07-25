@@ -48,10 +48,11 @@ if __name__ == '__main__':
     model.eval()
 
     RunningParams = RunningParams()
+    print(RunningParams.__dict__)
 
     data_dir = '/home/giang/Downloads/datasets/'
     val_datasets = ['imagenet-sketch']
-    image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), RunningParams.data_transforms[x])
+    image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), RunningParams.data_transforms['val'])
                       for x in val_datasets}
 
     dataset_sizes = {x: len(image_datasets[x]) for x in val_datasets}
@@ -59,9 +60,9 @@ if __name__ == '__main__':
     model1_name = 'resnet18'
     MODEL1 = models.resnet18(pretrained=True).eval().cuda()
 
-    for x in val_datasets:
+    for ds in val_datasets:
         data_loader = torch.utils.data.DataLoader(
-            image_datasets[x],
+            image_datasets[ds],
             batch_size=RunningParams.batch_size,
             shuffle=True,  # turn shuffle to True
             num_workers=8,
@@ -69,7 +70,7 @@ if __name__ == '__main__':
         )
 
         running_corrects = 0
-
+        advising_crt_cnt = 0
         yes_cnt = 0
         true_cnt = 0
 
@@ -77,47 +78,87 @@ if __name__ == '__main__':
             x = data.cuda()
             gts = gt.cuda()
 
+            # Step 1: Forward pass input x through MODEL1 - Explainer
             out = MODEL1(x)
             model1_p = torch.nn.functional.softmax(out, dim=1)
             score, index = torch.topk(model1_p, 1, dim=1)
+            _, model1_ranks = torch.topk(model1_p, 1000, dim=1)
             predicted_ids = index.squeeze()
 
+            # MODEL1 Y/N label for input x
             model2_gt = (predicted_ids == gts) * 1  # 0 and 1
 
+            # Generate heatmap explanation using MODEL1 and its predicted ids
             saliency = grad_cam(MODEL1, x, index, saliency_layer=RunningParams.GradCAM_RNlayer, resize=True)
-            explanation = torch.amax(saliency, dim=(1, 2, 3,))  # normalize the heatmaps
-            explanation = torch.div(saliency, explanation.reshape(data.shape[0], 1, 1, 1))  # scale to 0->1
+            # explanation = torch.amax(saliency, dim=(1, 2, 3,))  # normalize the heatmaps
+            # explanation = torch.div(saliency, explanation.reshape(data.shape[0], 1, 1, 1))  # scale to 0->1
 
-            # Incorporate explanations
-            if RunningParams.XAI_method == 'No-XAI':
-                inputs = x
-            elif RunningParams.XAI_method == 'GradCAM':
-                inputs = explanation * x  # multiply query & heatmap
+            # # Incorporate explanations
+            # if RunningParams.XAI_method == 'No-XAI':
+            #     inputs = x
+            # elif RunningParams.XAI_method == 'GradCAM':
+            #     inputs = explanation * x  # multiply query & heatmap
 
             labels = model2_gt
 
             if RunningParams.advising_network is True:
+                # Forward input, explanations, and softmax scores through MODEL2
                 output = model(x, saliency, model1_p)
                 p = torch.nn.functional.softmax(output, dim=1)
                 _, preds = torch.max(p, 1)
 
-            else:
-                ds_output, fc_output = model(inputs)
-                # print(fc_output[0][0])
-                p = torch.nn.functional.softmax(ds_output, dim=1)
-                _, preds = torch.max(p, 1)
+            # Running ADVISING process
+            # TODO: Reduce compute overhead by only running on disagreed samples
+            advising_steps = RunningParams.advising_steps
+            # When using advising & still disagree & examining only top $advising_steps + 1
+            while RunningParams.MODEL2_ADVISING is True and sum(preds) > 0:
+                for k in range(1, RunningParams.advising_steps):
+                    # top-k predicted labels
+                    model1_topk = model1_ranks[:, k]
+                    for pred_idx in range(x.shape[0]):
+                        if preds[pred_idx] == 0:
+                            # Change the predicted id to top-k if MODEL2 disagrees
+                            predicted_ids[pred_idx] = model1_topk[pred_idx]
+                    # Unsqueeze to fit into gradcam()
+                    index = torch.unsqueeze(predicted_ids, dim=1)
+                    # Generate heatmap explanation using new category ids
+                    advising_saliency = grad_cam(MODEL1, x, index, saliency_layer=RunningParams.GradCAM_RNlayer, resize=True)
+                    # advising_explanation = torch.amax(advising_saliency, dim=(1, 2, 3,))  # normalize the heatmaps
+                    # advising_explanation = torch.div(advising_saliency, advising_explanation.reshape(data.shape[0], 1, 1, 1))  # scale to 0->1
+
+                    # Incorporate explanations
+                    # if RunningParams.XAI_method == 'No-XAI':
+                    #     advising_inputs = x
+                    # elif RunningParams.XAI_method == 'GradCAM':
+                    #     advising_inputs = advising_explanation * x  # multiply query & heatmap
+
+                    if RunningParams.advising_network is True:
+                        advising_output = model(x, advising_saliency, model1_p)
+                        advising_p = torch.nn.functional.softmax(advising_output, dim=1)
+                        _, preds = torch.max(advising_p, 1)
+
+                break
 
             # statistics
-            running_corrects += torch.sum(preds == labels.data)
+            if RunningParams.MODEL2_ADVISING:
+                # Re-compute the accuracy of imagenet classification
+                advising_crt_cnt += ((predicted_ids == gts) * 1).sum()
+                advising_labels = (predicted_ids == gts) * 1
+                running_corrects += torch.sum(preds == advising_labels.data)
+            else:
+                running_corrects += torch.sum(preds == labels.data)
 
             yes_cnt += sum(preds)
             true_cnt += sum(labels)
 
-        epoch_acc = running_corrects.double() / len(image_datasets[x])
-        yes_ratio = yes_cnt.double() / len(image_datasets[x])
-        true_ratio = true_cnt.double() / len(image_datasets[x])
+        epoch_acc = running_corrects.double() / len(image_datasets[ds])
+        yes_ratio = yes_cnt.double() / len(image_datasets[ds])
+        true_ratio = true_cnt.double() / len(image_datasets[ds])
+        advising_acc = advising_crt_cnt.double() / len(image_datasets[ds])
 
-        print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
-            x, epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
+        print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Orig. accuracy: {:.2f} - Advising. accuracy: {:.2f}'.format(
+            ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100, advising_acc * 100))
+
+
 
 
