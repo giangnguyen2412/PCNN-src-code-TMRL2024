@@ -67,20 +67,29 @@ class AdvisingNetwork(nn.Module):
         self.fc2 = nn.Linear(128, 2)
         self.fc2_bn = nn.BatchNorm1d(2, eps=1e-2)
 
+        self.input_bn = nn.BatchNorm1d(avg_pool_features, eps=1e-2)
+        self.exp_bn = nn.BatchNorm1d(avg_pool_features, eps=1e-2)
+        self.scores = nn.BatchNorm1d(softmax_features, eps=1e-2)
+
         # initialize all fc layers to xavier
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 torch.nn.init.xavier_normal_(m.weight, gain=1)
 
-    def forward(self, images, heatmaps, scores):
+    def forward(self, images, explanations, scores):
         input_feat = self.resnet(images).squeeze()
-        input_feat = input_feat / input_feat.amax(dim=1, keepdim=True)
 
-        heatmaps = torch.cat([heatmaps, heatmaps, heatmaps], dim=1)
-        explanation_feat = self.resnet_hm(heatmaps).squeeze()
-        explanation_feat = explanation_feat / explanation_feat.amax(dim=1, keepdim=True)
+        explanations = torch.cat([explanations, explanations, explanations], dim=1)
+        explanation_feat = self.resnet_hm(explanations).squeeze()
 
-        scores = scores / scores.amax(dim=1, keepdim=True)
+        if RunningParams.BATCH_NORM is True:
+            input_feat = self.input_bn(torch.nn.functional.relu(input_feat))
+            explanation_feat = self.exp_bn(torch.nn.functional.relu(explanation_feat))
+            scores = self.scores(torch.nn.functional.relu(scores))
+        else:
+            input_feat = input_feat / input_feat.amax(dim=1, keepdim=True)
+            explanation_feat = explanation_feat / explanation_feat.amax(dim=1, keepdim=True)
+            scores = scores / scores.amax(dim=1, keepdim=True)
 
         if RunningParams.XAI_method == 'No-XAI':
             concat_feat = torch.concat([input_feat, scores], dim=1)

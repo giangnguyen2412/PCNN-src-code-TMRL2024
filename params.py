@@ -3,33 +3,25 @@ from torchvision import transforms
 
 class RunningParams(object):
     def __init__(self):
+        # XAI methods
+        self.NO_XAI = 'No-XAI'
+        self.GradCAM = 'GradCAM'
+        self.NNs = 'NNs'
+
         self.batch_size = 256
         self.GradCAM_RNlayer = 'layer4'
-        self.XAI_method = 'No-XAI'
         self.learning_rate = 0.001
         self.epochs = 25
-        self.confidence_loss = False
-        self.top1 = False
-        self.fine_tune = False
         self.advising_network = True
         self.query_frozen = False  # freeze?
-        self.heatmap_frozen = True  # freeze?
+        self.heatmap_frozen = False  # freeze?
         self.FFCV_loader = False
         self.DDP = False
         self.MODEL2_ADVISING = True
-        self.advising_steps = 5
+        self.advising_steps = 3
+        self.BATCH_NORM = True
 
-        self.data_transforms = {
-            'train': transforms.Compose([
-                transforms.Resize(256),
-                transforms.CenterCrop(224),
-                transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-            ]),
-            'val': transforms.Compose([
-                transforms.Resize(256),
-                transforms.CenterCrop(224),
-                transforms.ToTensor(),
-                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-            ]),
-        }
+        self.XAI_method = self.GradCAM
+
+
+

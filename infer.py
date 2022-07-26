@@ -17,16 +17,17 @@ from torchray.attribution.grad_cam import grad_cam
 from torchvision import datasets, models, transforms
 from models import MyCustomResnet18, AdvisingNetwork
 from params import RunningParams
+from datasets import Dataset
 from helpers import HelperFunctions
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_models/best_model_visionary-dust-173.pt',
+                        default='best_models/best_model_efficient-aardvark-180.pt',
                         help='Model check point')
     parser.add_argument('--eval_dataset', type=str,
-                        default='/home/giang/Downloads/datasets/imagenet-sketch',
+                        default='/home/giang/Downloads/datasets/imagenet-r',
                         help='Evaluation dataset')
 
     args = parser.parse_args()
@@ -48,11 +49,13 @@ if __name__ == '__main__':
     model.eval()
 
     RunningParams = RunningParams()
+    Dataset = Dataset()
     print(RunningParams.__dict__)
 
     data_dir = '/home/giang/Downloads/datasets/'
-    val_datasets = ['imagenet-sketch']
-    image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), RunningParams.data_transforms['val'])
+    # TODO: Using mask to make the predictions compatible with ImageNet-R, ObjectNet, ImageNet-A
+    val_datasets = Dataset.test_datasets
+    image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), Dataset.data_transforms['val'])
                       for x in val_datasets}
 
     dataset_sizes = {x: len(image_datasets[x]) for x in val_datasets}
@@ -90,15 +93,6 @@ if __name__ == '__main__':
 
             # Generate heatmap explanation using MODEL1 and its predicted ids
             saliency = grad_cam(MODEL1, x, index, saliency_layer=RunningParams.GradCAM_RNlayer, resize=True)
-            # explanation = torch.amax(saliency, dim=(1, 2, 3,))  # normalize the heatmaps
-            # explanation = torch.div(saliency, explanation.reshape(data.shape[0], 1, 1, 1))  # scale to 0->1
-
-            # # Incorporate explanations
-            # if RunningParams.XAI_method == 'No-XAI':
-            #     inputs = x
-            # elif RunningParams.XAI_method == 'GradCAM':
-            #     inputs = explanation * x  # multiply query & heatmap
-
             labels = model2_gt
 
             if RunningParams.advising_network is True:
@@ -119,30 +113,29 @@ if __name__ == '__main__':
                         if preds[pred_idx] == 0:
                             # Change the predicted id to top-k if MODEL2 disagrees
                             predicted_ids[pred_idx] = model1_topk[pred_idx]
-                    # Unsqueeze to fit into gradcam()
+                    # Unsqueeze to fit into grad_cam()
                     index = torch.unsqueeze(predicted_ids, dim=1)
                     # Generate heatmap explanation using new category ids
                     advising_saliency = grad_cam(MODEL1, x, index, saliency_layer=RunningParams.GradCAM_RNlayer, resize=True)
-                    # advising_explanation = torch.amax(advising_saliency, dim=(1, 2, 3,))  # normalize the heatmaps
-                    # advising_explanation = torch.div(advising_saliency, advising_explanation.reshape(data.shape[0], 1, 1, 1))  # scale to 0->1
 
-                    # Incorporate explanations
-                    # if RunningParams.XAI_method == 'No-XAI':
-                    #     advising_inputs = x
-                    # elif RunningParams.XAI_method == 'GradCAM':
-                    #     advising_inputs = advising_explanation * x  # multiply query & heatmap
-
+                    # TODO: If the explanation is No-XAI, the inputs in advising process don't change
                     if RunningParams.advising_network is True:
                         advising_output = model(x, advising_saliency, model1_p)
                         advising_p = torch.nn.functional.softmax(advising_output, dim=1)
                         _, preds = torch.max(advising_p, 1)
-
                 break
+
+            # If MODEL2 still disagrees, we revert the ids to top-1 predicted labels
+            model1_top1 = model1_ranks[:, 0]
+            for pred_idx in range(x.shape[0]):
+                if preds[pred_idx] == 0:
+                    # Change the predicted id to top-k if MODEL2 disagrees
+                    predicted_ids[pred_idx] = model1_top1[pred_idx]
 
             # statistics
             if RunningParams.MODEL2_ADVISING:
                 # Re-compute the accuracy of imagenet classification
-                advising_crt_cnt += ((predicted_ids == gts) * 1).sum()
+                advising_crt_cnt += torch.sum(predicted_ids == gts)
                 advising_labels = (predicted_ids == gts) * 1
                 running_corrects += torch.sum(preds == advising_labels.data)
             else:
@@ -154,10 +147,16 @@ if __name__ == '__main__':
         epoch_acc = running_corrects.double() / len(image_datasets[ds])
         yes_ratio = yes_cnt.double() / len(image_datasets[ds])
         true_ratio = true_cnt.double() / len(image_datasets[ds])
-        advising_acc = advising_crt_cnt.double() / len(image_datasets[ds])
 
-        print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Orig. accuracy: {:.2f} - Advising. accuracy: {:.2f}'.format(
-            ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100, advising_acc * 100))
+        if RunningParams.MODEL2_ADVISING is True:
+            advising_acc = advising_crt_cnt.double() / len(image_datasets[ds])
+
+            print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Orig. accuracy: {:.2f} - Advising. accuracy: {:.2f}'.format(
+                ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100, advising_acc * 100))
+        else:
+            print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Orig. accuracy: {:.2f}'.format(
+                ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
+
 
 
 

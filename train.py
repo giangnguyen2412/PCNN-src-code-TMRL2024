@@ -16,7 +16,9 @@ from torchray.attribution.grad_cam import grad_cam
 from torchvision import datasets, models, transforms
 from models import MyCustomResnet18, AdvisingNetwork
 from params import RunningParams
+from datasets import Dataset
 from helpers import HelperFunctions
+from explainers import ModelExplainer
 
 from ffcv.loader import Loader, OrderOption
 from ffcv.fields.decoders import \
@@ -34,6 +36,8 @@ plt.ion()   # interactive mode
 # os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
 RunningParams = RunningParams()
+Dataset = Dataset()
+Explainer = ModelExplainer()
 
 model1_name = 'resnet18'
 MODEL1 = models.resnet18(pretrained=True).eval().cuda()
@@ -58,7 +62,7 @@ else:
     print('Script is running! No creating symlink datasets!')
 
 image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
-                                          RunningParams.data_transforms[x])
+                                          Dataset.data_transforms[x])
                   for x in ['train', 'val']}
 
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
@@ -138,53 +142,26 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 predicted_ids = index.squeeze()
 
                 model2_gt = (predicted_ids == gts) * 1  # 0 and 1
-
-                saliency = grad_cam(MODEL1, x, index, saliency_layer=RunningParams.GradCAM_RNlayer, resize=True)
-                explanation = torch.amax(saliency, dim=(1, 2, 3,))  # normalize the heatmaps
-                explanation = torch.div(saliency, explanation.reshape(data.shape[0], 1, 1, 1))  # scale to 0->1
-
-                # Incorporate explanations
-                if RunningParams.XAI_method == 'No-XAI':
-                    inputs = x
-                elif RunningParams.XAI_method == 'GradCAM':
-                    inputs = explanation * x  # multiply query & heatmap
-
                 labels = model2_gt
+
+                if RunningParams.XAI_method == RunningParams.GradCAM:
+                    explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=True)
+                elif RunningParams.XAI_method == RunningParams.NNs:
+                    explanation = ModelExplainer.nearest_neighbors(MODEL1, x, index)
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
                 with torch.set_grad_enabled(phase == 'train'):
                     if RunningParams.advising_network is True:
-                        output = model(x, saliency, model1_p)
+                        if RunningParams.XAI_method == RunningParams.NO_XAI:
+                            output = model(images=x, explanations=None, scores=model1_p)
+                        else:
+                            output = model(images=x, explanations=explanation, scores=model1_p)
+
                         p = torch.nn.functional.softmax(output, dim=1)
                         _, preds = torch.max(p, 1)
                         loss = criterion(p, labels)
-                        # why val loss is so slow? debug the p and preds here
-
-                    else:
-                        ds_output, fc_output = model(inputs)
-                        # print(fc_output[0][0])
-                        model2_p = torch.nn.functional.softmax(fc_output, dim=1)
-                        p = torch.nn.functional.softmax(ds_output, dim=1)
-                        _, preds = torch.max(p, 1)
-
-                        p2 = torch.nn.functional.softmax(fc_output, dim=1)
-                        score2, _ = torch.topk(p2, 1, dim=1)
-
-                        if RunningParams.top1 is True:
-                            confidence_loss = pdist(score.squeeze(), score2.squeeze())
-                        else:
-                            confidence_loss = pdist(model2_p, model1_p).mean()
-
-                        label_loss = criterion(p, labels)
-                        # If true --> penalize the old softmax -> 1 at the place, all other 0
-                        # If wrong --> penalize the top-1 -> 0 at the place, all other
-                        # TODO: add criterion to penalize the softmax score
-                        if RunningParams.confidence_loss is True:
-                            loss = 0.5 * confidence_loss + 0.5 * label_loss
-                        else:
-                            loss = label_loss
 
                     # backward + optimize only if in training phase
                     if phase == 'train':
@@ -192,7 +169,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                         optimizer.step()
 
                 # statistics
-                running_loss += loss.item() * inputs.size(0)
+                running_loss += loss.item() * x.size(0)
                 running_corrects += torch.sum(preds == labels.data)
 
                 yes_cnt += sum(preds)
@@ -272,9 +249,6 @@ config = {"train": train_dataset,
           "batch_size": RunningParams.batch_size,
           "learning_rate": RunningParams.learning_rate,
           'explanation': RunningParams.XAI_method,
-          'confidence_loss': RunningParams.confidence_loss,
-          'top1': RunningParams.top1,
-          'fine_tuning': RunningParams.fine_tune,
           'advising_net': RunningParams.advising_network,
           'query_frozen': RunningParams.query_frozen,
           'heatmap_frozen': RunningParams.heatmap_frozen,
