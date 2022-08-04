@@ -27,7 +27,7 @@ class Dataset(object):
 
         self.IMAGENET_PILOT_VIS = "imagenet1k-pilot"
 
-        self.test_datasets = [self.IMAGENET_SKETCH]
+        self.test_datasets = [self.ADVERSARIAL_PATCH_NEW]
 
         self.IMAGENET_C_NOISE = [self.GAUSSIAN_NOISE, self.GAUSSIAN_BLUR]
 

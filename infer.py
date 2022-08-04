@@ -15,7 +15,7 @@ import argparse
 from tqdm import tqdm
 from torchray.attribution.grad_cam import grad_cam
 from torchvision import datasets, models, transforms
-from models import MyCustomResnet18, AdvisingNetwork
+from models import MyCustomResnet18, AdvisingNetwork, OldAdvisingNetwork
 from params import RunningParams
 from datasets import Dataset
 from helpers import HelperFunctions
@@ -27,14 +27,14 @@ if __name__ == '__main__':
                         default='best_models/best_model_efficient-aardvark-180.pt',
                         help='Model check point')
     parser.add_argument('--eval_dataset', type=str,
-                        default='/home/giang/Downloads/datasets/imagenet-r',
+                        default='/home/giang/Downloads/datasets/DAmageNet_processed',
                         help='Evaluation dataset')
 
     args = parser.parse_args()
     model_path = args.ckpt
     print(args)
 
-    model = AdvisingNetwork()
+    model = OldAdvisingNetwork()
     model = nn.DataParallel(model).cuda()
 
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
