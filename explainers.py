@@ -21,8 +21,6 @@ class ModelExplainer(object):
         # TODO: later I may need the path of NNs here for visualization
         distance, indices = faiss_gpu_index.search(embeddings, RunningParams.k_value + 1)
 
-        # Check here if in validation we retrieved the wrong exemplar --> making model always agree
-
         # Running two loops to get the NNs' processed tensors
         q_list = []
         for q_idx in range(embeddings.shape[0]):

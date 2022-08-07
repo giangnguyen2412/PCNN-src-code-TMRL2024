@@ -77,17 +77,18 @@ IMAGENET_MEAN = np.array([0.485, 0.456, 0.406]) * 255
 IMAGENET_STD = np.array([0.229, 0.224, 0.225]) * 255
 DEFAULT_CROP_RATIO = 224/256
 
+feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
+feature_extractor.cuda()
+feature_extractor = nn.DataParallel(feature_extractor)
+
 # TODO: should I also implement this for FFCV?
 if RunningParams.XAI_method == RunningParams.NNs:
-    feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
-    feature_extractor.cuda()
-    feature_extractor = nn.DataParallel(feature_extractor)
-
     in_features = MODEL1.fc.in_features
     print("Building FAISS index...")
     # TODO: change search space to train
+    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/random_train_dataset', transform=Dataset.data_transforms['train'])
     faiss_data_loader = torch.utils.data.DataLoader(
-        image_datasets['train'],
+        faiss_dataset,
         batch_size=RunningParams.batch_size,
         shuffle=False,  # turn shuffle to True
         num_workers=0,  # Set to 0 as suggested by
@@ -95,33 +96,49 @@ if RunningParams.XAI_method == RunningParams.NNs:
         pin_memory=True,
     )
 
-    stack_embeddings = []
-    stack_labels = []
-    gallery_paths = []
+    INDEX_FILE = 'faiss/faiss.index'
+    if os.path.exists(INDEX_FILE):
+        print("FAISS index exists!")
+        faiss_cpu_index = faiss.read_index(INDEX_FILE)
+        faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
+            faiss_cpu_index
+        )
+    else:
+        print("FAISS index NOT exists! Creating FAISS index then save to disk...")
+        stack_embeddings = []
+        stack_labels = []
+        gallery_paths = []
+        for batch_idx, (data, label) in enumerate(tqdm(faiss_data_loader)):
+            embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
+            embeddings = torch.flatten(embeddings, start_dim=1)
+            # print(embeddings.shape)
+            # TODO: add data tensors here to return data using index
+            # TODO: search in range only
+            # TODO: Move everything to GPU
+            stack_embeddings.append(embeddings.cpu().detach().numpy())
+            stack_labels.append(label.cpu().detach().numpy())
+            # gallery_paths.extend(path)
 
-    for batch_idx, (data, label) in enumerate(tqdm(faiss_data_loader)):
-        embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
-        embeddings = torch.flatten(embeddings, start_dim=1)
-        # print(embeddings.shape)
-        # TODO: add data tensors here to return data using index
-        # TODO: search in range only
-        # TODO: Move everything to GPU
-        stack_embeddings.append(embeddings.cpu().detach().numpy())
-        stack_labels.append(label.cpu().detach().numpy())
-        # gallery_paths.extend(path)
+        stack_embeddings = np.concatenate(stack_embeddings, axis=0)
+        stack_labels = np.concatenate(stack_labels, axis=0)
+        # stack_embeddings = stack_embeddings.cpu().detach().numpy()
 
-    stack_embeddings = np.concatenate(stack_embeddings, axis=0)
-    stack_labels = np.concatenate(stack_labels, axis=0)
-    # stack_embeddings = stack_embeddings.cpu().detach().numpy()
+        descriptors = np.vstack(stack_embeddings)
+        cpu_index = faiss.IndexFlatL2(in_features)
+        faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
+            cpu_index
+        )
+        print(faiss_gpu_index.ntotal)
 
-    descriptors = np.vstack(stack_embeddings)
-    cpu_index = faiss.IndexFlatL2(in_features)
-    faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
-        cpu_index
-    )
-    print(faiss_gpu_index.ntotal)
+        faiss_gpu_index.add(descriptors)
 
-    faiss_gpu_index.add(descriptors)
+        faiss_cpu_index = faiss.index_gpu_to_cpu(  # build the index
+            faiss_gpu_index
+        )
+        faiss.write_index(faiss_cpu_index, 'faiss/faiss.index')
+
+exit(-1)
+print('Stop!')
 
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
@@ -305,6 +322,8 @@ config = {"train": train_dataset,
           'advising_net': RunningParams.advising_network,
           'query_frozen': RunningParams.query_frozen,
           'heatmap_frozen': RunningParams.heatmap_frozen,
+          'nns_frozen':RunningParams.nns_frozen,
+          'k_value': RunningParams.k_value,
           }
 
 
@@ -315,10 +334,15 @@ wandb.init(
     config=config
 )
 
+wandb.save(os.path.basename(__file__), policy='now')
+wandb.save('params.py', policy='now')
+
 _, best_acc = train_model(
     MODEL2,
     criterion,
     optimizer_ft,
     oneLR_scheduler,
     config["num_epochs"])
+
+
 wandb.finish()

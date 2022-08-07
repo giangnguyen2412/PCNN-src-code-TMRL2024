@@ -8,22 +8,24 @@ class RunningParams(object):
         self.GradCAM = 'GradCAM'
         self.NNs = 'NNs'
         # TODO: increase K
-        self.k_value = 1
+        self.k_value = 3
 
-        self.batch_size = 128
+        self.batch_size = 256
         self.GradCAM_RNlayer = 'layer4'
         self.learning_rate = 0.001
         self.epochs = 25
         self.advising_network = True
-        self.query_frozen = False  # freeze?
+        self.query_frozen = True  # freeze?
         self.heatmap_frozen = False  # freeze?
+        self.nns_frozen = False  # freeze?
+
         self.FFCV_loader = False
         self.DDP = False
         self.MODEL2_ADVISING = True
         self.advising_steps = 3
         self.BATCH_NORM = True
 
-        self.XAI_method = self.GradCAM
+        self.XAI_method = self.NNs
 
 
 
