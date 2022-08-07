@@ -137,8 +137,8 @@ if RunningParams.XAI_method == RunningParams.NNs:
         )
         faiss.write_index(faiss_cpu_index, 'faiss/faiss.index')
 
-exit(-1)
-print('Stop!')
+# exit(-1)
+# print('Stop!')
 
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
@@ -228,6 +228,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                             output = model(images=x, explanations=None, scores=model1_p)
                         else:
                             output = model(images=x, explanations=explanation, scores=model1_p)
+                            # if phase == 'val':
+                            #     print(output[0])
 
                         p = torch.nn.functional.softmax(output, dim=1)
                         _, preds = torch.max(p, 1)

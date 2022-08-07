@@ -108,10 +108,11 @@ class AdvisingNetwork(nn.Module):
             explanation_feat = torch.stack(q_list)
 
         if RunningParams.BATCH_NORM is True:
-            input_feat = self.input_bn(torch.nn.functional.relu(input_feat))
-            if RunningParams.XAI_method != RunningParams.NO_XAI:
-                explanation_feat = self.exp_bn(torch.nn.functional.relu(explanation_feat))
-            scores = self.scores_bn(torch.nn.functional.relu(scores))
+            # input_feat = self.input_bn(torch.nn.functional.relu(input_feat))
+            # if RunningParams.XAI_method != RunningParams.NO_XAI:
+            #     explanation_feat = self.exp_bn(torch.nn.functional.relu(explanation_feat))
+            # scores = self.scores_bn(torch.nn.functional.relu(scores))
+            a = None
         else:
             input_feat = input_feat / input_feat.amax(dim=1, keepdim=True)
             explanation_feat = explanation_feat / explanation_feat.amax(dim=1, keepdim=True)
@@ -125,8 +126,8 @@ class AdvisingNetwork(nn.Module):
         elif RunningParams.XAI_method == RunningParams.NNs:
             concat_feat = torch.concat([input_feat, explanation_feat, scores], dim=1)
 
-        output = self.fc0_bn(torch.nn.functional.relu(self.fc0(concat_feat)))
-        output = self.fc1_bn(torch.nn.functional.relu(self.fc1(output)))
-        output = self.fc2_bn(torch.nn.functional.relu(self.fc2(output)))
+        output = self.fc0_bn((self.fc0(concat_feat)))
+        output = self.fc1_bn((self.fc1(output)))
+        output = self.fc2_bn((self.fc2(output)))
 
         return output
