@@ -8,7 +8,7 @@ class RunningParams(object):
         self.GradCAM = 'GradCAM'
         self.NNs = 'NNs'
         # TODO: increase K
-        self.k_value = 3
+        self.k_value = 1
 
         self.batch_size = 256
         self.GradCAM_RNlayer = 'layer4'

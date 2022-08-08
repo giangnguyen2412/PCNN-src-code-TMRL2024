@@ -5,6 +5,7 @@ from torch.optim import lr_scheduler
 import torch.backends.cudnn as cudnn
 import numpy as np
 import matplotlib.pyplot as plt
+import torch.nn.functional as F
 import time
 import os
 import copy
@@ -71,7 +72,7 @@ image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
 
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 class_names = image_datasets['train'].classes
-pdist = nn.PairwiseDistance(p=2)
+l1_dist = nn.PairwiseDistance(p=1)
 
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406]) * 255
 IMAGENET_STD = np.array([0.229, 0.224, 0.225]) * 255
@@ -227,13 +228,17 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                         if RunningParams.XAI_method == RunningParams.NO_XAI:
                             output = model(images=x, explanations=None, scores=model1_p)
                         else:
-                            output = model(images=x, explanations=explanation, scores=model1_p)
-                            # if phase == 'val':
-                            #     print(output[0])
+                            output, query, nns = model(images=x, explanations=explanation, scores=model1_p)
+                            if RunningParams.XAI_method == RunningParams.NNs:
+                                discrepancy = F.cosine_similarity(query, nns)
+                                dist_loss = l1_dist(discrepancy, labels)/(x.shape[0])
 
                         p = torch.nn.functional.softmax(output, dim=1)
                         _, preds = torch.max(p, 1)
-                        loss = criterion(p, labels)
+                        if RunningParams.XAI_method == RunningParams.NNs:
+                            loss = criterion(p, labels) + dist_loss
+                        else:
+                            loss = criterion(p, labels)
 
                     # backward + optimize only if in training phase
                     if phase == 'train':
@@ -338,6 +343,9 @@ wandb.init(
 
 wandb.save(os.path.basename(__file__), policy='now')
 wandb.save('params.py', policy='now')
+wandb.save('explainers.py', policy='now')
+wandb.save('models.py', policy='now')
+
 
 _, best_acc = train_model(
     MODEL2,
