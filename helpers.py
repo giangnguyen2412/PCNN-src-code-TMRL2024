@@ -7,7 +7,7 @@ class HelperFunctions(object):
         pass
 
     @staticmethod
-    def is_running(script):
+    def is_program_running(script):
         """
         Check if a script is already running
         :param script:

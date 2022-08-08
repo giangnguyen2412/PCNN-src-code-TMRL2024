@@ -7,15 +7,15 @@ class RunningParams(object):
         self.NO_XAI = 'No-XAI'
         self.GradCAM = 'GradCAM'
         self.NNs = 'NNs'
-        # TODO: increase K
-        self.k_value = 1
+        self.k_value = 5
+        self.embedding_loss = True
 
         self.batch_size = 256
         self.GradCAM_RNlayer = 'layer4'
         self.learning_rate = 0.001
         self.epochs = 25
         self.advising_network = True
-        self.query_frozen = True  # freeze?
+        self.query_frozen = False  # freeze?
         self.heatmap_frozen = False  # freeze?
         self.nns_frozen = False  # freeze?
 

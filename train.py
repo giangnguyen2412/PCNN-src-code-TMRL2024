@@ -18,7 +18,7 @@ import faiss
 from tqdm import tqdm
 from torchray.attribution.grad_cam import grad_cam
 from torchvision import datasets, models, transforms
-from models import MyCustomResnet18, AdvisingNetwork
+from models import MyCustomResnet18, AdvisingNetwork, SimpleAdvisingNetwork
 from params import RunningParams
 from datasets import Dataset
 from helpers import HelperFunctions
@@ -49,11 +49,11 @@ MODEL1 = models.resnet18(pretrained=True).eval().cuda()
 data_dir = '/home/giang/Downloads/advising_net_training/'
 virtual_train_dataset = '{}/train'.format(data_dir)
 
-train_dataset = '/home/giang/Downloads/datasets/random_train_dataset_10k'
+train_dataset = '/home/giang/Downloads/datasets/random_train_dataset_50k'
 val_dataset = '/home/giang/Downloads/datasets/imagenet5k-1k'
 # TODO: change to imagenet-val
 
-if not HelperFunctions.is_running(os.path.basename(__file__)):
+if not HelperFunctions.is_program_running(os.path.basename(__file__)):
     print('Creating symlink datasets...')
     if os.path.islink(virtual_train_dataset) is True:
         os.unlink(virtual_train_dataset)
@@ -197,6 +197,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             running_loss = 0.0
             running_corrects = 0
 
+            running_label_loss = 0.0
+            running_embedding_loss = 0.0
+
             yes_cnt = 0
             true_cnt = 0
 
@@ -206,7 +209,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
                 embeddings = feature_extractor(x).flatten(start_dim=1)  # 512x1 for RN 18
                 out = MODEL1.fc(embeddings)
-                # out = MODEL1(x)
                 model1_p = torch.nn.functional.softmax(out, dim=1)
                 score, index = torch.topk(model1_p, 1, dim=1)
                 predicted_ids = index.squeeze()
@@ -226,19 +228,20 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 with torch.set_grad_enabled(phase == 'train'):
                     if RunningParams.advising_network is True:
                         if RunningParams.XAI_method == RunningParams.NO_XAI:
-                            output = model(images=x, explanations=None, scores=model1_p)
+                            output, _, _ = model(images=x, explanations=None, scores=model1_p)
                         else:
                             output, query, nns = model(images=x, explanations=explanation, scores=model1_p)
                             if RunningParams.XAI_method == RunningParams.NNs:
-                                discrepancy = F.cosine_similarity(query, nns)
-                                dist_loss = l1_dist(discrepancy, labels)/(x.shape[0])
+                                emb_cos_sim = F.cosine_similarity(query, nns)
+                                embedding_loss = l1_dist(emb_cos_sim, labels)/(x.shape[0])
 
                         p = torch.nn.functional.softmax(output, dim=1)
                         _, preds = torch.max(p, 1)
-                        if RunningParams.XAI_method == RunningParams.NNs:
-                            loss = criterion(p, labels) + dist_loss
+                        label_loss = criterion(p, labels)
+                        if RunningParams.XAI_method == RunningParams.NNs and RunningParams.embedding_loss is True:
+                            loss = label_loss + embedding_loss
                         else:
-                            loss = criterion(p, labels)
+                            loss = label_loss
 
                     # backward + optimize only if in training phase
                     if phase == 'train':
@@ -247,6 +250,10 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
                 # statistics
                 running_loss += loss.item() * x.size(0)
+                running_label_loss += label_loss.item() * x.size(0)
+                if RunningParams.XAI_method == RunningParams.NNs:
+                    running_embedding_loss += embedding_loss.item() * x.size(0)
+
                 running_corrects += torch.sum(preds == labels.data)
 
                 yes_cnt += sum(preds)
@@ -256,6 +263,10 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 scheduler.step()
 
             epoch_loss = running_loss / len(image_datasets[phase])
+            epoch_label_loss = running_label_loss / len(image_datasets[phase])
+            if RunningParams.XAI_method == RunningParams.NNs:
+                epoch_embedding_loss = running_embedding_loss / len(image_datasets[phase])
+
             epoch_acc = running_corrects.double() / len(image_datasets[phase])
             yes_ratio = yes_cnt.double() / len(image_datasets[phase])
             true_ratio = true_cnt.double() / len(image_datasets[phase])
@@ -264,6 +275,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
             print('{} - Loss: {:.4f} Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
                 phase, epoch_loss, epoch_acc*100, yes_ratio * 100, true_ratio*100))
+            if RunningParams.XAI_method == RunningParams.NNs:
+                print('{} - Label Loss: {:.4f} - Embedding Loss: {:.4f} '.format(
+                    phase, epoch_label_loss, epoch_embedding_loss))
 
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
@@ -295,7 +309,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
 if RunningParams.advising_network is True:
     model2_name = 'AdvisingNetwork'
-    MODEL2 = AdvisingNetwork()
+    MODEL2 = SimpleAdvisingNetwork()
 else:
     model2_name = 'MyCustomResnet18'
     MODEL2 = MyCustomResnet18(pretrained=True, fine_tune=RunningParams.fine_tune)
@@ -345,6 +359,7 @@ wandb.save(os.path.basename(__file__), policy='now')
 wandb.save('params.py', policy='now')
 wandb.save('explainers.py', policy='now')
 wandb.save('models.py', policy='now')
+wandb.save('datasets.py', policy='now')
 
 
 _, best_acc = train_model(
