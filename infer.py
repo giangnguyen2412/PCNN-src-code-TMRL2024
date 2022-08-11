@@ -111,6 +111,11 @@ if __name__ == '__main__':
 
         for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
             x = data.cuda()
+            print(x.min())
+            print(x.max())
+            ART_TESTS1 = True
+            if ART_TESTS1 is False:
+                x = torch.rand([16, 3, 224, 224]).cuda()
             gts = gt.cuda()
 
             # Step 1: Forward pass input x through MODEL1 - Explainer
@@ -121,14 +126,34 @@ if __name__ == '__main__':
             predicted_ids = index.squeeze()
 
             # MODEL1 Y/N label for input x
-            model2_gt = (predicted_ids == gts) * 1  # 0 and 1
+            # model2_gt = (predicted_ids == gts) * 1  # 0 and 1
 
             # Generate heatmap explanation using MODEL1 and its predicted ids
             saliency = grad_cam(MODEL1, x, index, saliency_layer=RunningParams.GradCAM_RNlayer, resize=True)
-            labels = model2_gt
+            # labels = model2_gt
 
             if RunningParams.advising_network is True:
                 # Forward input, explanations, and softmax scores through MODEL2
+
+                if ART_TESTS1:
+                    # confidence ranges from 0 -> 100%
+                    for i in range(0, 105, 1):
+                        conf = i/100
+                        other_conf = 1 - conf
+                        other_vals = other_conf/999  # the confidence scores for other classes
+                        model1_p = torch.full(model1_p.shape, other_vals)
+                        for j in range(x.shape[0]):
+                            idx = index[j].item()
+                            model1_p[j][idx] = conf
+
+                        output = model(x, saliency, model1_p)
+                        model2_p = torch.nn.functional.softmax(output, dim=1)
+                        score, index = torch.topk(model2_p, 1, dim=1)
+                        if index[1].item() == 0:
+                            print("MODEL2 says NO at Confidence: {}% ".format(i))
+                        else:
+                            print("MODEL2 says YES at Confidence: {}% ".format(i))
+                exit(-1)
                 output = model(x, saliency, model1_p)
                 p = torch.nn.functional.softmax(output, dim=1)
                 _, preds = torch.max(p, 1)
@@ -224,7 +249,7 @@ if __name__ == '__main__':
                 Visualization.visualize_histogram_from_list(data=confidence_dist[cat],
                                                             title=title,
                                                             x_label='Confidence',
-                                                            y_label='# images',
+                                                            y_label='Images',
                                                             file_name=os.path.join(save_dir, cat + '.pdf'),
                                                             )
 

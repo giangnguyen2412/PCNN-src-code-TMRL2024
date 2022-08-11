@@ -61,6 +61,7 @@ class AdvisingNetworkv1(nn.Module):
 
         return output
 
+
 class MyCustomResnet18(nn.Module):
     def __init__(self, pretrained=True, fine_tune=False):
         super().__init__()

@@ -11,7 +11,7 @@ class RunningParams(object):
         self.embedding_loss = True
 
         # Training
-        self.batch_size = 128
+        self.batch_size = 16
         self.GradCAM_RNlayer = 'layer4'
         self.learning_rate = 0.001
         self.epochs = 25
