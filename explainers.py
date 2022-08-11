@@ -27,7 +27,7 @@ class ModelExplainer(object):
             n_list = []
             for n_idx in range(RunningParams.k_value):
                 if phase == 'train':
-                    input, _ = faiss_data_loader.dataset[indices[q_idx][n_idx+1]]
+                    input, _ = faiss_data_loader.dataset[indices[q_idx][n_idx+1]]  # 3x224x224
                 else:
                     input, _ = faiss_data_loader.dataset[indices[q_idx][n_idx]]
                 n_list.append(input)

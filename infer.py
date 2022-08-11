@@ -15,26 +15,50 @@ import argparse
 from tqdm import tqdm
 from torchray.attribution.grad_cam import grad_cam
 from torchvision import datasets, models, transforms
-from models import MyCustomResnet18, AdvisingNetwork, OldAdvisingNetwork
+from models import MyCustomResnet18, AdvisingNetwork, AdvisingNetworkv1
 from params import RunningParams
 from datasets import Dataset
+from torchvision.datasets import ImageFolder
+from visualize import Visualization
 from helpers import HelperFunctions
+
+
+class ImageFolderWithPaths(ImageFolder):
+    """Custom dataset that includes image file paths. Extends
+    torchvision.datasets.ImageFolder
+    """
+
+    # override the __getitem__ method. this is the method that dataloader calls
+    def __getitem__(self, index):
+        # this is what ImageFolder normally returns
+        original_tuple = super(ImageFolderWithPaths, self).__getitem__(index)
+        # the image file path
+        path = self.imgs[index][0]
+        data = original_tuple[0]
+        label = original_tuple[1]
+        if data.shape[0] == 1:
+            print('gray images')
+            data = torch.cat([data, data, data], dim=0)
+
+        # make a new tuple that includes original and the path
+        tuple_with_path = (data, label, path)
+        return tuple_with_path
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_models/best_model_efficient-aardvark-180.pt',
+                        default='best_models/best_model_valiant-plasma-176.pt',
                         help='Model check point')
     parser.add_argument('--eval_dataset', type=str,
-                        default='/home/giang/Downloads/datasets/DAmageNet_processed',
+                        default='/home/giang/Downloads/datasets/imagenet1k-val',
                         help='Evaluation dataset')
 
     args = parser.parse_args()
     model_path = args.ckpt
     print(args)
 
-    model = OldAdvisingNetwork()
+    model = AdvisingNetworkv1()
     model = nn.DataParallel(model).cuda()
 
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
@@ -50,12 +74,15 @@ if __name__ == '__main__':
 
     RunningParams = RunningParams()
     Dataset = Dataset()
+    HelperFunctions = HelperFunctions()
     print(RunningParams.__dict__)
 
     data_dir = '/home/giang/Downloads/datasets/'
     # TODO: Using mask to make the predictions compatible with ImageNet-R, ObjectNet, ImageNet-A
     val_datasets = Dataset.test_datasets
-    image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), Dataset.data_transforms['val'])
+    # image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), Dataset.data_transforms['val'])
+    #                   for x in val_datasets}
+    image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x), Dataset.data_transforms['val'])
                       for x in val_datasets}
 
     dataset_sizes = {x: len(image_datasets[x]) for x in val_datasets}
@@ -77,7 +104,12 @@ if __name__ == '__main__':
         yes_cnt = 0
         true_cnt = 0
 
-        for batch_idx, (data, gt) in enumerate(tqdm(data_loader)):
+        categories = ['CorrectlyAccept', 'IncorrectlyAccept', 'CorrectlyReject', 'IncorrectlyReject']
+        confidence_dist = dict()
+        for cat in categories:
+            confidence_dist[cat] = list()
+
+        for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
             x = data.cuda()
             gts = gt.cuda()
 
@@ -141,8 +173,60 @@ if __name__ == '__main__':
             else:
                 running_corrects += torch.sum(preds == labels.data)
 
+            if RunningParams.MODEL2_ADVISING is False and RunningParams.M2_VISUALIZATION is True:
+                results = (preds == labels)
+                for sample_idx in range(x.shape[0]):
+                    result = results[sample_idx].item()
+                    if result is True:
+                        correctness = 'Correctly'
+                    else:
+                        correctness = 'Incorrectly'
+
+                    label = preds[sample_idx].item()
+                    if label == 1:
+                        action = 'Accept'
+                    else:
+                        action = 'Reject'
+
+                    model2_decision = correctness + action
+                    query = pths[sample_idx]
+
+                    # TODO: move this out to remove redundancy
+                    save_dir = '/home/giang/Downloads/advising_net_training/vis/'
+                    base_name = os.path.basename(query)
+                    HelperFunctions.check_and_mkdir(os.path.join(save_dir, model2_decision))
+                    save_path = os.path.join(save_dir, model2_decision, base_name)
+
+                    gt_label = HelperFunctions.label_map.get(gts[sample_idx].item()).split(",")[0]
+                    gt_label = gt_label[0].lower() + gt_label[1:]
+
+                    pred_label = HelperFunctions.label_map.get(predicted_ids[sample_idx].item()).split(",")[0]
+                    pred_label = pred_label[0].lower() + pred_label[1:]
+
+                    confidence = int(score[sample_idx].item()*100)
+                    confidence_dist[model2_decision].append(confidence)
+
+                    # Visualization.visualize_model2_decisions(query,
+                    #                                          gt_label,
+                    #                                          pred_label,
+                    #                                          model2_decision,
+                    #                                          save_path,
+                    #                                          save_dir,
+                    #                                          confidence)
+
             yes_cnt += sum(preds)
             true_cnt += sum(labels)
+
+        if RunningParams.M2_VISUALIZATION is True:
+            for cat in categories:
+                img_ratio = len(confidence_dist[cat])*100/dataset_sizes[ds]
+                title = '{}: {:.2f}'.format(cat, img_ratio)
+                Visualization.visualize_histogram_from_list(data=confidence_dist[cat],
+                                                            title=title,
+                                                            x_label='Confidence',
+                                                            y_label='# images',
+                                                            file_name=os.path.join(save_dir, cat + '.pdf'),
+                                                            )
 
         epoch_acc = running_corrects.double() / len(image_datasets[ds])
         yes_ratio = yes_cnt.double() / len(image_datasets[ds])

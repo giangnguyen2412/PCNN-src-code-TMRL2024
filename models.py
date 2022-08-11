@@ -6,6 +6,61 @@ from params import RunningParams
 RunningParams = RunningParams()
 
 
+class AdvisingNetworkv1(nn.Module):
+    def __init__(self):
+        super(AdvisingNetworkv1, self).__init__()
+        resnet = models.resnet18(pretrained=True)
+        if RunningParams.query_frozen is True:
+            for param in resnet.parameters():
+                param.requires_grad = False
+        conv_features = list(resnet.children())[:-1]  # delete the last fc layer
+        self.resnet = nn.Sequential(*conv_features)
+
+        if RunningParams.heatmap_frozen is True:
+            for param in resnet.parameters():
+                param.requires_grad = False
+        resnet_hm = models.resnet18(pretrained=True)
+        conv_features_hm = list(resnet_hm.children())[:-1]  # delete the last fc layer
+        self.resnet_hm = nn.Sequential(*conv_features_hm)
+
+        avg_pool_features = resnet.fc.in_features
+        softmax_features = resnet.fc.out_features
+        if RunningParams.XAI_method == 'No-XAI':
+            fc0_in_features = avg_pool_features + softmax_features  # 512*2 + 1000
+        elif RunningParams.XAI_method == 'GradCAM':
+            fc0_in_features = avg_pool_features*2 + softmax_features  # 512*2 + 1000
+        self.fc0 = nn.Linear(fc0_in_features, 512)
+        self.fc0_bn = nn.BatchNorm1d(512, eps=1e-2)
+        self.fc1 = nn.Linear(512, 128)
+        self.fc1_bn = nn.BatchNorm1d(128, eps=1e-2)
+        self.fc2 = nn.Linear(128, 2)
+        self.fc2_bn = nn.BatchNorm1d(2, eps=1e-2)
+
+        # initialize all fc layers to xavier
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                torch.nn.init.xavier_normal_(m.weight, gain=1)
+
+    def forward(self, images, heatmaps, scores):
+        input_feat = self.resnet(images).squeeze()
+        input_feat = input_feat / input_feat.amax(dim=1, keepdim=True)
+
+        heatmaps = torch.cat([heatmaps, heatmaps, heatmaps], dim=1)
+        explanation_feat = self.resnet_hm(heatmaps).squeeze()
+        explanation_feat = explanation_feat / explanation_feat.amax(dim=1, keepdim=True)
+
+        scores = scores / scores.amax(dim=1, keepdim=True)
+
+        if RunningParams.XAI_method == 'No-XAI':
+            concat_feat = torch.concat([input_feat, scores], dim=1)
+        elif RunningParams.XAI_method == 'GradCAM':
+            concat_feat = torch.concat([input_feat, explanation_feat, scores], dim=1)
+        output = self.fc0_bn(torch.nn.functional.relu(self.fc0(concat_feat)))
+        output = self.fc1_bn(torch.nn.functional.relu(self.fc1(output)))
+        output = self.fc2_bn(torch.nn.functional.relu(self.fc2(output)))
+
+        return output
+
 class MyCustomResnet18(nn.Module):
     def __init__(self, pretrained=True, fine_tune=False):
         super().__init__()
@@ -196,14 +251,21 @@ class SimpleAdvisingNetwork(nn.Module):
             explanation_feat = explanations.view(images.shape[0], -1)
         elif RunningParams.XAI_method == RunningParams.NNs:
             q_list = []
+            avg_feat = []
 
             for q_idx in range(explanations.shape[0]):
                 exemplars = explanations[q_idx]
                 # Both query and NN using the same branch
                 explanation_feat = self.pooling_layer(self.resnet_nns(exemplars))
+                # if RunningParams.k_value > 1:
+                avg_exp_feat = torch.mean(explanation_feat, dim=0, keepdim=True).flatten()  # 1, 512
+
                 explanation_feat = explanation_feat.flatten()
+
                 q_list.append(explanation_feat)
+                avg_feat.append(avg_exp_feat)
             explanation_feat = torch.stack(q_list)
+            avg_exp_feat = torch.stack(avg_feat)
 
         if RunningParams.BATCH_NORM is True:
             # input_feat = self.input_bn(torch.nn.functional.relu(input_feat))
@@ -231,4 +293,7 @@ class SimpleAdvisingNetwork(nn.Module):
         if RunningParams.XAI_method == RunningParams.NO_XAI:
             return output, None, None
         else:
-            return output, input_feat, explanation_feat
+            if RunningParams.k_value > 1 and RunningParams.XAI_method == RunningParams.NNs:
+                return output, input_feat, avg_exp_feat
+            else:
+                return output, input_feat, explanation_feat

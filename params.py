@@ -10,7 +10,8 @@ class RunningParams(object):
         self.k_value = 5
         self.embedding_loss = True
 
-        self.batch_size = 256
+        # Training
+        self.batch_size = 128
         self.GradCAM_RNlayer = 'layer4'
         self.learning_rate = 0.001
         self.epochs = 25
@@ -19,13 +20,17 @@ class RunningParams(object):
         self.heatmap_frozen = False  # freeze?
         self.nns_frozen = False  # freeze?
 
+        # Data processing
         self.FFCV_loader = False
         self.DDP = False
-        self.MODEL2_ADVISING = True
-        self.advising_steps = 3
+        self.MODEL2_ADVISING = False
+        self.advising_steps = 1
         self.BATCH_NORM = True
 
-        self.XAI_method = self.NNs
+        # Visualization
+        self.M2_VISUALIZATION = True
+
+        self.XAI_method = self.NO_XAI
 
 
 

@@ -53,7 +53,8 @@ train_dataset = '/home/giang/Downloads/datasets/random_train_dataset_50k'
 val_dataset = '/home/giang/Downloads/datasets/imagenet5k-1k'
 # TODO: change to imagenet-val
 
-if not HelperFunctions.is_program_running(os.path.basename(__file__)):
+# if not HelperFunctions.is_program_running(os.path.basename(__file__)):
+if True:
     print('Creating symlink datasets...')
     if os.path.islink(virtual_train_dataset) is True:
         os.unlink(virtual_train_dataset)
