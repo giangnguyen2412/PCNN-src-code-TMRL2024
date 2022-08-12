@@ -109,10 +109,11 @@ if __name__ == '__main__':
         for cat in categories:
             confidence_dist[cat] = list()
 
+        gaussian_blur = transforms.CenterCrop(size=180)
+
         for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
             x = data.cuda()
-            print(x.min())
-            print(x.max())
+            # x = gaussian_blur(x)
             ART_TESTS1 = True
             if ART_TESTS1 is False:
                 x = torch.rand([16, 3, 224, 224]).cuda()
@@ -149,7 +150,7 @@ if __name__ == '__main__':
                         output = model(x, saliency, model1_p)
                         model2_p = torch.nn.functional.softmax(output, dim=1)
                         score, index = torch.topk(model2_p, 1, dim=1)
-                        if index[1].item() == 0:
+                        if index[0].item() == 0:
                             print("MODEL2 says NO at Confidence: {}% ".format(i))
                         else:
                             print("MODEL2 says YES at Confidence: {}% ".format(i))
