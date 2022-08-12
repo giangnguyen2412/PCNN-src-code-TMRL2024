@@ -94,7 +94,7 @@ if __name__ == '__main__':
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
             batch_size=RunningParams.batch_size,
-            shuffle=True,  # turn shuffle to True
+            shuffle=False,  # turn shuffle to False
             num_workers=8,
             pin_memory=True,
         )
@@ -109,11 +109,11 @@ if __name__ == '__main__':
         for cat in categories:
             confidence_dist[cat] = list()
 
-        gaussian_blur = transforms.CenterCrop(size=180)
+        gaussian_blur = transforms.CenterCrop(size=220)
 
         for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
             x = data.cuda()
-            # x = gaussian_blur(x)
+            x = gaussian_blur(x)
             ART_TESTS1 = True
             if ART_TESTS1 is False:
                 x = torch.rand([16, 3, 224, 224]).cuda()
