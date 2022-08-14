@@ -70,7 +70,7 @@ class Visualization(object):
         annotation = 'GT: {} > Pred: {} > Conf: {}% > Model2: {}'.format(gt_label, pred_label, confidence,
                                                                          model2_decision)
 
-        cmd = 'convert {}/query.jpeg -resize 400x400\! -pointsize 10 -gravity North -background White -splice 0x40 -annotate +0+4 "{}" {}'.format(
+        cmd = 'convert {}/query.jpeg -resize 600x600\! -pointsize 14 -gravity North -background White -splice 0x40 -annotate +0+4 "{}" {}'.format(
             save_dir, annotation, save_path
         )
         os.system(cmd)

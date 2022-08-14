@@ -1,5 +1,8 @@
 import glob
+import os.path
+
 import torch
+import json
 import numpy as np
 
 from torchvision.models import resnet18, resnet34, resnet50
@@ -12,6 +15,7 @@ from datasets import Dataset
 from helpers import HelperFunctions
 
 HelperFunctions = HelperFunctions()
+RunningParams = RunningParams()
 
 T_list = list(np.arange(0.0, 1.0, 0.05))
 imagenet_folders = glob.glob('/home/giang/Downloads/datasets/imagenet1k-val/*')
@@ -28,7 +32,24 @@ transform = torchvision.transforms.Compose([
                                      std=[0.229, 0.224, 0.225]),
 ])
 
+gray_transform = torchvision.transforms.Compose(
+    [
+        torchvision.transforms.Resize(256),
+        torchvision.transforms.CenterCrop(224),
+        torchvision.transforms.ToTensor(),
+        torchvision.transforms.Normalize((0.5,), (0.5,)),
+    ]
+)
+
 confidence_dict = dict()
+
+if RunningParams.IMAGENET_REAL is True:
+    real_json = open("/home/giang/Downloads/KNN-ImageNet/reassessed-imagenet/real.json")
+    real_ids = json.load(real_json)
+    real_labels = {
+        f"ILSVRC2012_val_{i + 1:08d}.JPEG": labels
+        for i, labels in enumerate(real_ids)
+    }
 
 for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
     imagenet_id = imagenet_folder.split('val/')[1]
@@ -38,9 +59,15 @@ for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
         img = Image.open(image_path)
 
         if img.mode != 'RGB':
-            continue
+            if img.mode in ["RGBA", "CMYK"]:
+                img = img.convert("RGB")
+                x = transform(img).unsqueeze(0).cuda()
+            else:
+                x = gray_transform(img).unsqueeze(0).cuda()
+                x = torch.cat([x, x, x], dim=1)
+        else:
+            x = transform(img).unsqueeze(0).cuda()
 
-        x = transform(img).unsqueeze(0).cuda()
         out = model(x)
         p = torch.nn.functional.softmax(out, dim=1)
         score, index = torch.topk(p, 1)
@@ -65,11 +92,24 @@ for T in T_list:
         prediction_id = val['prediction_id']
         imagenet_id = val['imagenet_id']
 
-        if (confidence_score > T and prediction_id == imagenet_id) or (
-                confidence_score <= T and prediction_id != imagenet_id):
-            correct += 1
+        if RunningParams.IMAGENET_REAL is True:
+            base_name = os.path.basename(key)
+            real_ids = real_labels[base_name]
+
+            if len(real_ids) == 0:
+                continue
+
+            if (confidence_score > T and prediction_id in real_ids) or (
+                    confidence_score <= T and prediction_id not in real_ids):
+                correct += 1
+            else:
+                wrong += 1
         else:
-            wrong += 1
+            if (confidence_score > T and prediction_id == imagenet_id) or (
+                    confidence_score <= T and prediction_id != imagenet_id):
+                correct += 1
+            else:
+                wrong += 1
 
     print("RN18 - Total: {} - Accuracy at T = {} is {}".format(correct + wrong, T, correct * 100 / (correct + wrong)))
 
