@@ -5,7 +5,7 @@ import torch
 import json
 import numpy as np
 
-from torchvision.models import resnet18, resnet34, resnet50
+from torchvision.models import *
 from PIL import Image
 from tqdm import tqdm
 import torchvision
@@ -20,7 +20,7 @@ RunningParams = RunningParams()
 T_list = list(np.arange(0.0, 1.0, 0.05))
 imagenet_folders = glob.glob('/home/giang/Downloads/datasets/imagenet1k-val/*')
 
-model = resnet18(pretrained=True).cuda()
+model = vgg11(pretrained=True).cuda()
 model.eval()
 
 # Pre-process the image and convert into a tensor
@@ -111,5 +111,5 @@ for T in T_list:
             else:
                 wrong += 1
 
-    print("RN18 - Total: {} - Accuracy at T = {} is {}".format(correct + wrong, T, correct * 100 / (correct + wrong)))
+    print("Total: {} - Accuracy at T = {} is {}".format(correct + wrong, T, correct * 100 / (correct + wrong)))
 

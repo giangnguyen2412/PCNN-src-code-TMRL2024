@@ -17,7 +17,7 @@ from torchray.attribution.grad_cam import grad_cam
 from torchvision import datasets, models, transforms
 from models import MyCustomResnet18, AdvisingNetwork, AdvisingNetworkv1
 from params import RunningParams
-from datasets import Dataset
+from datasets import Dataset, ImageFolderWithPaths
 from torchvision.datasets import ImageFolder
 from visualize import Visualization
 from helpers import HelperFunctions
@@ -27,65 +27,11 @@ Dataset = Dataset()
 HelperFunctions = HelperFunctions()
 print(RunningParams.__dict__)
 
-if RunningParams.IMAGENET_REAL is True:
-    real_json = open("/home/giang/Downloads/KNN-ImageNet/reassessed-imagenet/real.json")
-    real_ids = json.load(real_json)
-    real_labels = {
-        f"ILSVRC2012_val_{i + 1:08d}.JPEG": labels
-        for i, labels in enumerate(real_ids)
-    }
-
-
-class ImageFolderWithPaths(ImageFolder):
-    """Custom dataset that includes image file paths. Extends
-    torchvision.datasets.ImageFolder
-    """
-
-    # override the __init__ method to drop no-label images
-
-    if RunningParams.IMAGENET_REAL:
-        def __init__(self, root, transform=None):
-            super(ImageFolderWithPaths, self).__init__(root, transform=transform)
-            original_len = len(self.imgs)
-            imgs = []
-            samples = []
-            targets = []
-            for sample_idx in range(original_len):
-                pth = self.imgs[sample_idx][0]
-                base_name = os.path.basename(pth)
-                real_ids = real_labels[base_name]
-                if len(real_ids) == 0:  # no label images
-                    continue
-                else:
-                    imgs.append(self.imgs[sample_idx])
-                    samples.append(self.samples[sample_idx])
-                    targets.append(self.targets[sample_idx])
-
-            self.imgs = imgs
-            self.samples = samples
-            self.targets = targets
-
-    # override the __getitem__ method. this is the method that dataloader calls
-    def __getitem__(self, index):
-        # this is what ImageFolder normally returns
-        original_tuple = super(ImageFolderWithPaths, self).__getitem__(index)
-        # the image file path
-        path = self.imgs[index][0]
-        data = original_tuple[0]
-        label = original_tuple[1]
-        if data.shape[0] == 1:
-            print('gray images')
-            data = torch.cat([data, data, data], dim=0)
-
-        # make a new tuple that includes original and the path
-        tuple_with_path = (data, label, path)
-        return tuple_with_path
-
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_models/best_model_valiant-plasma-176.pt',
+                        default='best_models/best_model_ethereal-universe-312.pt',
                         help='Model check point')
     parser.add_argument('--eval_dataset', type=str,
                         default='/home/giang/Downloads/datasets/imagenet1k-val',
@@ -95,7 +41,7 @@ if __name__ == '__main__':
     model_path = args.ckpt
     print(args)
 
-    model = AdvisingNetworkv1()
+    model = AdvisingNetwork()
     model = nn.DataParallel(model).cuda()
 
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
@@ -162,7 +108,7 @@ if __name__ == '__main__':
                 for sample_idx in range(x.shape[0]):
                     query = pths[sample_idx]
                     base_name = os.path.basename(query)
-                    real_ids = real_labels[base_name]
+                    real_ids = Dataset.real_labels[base_name]
                     # TODO: Ignore images having no labels
                     if predicted_ids[sample_idx].item() in real_ids:
                         model2_gt[sample_idx] = 1
@@ -177,7 +123,7 @@ if __name__ == '__main__':
 
             if RunningParams.advising_network is True:
                 # Forward input, explanations, and softmax scores through MODEL2
-                output = model(x, saliency, model1_p)
+                output, _, _ = model(x, saliency, model1_p)
                 p = torch.nn.functional.softmax(output, dim=1)
                 _, preds = torch.max(p, 1)
 
@@ -253,23 +199,25 @@ if __name__ == '__main__':
                     confidence_dist[model2_decision].append(confidence)
 
                     if RunningParams.IMAGENET_REAL is True:
-                        real_ids = real_labels[base_name]
+                        real_ids = Dataset.real_labels[base_name]
                         gt_labels = []
                         for id in real_ids:
-                            gt_label = HelperFunctions.label_map.get(gts[sample_idx].item()).split(",")[0]
+                            gt_label = HelperFunctions.label_map.get(id).split(",")[0]
                             gt_label = gt_label[0].lower() + gt_label[1:]
                             gt_labels.append(gt_label)
 
                         gt_label = '|'.join(gt_labels)
                     # Finding the extreme cases
                     if (action == 'Accept' and confidence < 50) or (action == 'Reject' and confidence > 80):
-                        Visualization.visualize_model2_decisions(query,
-                                                                 gt_label,
-                                                                 pred_label,
-                                                                 model2_decision,
-                                                                 save_path,
-                                                                 save_dir,
-                                                                 confidence)
+                        # Visualization.visualize_model2_decisions(query,
+                        #                                          gt_label,
+                        #                                          pred_label,
+                        #                                          model2_decision,
+                        #                                          save_path,
+                        #                                          save_dir,
+                        #                                          confidence)
+                        if model2_decision == 'IncorrectlyReject':
+                            print(p[sample_idx])
 
             yes_cnt += sum(preds)
             true_cnt += sum(labels)
@@ -285,7 +233,7 @@ if __name__ == '__main__':
                                                             file_name=os.path.join(save_dir, cat + '.pdf'),
                                                             )
 
-                merge_pdf_cmd = 'img2pdf -o vis/{}Samples.pdf --pagesize A4^T vis/{}/*.JPEG'.format(cat, cat)
+                merge_pdf_cmd = 'img2pdf -o vis/{}Samples.pdf --rotation=ifvalid --pagesize A4^T vis/{}/*.JPEG'.format(cat, cat)
                 os.system(merge_pdf_cmd)
 
             compress_cmd = 'tar -czvf analysis.tar.gz vis/'

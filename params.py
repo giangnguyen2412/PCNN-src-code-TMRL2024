@@ -3,35 +3,45 @@ from torchvision import transforms
 
 class RunningParams(object):
     def __init__(self):
+        # General
+        self.IMAGENET_REAL = True
+        self.advising_network = True
+        self.MAX_NORM = False
+        self.conv_layer = 2
+        self.conv_layer_size = {4: 512, 3: 256, 2: 128, 1: 64}
+
         # XAI methods
         self.NO_XAI = 'No-XAI'
         self.GradCAM = 'GradCAM'
         self.NNs = 'NNs'
-        self.k_value = 5
-        self.embedding_loss = True
+        self.XAI_method = self.NO_XAI
 
         # Training
         self.batch_size = 128
-        self.GradCAM_RNlayer = 'layer4'
         self.learning_rate = 0.001
         self.epochs = 25
-        self.advising_network = True
         self.query_frozen = False  # freeze?
         self.heatmap_frozen = False  # freeze?
         self.nns_frozen = False  # freeze?
 
+        # Training heatmap
+        self.GradCAM_RNlayer = 'layer4'
+
+        # Training NNs
+        self.embedding_loss = True
+        self.k_value = 3
+
         # Data processing
         self.FFCV_loader = False
         self.DDP = False
-        self.MODEL2_ADVISING = False
+
+        # Infer
         self.advising_steps = 1
-        self.BATCH_NORM = True
-        self.IMAGENET_REAL = True
+        self.MODEL2_ADVISING = False
 
         # Visualization
         self.M2_VISUALIZATION = True
 
-        self.XAI_method = self.NO_XAI
 
 
 

@@ -18,9 +18,9 @@ import faiss
 from tqdm import tqdm
 from torchray.attribution.grad_cam import grad_cam
 from torchvision import datasets, models, transforms
-from models import MyCustomResnet18, AdvisingNetwork, SimpleAdvisingNetwork
+from models import MyCustomResnet18, AdvisingNetwork
 from params import RunningParams
-from datasets import Dataset
+from datasets import Dataset, ImageFolderWithPaths
 from helpers import HelperFunctions
 from explainers import ModelExplainer
 
@@ -52,9 +52,9 @@ virtual_train_dataset = '{}/train'.format(data_dir)
 train_dataset = '/home/giang/Downloads/datasets/random_train_dataset_50k'
 val_dataset = '/home/giang/Downloads/datasets/imagenet5k-1k'
 # TODO: change to imagenet-val
+# TODO: change the validation set using ImageNetReaL
 
-# if not HelperFunctions.is_program_running(os.path.basename(__file__)):
-if True:
+if not HelperFunctions.is_program_running(os.path.basename(__file__)):
     print('Creating symlink datasets...')
     if os.path.islink(virtual_train_dataset) is True:
         os.unlink(virtual_train_dataset)
@@ -67,9 +67,7 @@ if True:
 else:
     print('Script is running! No creating symlink datasets!')
 
-image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x),
-                                      Dataset.data_transforms[x])
-              for x in ['train', 'val']}
+image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x), Dataset.data_transforms[x]) for x in ['train', 'val']}
 
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 class_names = image_datasets['train'].classes
@@ -77,7 +75,6 @@ l1_dist = nn.PairwiseDistance(p=1)
 
 IMAGENET_MEAN = np.array([0.485, 0.456, 0.406]) * 255
 IMAGENET_STD = np.array([0.229, 0.224, 0.225]) * 255
-DEFAULT_CROP_RATIO = 224/256
 
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
 feature_extractor.cuda()
@@ -138,9 +135,6 @@ if RunningParams.XAI_method == RunningParams.NNs:
             faiss_gpu_index
         )
         faiss.write_index(faiss_cpu_index, 'faiss/faiss.index')
-
-# exit(-1)
-# print('Stop!')
 
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
@@ -204,7 +198,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             yes_cnt = 0
             true_cnt = 0
 
-            for batch_idx, (data, gt) in enumerate(tqdm(data_loader)):
+            for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
                 x = data.cuda()
                 gts = gt.cuda()
 
@@ -214,7 +208,19 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 score, index = torch.topk(model1_p, 1, dim=1)
                 predicted_ids = index.squeeze()
 
-                model2_gt = (predicted_ids == gts) * 1  # 0 and 1
+                # MODEL1 Y/N label for input x
+                if RunningParams.IMAGENET_REAL and phase == 'val':
+                    model2_gt = torch.zeros([x.shape[0]], dtype=torch.int64).cuda()
+                    for sample_idx in range(x.shape[0]):
+                        query = pths[sample_idx]
+                        base_name = os.path.basename(query)
+                        real_ids = Dataset.real_labels[base_name]
+                        if predicted_ids[sample_idx].item() in real_ids:
+                            model2_gt[sample_idx] = 1
+                        else:
+                            model2_gt[sample_idx] = 0
+                else:
+                    model2_gt = (predicted_ids == gts) * 1  # 0 and 1
                 labels = model2_gt
 
                 if RunningParams.XAI_method == RunningParams.GradCAM:
@@ -240,7 +246,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                         _, preds = torch.max(p, 1)
                         label_loss = criterion(p, labels)
                         if RunningParams.XAI_method == RunningParams.NNs and RunningParams.embedding_loss is True:
-                            loss = label_loss + embedding_loss
+                            # loss = label_loss + embedding_loss  # Disable embedding loss
+                            loss = label_loss
                         else:
                             loss = label_loss
 
@@ -310,7 +317,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
 if RunningParams.advising_network is True:
     model2_name = 'AdvisingNetwork'
-    MODEL2 = SimpleAdvisingNetwork()
+    MODEL2 = AdvisingNetwork()
 else:
     model2_name = 'MyCustomResnet18'
     MODEL2 = MyCustomResnet18(pretrained=True, fine_tune=RunningParams.fine_tune)
@@ -346,6 +353,8 @@ config = {"train": train_dataset,
           'heatmap_frozen': RunningParams.heatmap_frozen,
           'nns_frozen':RunningParams.nns_frozen,
           'k_value': RunningParams.k_value,
+          'ImageNetReaL': RunningParams.IMAGENET_REAL,
+          'conv_layer': RunningParams.conv_layer
           }
 
 

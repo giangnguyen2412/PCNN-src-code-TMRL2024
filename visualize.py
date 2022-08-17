@@ -7,7 +7,6 @@ import matplotlib
 import matplotlib.patches as patches
 import torch.nn.functional as F
 import seaborn as sns
-from datasets import *
 from helpers import *
 from image_slicer import join
 from IPython.display import Image
@@ -15,9 +14,9 @@ from matplotlib import cm
 import matplotlib.pyplot as plt
 from matplotlib.patches import ConnectionPatch
 from params import *
+from datasets import Dataset, ImageFolderWithPaths
 
 RunningParams = RunningParams()
-Dataset = Dataset()
 HelperFunctions = HelperFunctions()
 
 sns.set(style="darkgrid")

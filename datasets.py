@@ -1,4 +1,11 @@
+import torch
 import torchvision.transforms as transforms
+import json
+import os
+from params import RunningParams
+from torchvision.datasets import ImageFolder
+
+RunningParams = RunningParams()
 
 
 class Dataset(object):
@@ -45,6 +52,14 @@ class Dataset(object):
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             ]),
         }
+
+        if RunningParams.IMAGENET_REAL is True:
+            real_json = open("/home/giang/Downloads/KNN-ImageNet/reassessed-imagenet/real.json")
+            real_ids = json.load(real_json)
+            self.real_labels = {
+                f"ILSVRC2012_val_{i + 1:08d}.JPEG": labels
+                for i, labels in enumerate(real_ids)
+            }
 
         # 1000 ImageNet wnid mask
         self.all_wnids = [
@@ -1049,3 +1064,60 @@ class Dataset(object):
             "n13133613",
             "n15075141",
         ]
+
+
+class ImageFolderWithPaths(ImageFolder):
+    """Custom dataset that includes image file paths. Extends
+    torchvision.datasets.ImageFolder
+    """
+
+    # override the __init__ method to drop no-label images
+
+    if RunningParams.IMAGENET_REAL:
+        def __init__(self, root, transform=None):
+            super(ImageFolderWithPaths, self).__init__(root, transform=transform)
+
+            if os.path.basename(root) == 'train':
+                pass
+            else:
+                real_json = open("/home/giang/Downloads/KNN-ImageNet/reassessed-imagenet/real.json")
+                real_ids = json.load(real_json)
+                real_labels = {
+                    f"ILSVRC2012_val_{i + 1:08d}.JPEG": labels
+                    for i, labels in enumerate(real_ids)
+                }
+
+                original_len = len(self.imgs)
+                imgs = []
+                samples = []
+                targets = []
+                for sample_idx in range(original_len):
+                    pth = self.imgs[sample_idx][0]
+                    base_name = os.path.basename(pth)
+                    real_ids = real_labels[base_name]
+                    if len(real_ids) == 0:  # no label images
+                        continue
+                    else:
+                        imgs.append(self.imgs[sample_idx])
+                        samples.append(self.samples[sample_idx])
+                        targets.append(self.targets[sample_idx])
+
+                self.imgs = imgs
+                self.samples = samples
+                self.targets = targets
+
+    # override the __getitem__ method. this is the method that dataloader calls
+    def __getitem__(self, index):
+        # this is what ImageFolder normally returns
+        original_tuple = super(ImageFolderWithPaths, self).__getitem__(index)
+        # the image file path
+        path = self.imgs[index][0]
+        data = original_tuple[0]
+        label = original_tuple[1]
+        if data.shape[0] == 1:
+            print('gray images')
+            data = torch.cat([data, data, data], dim=0)
+
+        # make a new tuple that includes original and the path
+        tuple_with_path = (data, label, path)
+        return tuple_with_path
