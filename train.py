@@ -95,7 +95,7 @@ if RunningParams.XAI_method == RunningParams.NNs:
         pin_memory=True,
     )
 
-    INDEX_FILE = 'faiss/faiss.index'
+    INDEX_FILE = 'faiss/faiss_400K.index'
     if os.path.exists(INDEX_FILE):
         print("FAISS index exists!")
         faiss_cpu_index = faiss.read_index(INDEX_FILE)

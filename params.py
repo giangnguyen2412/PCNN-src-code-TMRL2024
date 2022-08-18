@@ -14,7 +14,7 @@ class RunningParams(object):
         self.NO_XAI = 'No-XAI'
         self.GradCAM = 'GradCAM'
         self.NNs = 'NNs'
-        self.XAI_method = self.NO_XAI
+        self.XAI_method = self.NNs
 
         # Training
         self.batch_size = 128

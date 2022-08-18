@@ -48,11 +48,11 @@ MODEL1 = models.resnet18(pretrained=True).eval().cuda()
 data_dir = '/home/giang/Downloads/advising_net_training/'
 virtual_train_dataset = '{}/train'.format(data_dir)
 
-train_dataset = '/home/giang/Downloads/datasets/random_train_dataset_10k'
+train_dataset = '/home/giang/Downloads/datasets/random_train_dataset_50k'
 val_dataset = '/home/giang/Downloads/datasets/imagenet5k-1k'
 # TODO: change to imagenet-val
 
-if not HelperFunctions.is_running(os.path.basename(__file__)):
+if not HelperFunctions.is_program_running(os.path.basename(__file__)):
     print('Creating symlink datasets...')
     if os.path.islink(virtual_train_dataset) is True:
         os.unlink(virtual_train_dataset)
@@ -94,7 +94,7 @@ if RunningParams.XAI_method == RunningParams.NNs:
     in_features = MODEL1.fc.in_features
     print("Building FAISS index...")
     # TODO: change search space to train
-    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/random_train_dataset', transform=Dataset.data_transforms['train'])
+    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/random_train_dataset_100k', transform=Dataset.data_transforms['train'])
     faiss_data_loader = torch.utils.data.DataLoader(
         faiss_dataset,
         batch_size=RunningParams.batch_size,
@@ -105,7 +105,8 @@ if RunningParams.XAI_method == RunningParams.NNs:
     )
 
     INDEX_FILE = 'faiss/faiss.index'
-    if os.path.exists(INDEX_FILE):
+    # if os.path.exists(INDEX_FILE):
+    if False:
         print("FAISS index exists!")
         faiss_cpu_index = faiss.read_index(INDEX_FILE)
         faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
@@ -116,17 +117,19 @@ if RunningParams.XAI_method == RunningParams.NNs:
         stack_embeddings = []
         stack_labels = []
         gallery_paths = []
+        input_data = []
+
         for batch_idx, (data, label) in enumerate(tqdm(faiss_data_loader)):
+            input_data.append(data.detach().numpy())
             embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
             embeddings = torch.flatten(embeddings, start_dim=1)
-            # print(embeddings.shape)
-            # TODO: add data tensors here to return data using index
-            # TODO: search in range only
-            # TODO: Move everything to GPU
+
             stack_embeddings.append(embeddings.cpu().detach().numpy())
             stack_labels.append(label.cpu().detach().numpy())
             # gallery_paths.extend(path)
 
+        input_data = np.concatenate(input_data, axis=0)
+        np.save('KB_100K.npy', input_data)
         stack_embeddings = np.concatenate(stack_embeddings, axis=0)
         stack_labels = np.concatenate(stack_labels, axis=0)
         # stack_embeddings = stack_embeddings.cpu().detach().numpy()
@@ -143,8 +146,9 @@ if RunningParams.XAI_method == RunningParams.NNs:
         faiss_cpu_index = faiss.index_gpu_to_cpu(  # build the index
             faiss_gpu_index
         )
-        faiss.write_index(faiss_cpu_index, 'faiss/faiss.index')
+        faiss.write_index(faiss_cpu_index, 'faiss/faiss_100K.index')
 
+exit(-1)
 
 for batch_idx, (data, label) in enumerate(tqdm(train_loader)):
     embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
