@@ -85,7 +85,7 @@ if RunningParams.XAI_method == RunningParams.NNs:
     in_features = MODEL1.fc.in_features
     print("Building FAISS index...")
     # TODO: change search space to train
-    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/random_train_dataset', transform=Dataset.data_transforms['train'])
+    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/random_train_dataset_100k', transform=Dataset.data_transforms['train'])
     faiss_data_loader = torch.utils.data.DataLoader(
         faiss_dataset,
         batch_size=RunningParams.batch_size,
@@ -95,13 +95,15 @@ if RunningParams.XAI_method == RunningParams.NNs:
         pin_memory=True,
     )
 
-    INDEX_FILE = 'faiss/faiss_400K.index'
+    INDEX_FILE = 'faiss/faiss_100K.index'
+    INPUT_FILE = 'KB_100K.pt'
     if os.path.exists(INDEX_FILE):
         print("FAISS index exists!")
         faiss_cpu_index = faiss.read_index(INDEX_FILE)
         faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
             faiss_cpu_index
         )
+        KB_100K = torch.load(INPUT_FILE)
     else:
         print("FAISS index NOT exists! Creating FAISS index then save to disk...")
         stack_embeddings = []
@@ -227,7 +229,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                     explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
                 elif RunningParams.XAI_method == RunningParams.NNs:
                     embeddings = embeddings.cpu().detach().numpy()
-                    explanation = ModelExplainer.faiss_nearest_neighbors(MODEL1, embeddings, phase, faiss_gpu_index, faiss_data_loader)
+                    # explanation = ModelExplainer.faiss_nearest_neighbors(MODEL1, embeddings, phase, faiss_gpu_index, faiss_data_loader)
+                    explanation = ModelExplainer.faiss_nearest_neighbors(MODEL1, embeddings, phase, faiss_gpu_index, KB_100K)
 
                 # zero the parameter gradients
                 optimizer.zero_grad()

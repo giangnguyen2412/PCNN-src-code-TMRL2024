@@ -120,7 +120,7 @@ if RunningParams.XAI_method == RunningParams.NNs:
         input_data = []
 
         for batch_idx, (data, label) in enumerate(tqdm(faiss_data_loader)):
-            input_data.append(data.detach().numpy())
+            input_data.append(data.detach())
             embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
             embeddings = torch.flatten(embeddings, start_dim=1)
 
@@ -128,8 +128,9 @@ if RunningParams.XAI_method == RunningParams.NNs:
             stack_labels.append(label.cpu().detach().numpy())
             # gallery_paths.extend(path)
 
-        input_data = np.concatenate(input_data, axis=0)
-        np.save('KB_100K.npy', input_data)
+        input_data = torch.cat(input_data, dim=0)
+        # np.save('KB_100K.npy', input_data)
+        torch.save(input_data, 'KB_100K.pt')
         stack_embeddings = np.concatenate(stack_embeddings, axis=0)
         stack_labels = np.concatenate(stack_labels, axis=0)
         # stack_embeddings = stack_embeddings.cpu().detach().numpy()
