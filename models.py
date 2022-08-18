@@ -129,13 +129,6 @@ class AdvisingNetwork(nn.Module):
         self.fc2 = nn.Linear(128, 2)
         self.fc2_bn = nn.BatchNorm1d(2, eps=1e-2)
 
-        self.input_bn = nn.BatchNorm1d(avg_pool_features, eps=1e-2)
-        if RunningParams.XAI_method == RunningParams.GradCAM:
-            self.exp_bn = nn.BatchNorm1d(7*7, eps=1e-2)
-        elif RunningParams.XAI_method == RunningParams.NNs:
-            self.exp_bn = nn.BatchNorm1d(avg_pool_features*RunningParams.k_value, eps=1e-2)
-        self.scores_bn = nn.BatchNorm1d(softmax_features, eps=1e-2)
-
         # initialize all fc layers to xavier
         for m in self.modules():
             if isinstance(m, nn.Linear):

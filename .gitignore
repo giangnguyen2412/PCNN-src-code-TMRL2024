@@ -1,0 +1,14 @@
+models/
+wandb/
+.ipynb_checkpoints/
+# they are symlinks, not folders
+train
+val
+__pycache__/
+best_models/
+ffcv_output/
+faiss/
+vis/
+*.tar.gz
+*.npy
+*.pt

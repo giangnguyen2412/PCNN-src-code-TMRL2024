@@ -29,7 +29,8 @@ class RunningParams(object):
 
         # Training NNs
         self.embedding_loss = True
-        self.k_value = 3
+        self.k_value = 1
+        self.PRECOMPUTED_NN = True
 
         # Data processing
         self.FFCV_loader = False

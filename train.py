@@ -96,14 +96,15 @@ if RunningParams.XAI_method == RunningParams.NNs:
     )
 
     INDEX_FILE = 'faiss/faiss_100K.index'
-    INPUT_FILE = 'KB_100K.pt'
+    PRECOMPUTED_NN_FILE = 'KB_100K.pt'
     if os.path.exists(INDEX_FILE):
         print("FAISS index exists!")
         faiss_cpu_index = faiss.read_index(INDEX_FILE)
         faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
             faiss_cpu_index
         )
-        KB_100K = torch.load(INPUT_FILE)
+        if RunningParams.PRECOMPUTED_NN is True:
+            KB_100K = torch.load(PRECOMPUTED_NN_FILE)
     else:
         print("FAISS index NOT exists! Creating FAISS index then save to disk...")
         stack_embeddings = []
@@ -229,8 +230,12 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                     explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
                 elif RunningParams.XAI_method == RunningParams.NNs:
                     embeddings = embeddings.cpu().detach().numpy()
-                    # explanation = ModelExplainer.faiss_nearest_neighbors(MODEL1, embeddings, phase, faiss_gpu_index, faiss_data_loader)
-                    explanation = ModelExplainer.faiss_nearest_neighbors(MODEL1, embeddings, phase, faiss_gpu_index, KB_100K)
+                    if RunningParams.PRECOMPUTED_NN is True:
+                        explanation = ModelExplainer.faiss_nearest_neighbors(
+                            MODEL1, embeddings, phase, faiss_gpu_index, KB_100K, RunningParams.PRECOMPUTED_NN)
+                    else:
+                        explanation = ModelExplainer.faiss_nearest_neighbors(
+                            MODEL1, embeddings, phase, faiss_gpu_index, faiss_data_loader, RunningParams.PRECOMPUTED_NN)
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -249,8 +254,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                         _, preds = torch.max(p, 1)
                         label_loss = criterion(p, labels)
                         if RunningParams.XAI_method == RunningParams.NNs and RunningParams.embedding_loss is True:
-                            # loss = label_loss + embedding_loss  # Disable embedding loss
-                            loss = label_loss
+                            loss = label_loss + embedding_loss  # Disable embedding loss
+                            # loss = label_loss
                         else:
                             loss = label_loss
 
@@ -357,7 +362,8 @@ config = {"train": train_dataset,
           'nns_frozen':RunningParams.nns_frozen,
           'k_value': RunningParams.k_value,
           'ImageNetReaL': RunningParams.IMAGENET_REAL,
-          'conv_layer': RunningParams.conv_layer
+          'conv_layer': RunningParams.conv_layer,
+          'embedding_loss': RunningParams.embedding_loss,
           }
 
 
