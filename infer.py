@@ -1,17 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim import lr_scheduler
-import torch.backends.cudnn as cudnn
 import numpy as np
-import matplotlib.pyplot as plt
-import time
 import os
-import copy
-import wandb
-import random
-import json
 import argparse
+import faiss
+
 from tqdm import tqdm
 from torchray.attribution.grad_cam import grad_cam
 from torchvision import datasets, models, transforms
@@ -21,24 +15,26 @@ from datasets import Dataset, ImageFolderWithPaths
 from torchvision.datasets import ImageFolder
 from visualize import Visualization
 from helpers import HelperFunctions
+from explainers import ModelExplainer
 
 RunningParams = RunningParams()
 Dataset = Dataset()
 HelperFunctions = HelperFunctions()
+ModelExplainer = ModelExplainer()
 print(RunningParams.__dict__)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_models/best_model_ethereal-universe-312.pt',
+                        default='best_model_pretty-puddle-331.pt',
                         help='Model check point')
-    parser.add_argument('--eval_dataset', type=str,
-                        default='/home/giang/Downloads/datasets/imagenet1k-val',
+    parser.add_argument('--dataset', type=str,
+                        default='imagenet1k-val',
                         help='Evaluation dataset')
 
     args = parser.parse_args()
-    model_path = args.ckpt
+    model_path = os.path.join('best_models', args.ckpt)
     print(args)
 
     model = AdvisingNetwork()
@@ -52,12 +48,16 @@ if __name__ == '__main__':
     epoch = checkpoint['epoch']
     loss = checkpoint['val_loss']
     acc = checkpoint['val_acc']
+    running_params = checkpoint['running_params']
+
+    # RunningParams.XAI_method = running_params.XAI_method
 
     model.eval()
 
     data_dir = '/home/giang/Downloads/datasets/'
     # TODO: Using mask to make the predictions compatible with ImageNet-R, ObjectNet, ImageNet-A
     val_datasets = Dataset.test_datasets
+    # val_datasets = [args.dataset]
     # image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), Dataset.data_transforms['val'])
     #                   for x in val_datasets}
     image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x), Dataset.data_transforms['val'])
@@ -66,7 +66,34 @@ if __name__ == '__main__':
     dataset_sizes = {x: len(image_datasets[x]) for x in val_datasets}
 
     model1_name = 'resnet18'
-    MODEL1 = models.resnet18(pretrained=True).eval().cuda()
+    MODEL1 = models.resnet18(pretrained=True).eval()
+    fc = MODEL1.fc
+    fc = fc.cuda()
+
+    feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
+    feature_extractor.cuda()
+    feature_extractor = nn.DataParallel(feature_extractor)
+
+    if RunningParams.XAI_method == RunningParams.NNs:
+        if os.path.exists(RunningParams.INDEX_FILE):
+            print("FAISS index exists!")
+            faiss_cpu_index = faiss.read_index(RunningParams.INDEX_FILE)
+            faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
+                faiss_cpu_index
+            )
+            if RunningParams.PRECOMPUTED_NN is True:
+                KB_100K = torch.load(RunningParams.PRECOMPUTED_NN_FILE)
+            else:
+                faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/random_train_dataset_100k',
+                                                     transform=Dataset.data_transforms['train'])
+                faiss_data_loader = torch.utils.data.DataLoader(
+                    faiss_dataset,
+                    batch_size=RunningParams.batch_size,
+                    shuffle=False,
+                    num_workers=0,  # Set to 0 as suggested by
+                    # https://stackoverflow.com/questions/54773106/simple-way-to-load-specific-sample-using-pytorch-dataloader
+                    pin_memory=True,
+                )
 
     for ds in val_datasets:
         data_loader = torch.utils.data.DataLoader(
@@ -81,6 +108,7 @@ if __name__ == '__main__':
         advising_crt_cnt = 0
         yes_cnt = 0
         true_cnt = 0
+        uncertain_pred_cnt = 0
 
         categories = ['CorrectlyAccept', 'IncorrectlyAccept', 'CorrectlyReject', 'IncorrectlyReject']
         save_dir = '/home/giang/Downloads/advising_net_training/vis/'
@@ -91,19 +119,22 @@ if __name__ == '__main__':
             confidence_dist[cat] = list()
             HelperFunctions.check_and_mkdir(os.path.join(save_dir, cat))
 
+        infer_result_dict = dict()
+
         for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
             x = data.cuda()
             gts = gt.cuda()
 
             # Step 1: Forward pass input x through MODEL1 - Explainer
-            out = MODEL1(x)
+            embeddings = feature_extractor(x).flatten(start_dim=1)  # 512x1 for RN 18
+            out = fc(embeddings)
             model1_p = torch.nn.functional.softmax(out, dim=1)
             score, index = torch.topk(model1_p, 1, dim=1)
             _, model1_ranks = torch.topk(model1_p, 1000, dim=1)
             predicted_ids = index.squeeze()
 
             # MODEL1 Y/N label for input x
-            if RunningParams.IMAGENET_REAL:
+            if RunningParams.IMAGENET_REAL and ds == Dataset.IMAGENET_1K:
                 model2_gt = torch.zeros([x.shape[0]], dtype=torch.int64).cuda()
                 for sample_idx in range(x.shape[0]):
                     query = pths[sample_idx]
@@ -117,15 +148,35 @@ if __name__ == '__main__':
             else:
                 model2_gt = (predicted_ids == gts) * 1  # 0 and 1
 
-            # Generate heatmap explanation using MODEL1 and its predicted ids
-            saliency = grad_cam(MODEL1, x, index, saliency_layer=RunningParams.GradCAM_RNlayer, resize=True)
             labels = model2_gt
+
+            # Generate explanations
+            if RunningParams.XAI_method == RunningParams.GradCAM:
+                explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
+            elif RunningParams.XAI_method == RunningParams.NNs:
+                embeddings = embeddings.cpu().detach().numpy()
+                if RunningParams.PRECOMPUTED_NN is True:
+                    explanation = ModelExplainer.faiss_nearest_neighbors(
+                        MODEL1, embeddings, 'val', faiss_gpu_index, KB_100K, RunningParams.PRECOMPUTED_NN)
+                else:
+                    explanation = ModelExplainer.faiss_nearest_neighbors(
+                        MODEL1, embeddings, 'val', faiss_gpu_index, faiss_data_loader, RunningParams.PRECOMPUTED_NN)
 
             if RunningParams.advising_network is True:
                 # Forward input, explanations, and softmax scores through MODEL2
-                output, _, _ = model(x, saliency, model1_p)
+                if RunningParams.XAI_method == RunningParams.NO_XAI:
+                    output, _, _ = model(images=x, explanations=None, scores=model1_p)
+                else:
+                    output, query, nns = model(images=x, explanations=explanation, scores=model1_p)
+
                 p = torch.nn.functional.softmax(output, dim=1)
                 _, preds = torch.max(p, 1)
+
+                for sample_idx in range(x.shape[0]):
+                    pred = preds[sample_idx].item()
+                    model2_conf = p[sample_idx][pred].item()
+                    if model2_conf < 0.6:
+                        uncertain_pred_cnt += 1
 
             # Running ADVISING process
             # TODO: Reduce compute overhead by only running on disagreed samples
@@ -198,7 +249,7 @@ if __name__ == '__main__':
                     confidence = int(score[sample_idx].item()*100)
                     confidence_dist[model2_decision].append(confidence)
 
-                    if RunningParams.IMAGENET_REAL is True:
+                    if RunningParams.IMAGENET_REAL is True and ds == Dataset.IMAGENET_1K:
                         real_ids = Dataset.real_labels[base_name]
                         gt_labels = []
                         for id in real_ids:
@@ -216,8 +267,15 @@ if __name__ == '__main__':
                         #                                          save_path,
                         #                                          save_dir,
                         #                                          confidence)
-                        if model2_decision == 'IncorrectlyReject':
-                            print(p[sample_idx])
+                        pass
+
+                    infer_result_dict[base_name] = dict()
+                    infer_result_dict[base_name]['model2_decision'] = model2_decision
+                    infer_result_dict[base_name]['confidence'] = confidence
+                    infer_result_dict[base_name]['gt_label'] = gt_label
+                    infer_result_dict[base_name]['pred_label'] = pred_label
+                    infer_result_dict[base_name]['result'] = result is True
+                    np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
 
             yes_cnt += sum(preds)
             true_cnt += sum(labels)
@@ -242,6 +300,7 @@ if __name__ == '__main__':
         epoch_acc = running_corrects.double() / len(image_datasets[ds])
         yes_ratio = yes_cnt.double() / len(image_datasets[ds])
         true_ratio = true_cnt.double() / len(image_datasets[ds])
+        uncertain_ratio = uncertain_pred_cnt / len(image_datasets[ds])
 
         if RunningParams.MODEL2_ADVISING is True:
             advising_acc = advising_crt_cnt.double() / len(image_datasets[ds])
@@ -249,8 +308,8 @@ if __name__ == '__main__':
             print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Orig. accuracy: {:.2f} - Advising. accuracy: {:.2f}'.format(
                 ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100, advising_acc * 100))
         else:
-            print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Orig. accuracy: {:.2f}'.format(
-                ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
+            print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Orig. accuracy: {:.2f} - Uncertain. ratio: {:.2f}'.format(
+                ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100, uncertain_ratio * 100))
 
 
 

@@ -34,7 +34,7 @@ class Dataset(object):
 
         self.IMAGENET_PILOT_VIS = "imagenet1k-pilot"
 
-        self.test_datasets = [self.IMAGENET_1K]
+        self.test_datasets = [self.IMAGENET_1K, self.DAMAGE_NET, self.ADVERSARIAL_PATCH_NEW, self.IMAGENET_SKETCH]
 
         self.IMAGENET_C_NOISE = [self.GAUSSIAN_NOISE, self.GAUSSIAN_BLUR]
 
@@ -1094,6 +1094,9 @@ class ImageFolderWithPaths(ImageFolder):
                 for sample_idx in range(original_len):
                     pth = self.imgs[sample_idx][0]
                     base_name = os.path.basename(pth)
+                    # Not ImageNet-val then we exit the function
+                    if base_name not in real_labels:
+                        return
                     real_ids = real_labels[base_name]
                     if len(real_ids) == 0:  # no label images
                         continue
@@ -1110,9 +1113,10 @@ class ImageFolderWithPaths(ImageFolder):
     def __getitem__(self, index):
         # this is what ImageFolder normally returns
         original_tuple = super(ImageFolderWithPaths, self).__getitem__(index)
+        
         # the image file path
         path = self.imgs[index][0]
-        data = original_tuple[0]
+        data = original_tuple[0] # --> 3x224x224 --> 7x3x224x224
         label = original_tuple[1]
         if data.shape[0] == 1:
             print('gray images')

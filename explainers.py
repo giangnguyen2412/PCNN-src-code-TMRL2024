@@ -2,7 +2,7 @@ from torchray.attribution.grad_cam import grad_cam
 from params import RunningParams
 
 import torch
-
+import  numpy as np
 RunningParams = RunningParams()
 
 
@@ -21,6 +21,7 @@ class ModelExplainer(object):
         # TODO: later I may need the path of NNs here for visualization
         distance, indices = faiss_gpu_index.search(embeddings, RunningParams.k_value + 1)
 
+        # indices = np.random.randint(low=0, high=9, size=(embeddings.shape[0], RunningParams.k_value + 1))
         # Running two loops to get the NNs' processed tensors
         q_list = []
         for q_idx in range(embeddings.shape[0]):

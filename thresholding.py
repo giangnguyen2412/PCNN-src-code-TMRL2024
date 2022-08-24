@@ -18,9 +18,9 @@ HelperFunctions = HelperFunctions()
 RunningParams = RunningParams()
 
 T_list = list(np.arange(0.0, 1.0, 0.05))
-imagenet_folders = glob.glob('/home/giang/Downloads/datasets/imagenet1k-val/*')
+imagenet_folders = glob.glob('/home/giang/Downloads/datasets/imagenet5k-1k/*')
 
-model = vgg11(pretrained=True).cuda()
+model = resnet18(pretrained=True).cuda()
 model.eval()
 
 # Pre-process the image and convert into a tensor
@@ -52,7 +52,7 @@ if RunningParams.IMAGENET_REAL is True:
     }
 
 for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
-    imagenet_id = imagenet_folder.split('val/')[1]
+    imagenet_id = imagenet_folder.split('5k-1k/')[1]
     image_paths = glob.glob(imagenet_folder + '/*.*')
 
     for idx, image_path in enumerate(image_paths):
@@ -79,8 +79,9 @@ for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
                                                                      category_id)
         confidence_dict[image_path] = dict()
         confidence_dict[image_path]['Confidence'] = confidence_score
-        confidence_dict[image_path]['prediction_id'] = prediction_id
-        confidence_dict[image_path]['imagenet_id'] = imagenet_id
+        confidence_dict[image_path]['predicted_wnid'] = prediction_id
+        confidence_dict[image_path]['gt_wnid'] = imagenet_id
+        confidence_dict[image_path]['predicted_id'] = category_id
 
 
 for T in T_list:
@@ -89,8 +90,9 @@ for T in T_list:
 
     for key, val in confidence_dict.items():
         confidence_score = val['Confidence']
-        prediction_id = val['prediction_id']
-        imagenet_id = val['imagenet_id']
+        predicted_id = val['predicted_id']
+        gt_wnid = val['gt_wnid']
+        predicted_wnid = val['predicted_wnid']
 
         if RunningParams.IMAGENET_REAL is True:
             base_name = os.path.basename(key)
@@ -99,14 +101,14 @@ for T in T_list:
             if len(real_ids) == 0:
                 continue
 
-            if (confidence_score > T and prediction_id in real_ids) or (
-                    confidence_score <= T and prediction_id not in real_ids):
+            if (confidence_score > T and predicted_id in real_ids) or (
+                    confidence_score <= T and predicted_id not in real_ids):
                 correct += 1
             else:
                 wrong += 1
         else:
-            if (confidence_score > T and prediction_id == imagenet_id) or (
-                    confidence_score <= T and prediction_id != imagenet_id):
+            if (confidence_score > T and predicted_wnid == gt_wnid) or (
+                    confidence_score <= T and predicted_wnid != gt_wnid):
                 correct += 1
             else:
                 wrong += 1

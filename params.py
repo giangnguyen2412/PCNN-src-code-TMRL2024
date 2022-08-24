@@ -28,9 +28,12 @@ class RunningParams(object):
         self.GradCAM_RNlayer = 'layer4'
 
         # Training NNs
-        self.embedding_loss = True
+        self.embedding_loss = False
         self.k_value = 1
         self.PRECOMPUTED_NN = True
+        self.CONTINUE_TRAINING = False
+        self.INDEX_FILE = 'faiss/faiss_100K.index'
+        self.PRECOMPUTED_NN_FILE = 'KB_100K.pt'
 
         # Data processing
         self.FFCV_loader = False
@@ -41,7 +44,7 @@ class RunningParams(object):
         self.MODEL2_ADVISING = False
 
         # Visualization
-        self.M2_VISUALIZATION = True
+        self.M2_VISUALIZATION = False
 
 
 

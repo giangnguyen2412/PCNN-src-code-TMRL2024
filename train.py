@@ -44,7 +44,9 @@ Dataset = Dataset()
 Explainer = ModelExplainer()
 
 model1_name = 'resnet18'
-MODEL1 = models.resnet18(pretrained=True).eval().cuda()
+MODEL1 = models.resnet18(pretrained=True).eval()
+fc = MODEL1.fc
+fc = fc.cuda()
 
 data_dir = '/home/giang/Downloads/advising_net_training/'
 virtual_train_dataset = '{}/train'.format(data_dir)
@@ -95,16 +97,14 @@ if RunningParams.XAI_method == RunningParams.NNs:
         pin_memory=True,
     )
 
-    INDEX_FILE = 'faiss/faiss_100K.index'
-    PRECOMPUTED_NN_FILE = 'KB_100K.pt'
-    if os.path.exists(INDEX_FILE):
+    if os.path.exists(RunningParams.INDEX_FILE):
         print("FAISS index exists!")
-        faiss_cpu_index = faiss.read_index(INDEX_FILE)
+        faiss_cpu_index = faiss.read_index(RunningParams.INDEX_FILE)
         faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
             faiss_cpu_index
         )
         if RunningParams.PRECOMPUTED_NN is True:
-            KB_100K = torch.load(PRECOMPUTED_NN_FILE)
+            KB_100K = torch.load(RunningParams.PRECOMPUTED_NN_FILE)
     else:
         print("FAISS index NOT exists! Creating FAISS index then save to disk...")
         stack_embeddings = []
@@ -206,7 +206,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 gts = gt.cuda()
 
                 embeddings = feature_extractor(x).flatten(start_dim=1)  # 512x1 for RN 18
-                out = MODEL1.fc(embeddings)
+                out = fc(embeddings)
                 model1_p = torch.nn.functional.softmax(out, dim=1)
                 score, index = torch.topk(model1_p, 1, dim=1)
                 predicted_ids = index.squeeze()
@@ -236,6 +236,10 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                     else:
                         explanation = ModelExplainer.faiss_nearest_neighbors(
                             MODEL1, embeddings, phase, faiss_gpu_index, faiss_data_loader, RunningParams.PRECOMPUTED_NN)
+
+                # torch.rand([16, 3, 224, 224]).cuda()
+                if phase == 'train':
+                    explanation = torch.rand(explanation.shape).cuda()
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -333,6 +337,11 @@ else:
 MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
+if RunningParams.CONTINUE_TRAINING:
+    model_path = 'best_models/best_model_pretty-puddle-331.pt'
+    checkpoint = torch.load(model_path)
+    MODEL2.load_state_dict(checkpoint['model_state_dict'])
+
 criterion = nn.CrossEntropyLoss()
 
 # Observe that all parameters are being optimized
@@ -364,6 +373,7 @@ config = {"train": train_dataset,
           'ImageNetReaL': RunningParams.IMAGENET_REAL,
           'conv_layer': RunningParams.conv_layer,
           'embedding_loss': RunningParams.embedding_loss,
+          'continue_training': RunningParams.CONTINUE_TRAINING,
           }
 
 
