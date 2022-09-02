@@ -20,17 +20,10 @@ from torchray.attribution.grad_cam import grad_cam
 from torchvision import datasets, models, transforms
 from models import MyCustomResnet18, AdvisingNetwork
 from params import RunningParams
-from datasets import Dataset, ImageFolderWithPaths
+from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
 from explainers import ModelExplainer
 
-from ffcv.loader import Loader, OrderOption
-from ffcv.fields.decoders import \
-    RandomResizedCropRGBImageDecoder
-from ffcv.fields.basics import IntDecoder
-from ffcv.transforms import ToTensor, Convert, ToDevice, Squeeze, NormalizeImage, \
-    RandomHorizontalFlip, ToTorchImage
-from ffcv.transforms import *
 import torchvision as tv
 
 torch.backends.cudnn.benchmark = True
@@ -48,15 +41,17 @@ MODEL1 = models.resnet18(pretrained=True).eval()
 fc = MODEL1.fc
 fc = fc.cuda()
 
-data_dir = '/home/giang/Downloads/advising_net_training/'
+# data_dir = '/home/giang/Downloads/advising_net_training/'
+data_dir = '/home/giang/tmp/'
+
 virtual_train_dataset = '{}/train'.format(data_dir)
 
-train_dataset = '/home/giang/Downloads/datasets/random_train_dataset_50k'
+train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_60k'
+# train_dataset = '/home/giang/Downloads/datasets/random_train_dataset_50k'
 val_dataset = '/home/giang/Downloads/datasets/imagenet5k-1k'
-# TODO: change to imagenet-val
-# TODO: change the validation set using ImageNetReaL
 
 if not HelperFunctions.is_program_running(os.path.basename(__file__)):
+# if True:
     print('Creating symlink datasets...')
     if os.path.islink(virtual_train_dataset) is True:
         os.unlink(virtual_train_dataset)
@@ -68,9 +63,10 @@ if not HelperFunctions.is_program_running(os.path.basename(__file__)):
     os.symlink(val_dataset, virtual_val_dataset)
 else:
     print('Script is running! No creating symlink datasets!')
-
-image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x), Dataset.data_transforms[x]) for x in ['train', 'val']}
-
+if RunningParams.XAI_method == RunningParams.NNs:
+    image_datasets = {x: ImageFolderForNNs(os.path.join(data_dir, x), Dataset.data_transforms[x]) for x in ['train', 'val']}
+else:
+    image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x), Dataset.data_transforms[x]) for x in ['train', 'val']}
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 class_names = image_datasets['train'].classes
 l1_dist = nn.PairwiseDistance(p=1)
@@ -87,7 +83,7 @@ if RunningParams.XAI_method == RunningParams.NNs:
     in_features = MODEL1.fc.in_features
     print("Building FAISS index...")
     # TODO: change search space to train
-    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/random_train_dataset_100k', transform=Dataset.data_transforms['train'])
+    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/train', transform=Dataset.data_transforms['train'])
     faiss_data_loader = torch.utils.data.DataLoader(
         faiss_dataset,
         batch_size=RunningParams.batch_size,
@@ -103,8 +99,7 @@ if RunningParams.XAI_method == RunningParams.NNs:
         faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
             faiss_cpu_index
         )
-        if RunningParams.PRECOMPUTED_NN is True:
-            KB_100K = torch.load(RunningParams.PRECOMPUTED_NN_FILE)
+
     else:
         print("FAISS index NOT exists! Creating FAISS index then save to disk...")
         stack_embeddings = []
@@ -152,40 +147,14 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
-            distributed = 1
-            order = OrderOption.RANDOM if distributed else OrderOption.QUASI_RANDOM
-            if RunningParams.FFCV_loader is True:
-                data_loader = Loader('ffcv_output/imagenet_{}.beton'.format(phase),
-                                     batch_size=RunningParams.batch_size,
-                                     num_workers=32,
-                                     order=order,
-                                     os_cache=True,
-                                     drop_last=True,
-                                     pipelines={'image': [
-                                      RandomResizedCropRGBImageDecoder((224, 224)),
-                                      RandomHorizontalFlip(),
-                                      ToTensor(),
-                                      ToDevice(torch.device('cuda:0'), non_blocking=True),
-                                      ToTorchImage(),
-                                      # Standard torchvision transforms still work!
-                                      NormalizeImage(IMAGENET_MEAN, IMAGENET_STD, np.float32)
-                                     ], 'label':
-                                     [
-                                        IntDecoder(),
-                                        ToTensor(),
-                                        Squeeze(),
-                                        ToDevice(torch.device('cuda:0'), non_blocking=True),
-                                            ]},
-                                     distributed=distributed
-                                     )
-            else:
-                data_loader = torch.utils.data.DataLoader(
-                    image_datasets[phase],
-                    batch_size=RunningParams.batch_size,
-                    shuffle=True,  # turn shuffle to True
-                    num_workers=8,
-                    pin_memory=True,
-                )
+
+            data_loader = torch.utils.data.DataLoader(
+                image_datasets[phase],
+                batch_size=RunningParams.batch_size,
+                shuffle=True,  # turn shuffle to True
+                num_workers=16,
+                pin_memory=True,
+            )
 
             if phase == 'train':
                 model.train()  # Training mode
@@ -202,7 +171,10 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             true_cnt = 0
 
             for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
-                x = data.cuda()
+                if RunningParams.XAI_method == RunningParams.NNs:
+                    x = data[:, -1, :, :, :].cuda()  # query is the last tensor
+                else:
+                    x = data.cuda()
                 gts = gt.cuda()
 
                 embeddings = feature_extractor(x).flatten(start_dim=1)  # 512x1 for RN 18
@@ -231,15 +203,15 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 elif RunningParams.XAI_method == RunningParams.NNs:
                     embeddings = embeddings.cpu().detach().numpy()
                     if RunningParams.PRECOMPUTED_NN is True:
-                        explanation = ModelExplainer.faiss_nearest_neighbors(
-                            MODEL1, embeddings, phase, faiss_gpu_index, KB_100K, RunningParams.PRECOMPUTED_NN)
+                        explanation = data[:, :-1, :, :, :]
+                        if phase == 'train':
+                            explanation = explanation[:, 1:RunningParams.k_value+1, :, :, :]  # ignore 1st NN = query
+                        else:
+                            explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
+
                     else:
                         explanation = ModelExplainer.faiss_nearest_neighbors(
-                            MODEL1, embeddings, phase, faiss_gpu_index, faiss_data_loader, RunningParams.PRECOMPUTED_NN)
-
-                # torch.rand([16, 3, 224, 224]).cuda()
-                if phase == 'train':
-                    explanation = torch.rand(explanation.shape).cuda()
+                            MODEL1, embeddings, phase, faiss_gpu_index, faiss_data_loader)
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -258,8 +230,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                         _, preds = torch.max(p, 1)
                         label_loss = criterion(p, labels)
                         if RunningParams.XAI_method == RunningParams.NNs and RunningParams.embedding_loss is True:
-                            loss = label_loss + embedding_loss  # Disable embedding loss
-                            # loss = label_loss
+                            loss = label_loss + embedding_loss
+                            # loss = embedding_loss
                         else:
                             loss = label_loss
 
@@ -293,11 +265,11 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
             wandb.log({'{}_accuracy'.format(phase): epoch_acc, '{}_loss'.format(phase): epoch_loss})
 
-            print('{} - Loss: {:.4f} Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
-                phase, epoch_loss, epoch_acc*100, yes_ratio * 100, true_ratio*100))
-            if RunningParams.XAI_method == RunningParams.NNs:
-                print('{} - Label Loss: {:.4f} - Embedding Loss: {:.4f} '.format(
-                    phase, epoch_label_loss, epoch_embedding_loss))
+            print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
+                phase, epoch_acc*100, yes_ratio * 100, true_ratio*100))
+            # if RunningParams.XAI_method == RunningParams.NNs:
+            #     print('{} - Label Loss: {:.4f} - Embedding Loss: {:.4f} '.format(
+            #         phase, epoch_label_loss, epoch_embedding_loss))
 
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
@@ -374,8 +346,9 @@ config = {"train": train_dataset,
           'conv_layer': RunningParams.conv_layer,
           'embedding_loss': RunningParams.embedding_loss,
           'continue_training': RunningParams.CONTINUE_TRAINING,
+          'using_softmax': RunningParams.USING_SOFTMAX,
+          'dropout_rate': RunningParams.dropout
           }
-
 
 print(config)
 wandb.init(
@@ -389,6 +362,7 @@ wandb.save('params.py', policy='now')
 wandb.save('explainers.py', policy='now')
 wandb.save('models.py', policy='now')
 wandb.save('datasets.py', policy='now')
+wandb.save('train.py', policy='now')
 
 
 _, best_acc = train_model(

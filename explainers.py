@@ -17,7 +17,7 @@ class ModelExplainer(object):
         return explanations
 
     @staticmethod
-    def faiss_nearest_neighbors(model1, embeddings, phase, faiss_gpu_index, faiss_data_loader, precomputed):
+    def faiss_nearest_neighbors(model1, embeddings, phase, faiss_gpu_index, faiss_data_loader):
         # TODO: later I may need the path of NNs here for visualization
         distance, indices = faiss_gpu_index.search(embeddings, RunningParams.k_value + 1)
 
@@ -28,15 +28,9 @@ class ModelExplainer(object):
             n_list = []
             for n_idx in range(RunningParams.k_value):
                 if phase == 'train':
-                    if precomputed is True:
-                        nns = faiss_data_loader[indices[q_idx][n_idx+1]]  # 3x224x224
-                    else:
-                        nns, _ = faiss_data_loader.dataset[indices[q_idx][n_idx+1]]  # 3x224x224
+                    nns, _ = faiss_data_loader.dataset[indices[q_idx][n_idx+1]]  # 3x224x224
                 else:
-                    if precomputed is True:
-                        nns = faiss_data_loader[indices[q_idx][n_idx]]
-                    else:
-                        nns, _ = faiss_data_loader.dataset[indices[q_idx][n_idx]]
+                    nns, _ = faiss_data_loader.dataset[indices[q_idx][n_idx]]
 
                 n_list.append(nns)
             n_tensors = torch.stack(n_list)

@@ -6,7 +6,6 @@ class RunningParams(object):
         # General
         self.IMAGENET_REAL = True
         self.advising_network = True
-        self.MAX_NORM = False
         self.conv_layer = 2
         self.conv_layer_size = {4: 512, 3: 256, 2: 128, 1: 64}
 
@@ -15,14 +14,20 @@ class RunningParams(object):
         self.GradCAM = 'GradCAM'
         self.NNs = 'NNs'
         self.XAI_method = self.NNs
+        # TODO: write script to run a set of basic experiments: No-XAI, NNs with conv2,3,4, k1,3,5
+
+        self.USING_SOFTMAX = False
+        # TODO: make the difference b/w two run Running params
+        # TODO: No need to use softmax anymore at this time bcz we balanced this feature already
 
         # Training
-        self.batch_size = 128
+        self.batch_size = 256
         self.learning_rate = 0.001
         self.epochs = 25
         self.query_frozen = False  # freeze?
         self.heatmap_frozen = False  # freeze?
         self.nns_frozen = False  # freeze?
+        self.dropout = 0.0
 
         # Training heatmap
         self.GradCAM_RNlayer = 'layer4'
@@ -38,6 +43,7 @@ class RunningParams(object):
         # Data processing
         self.FFCV_loader = False
         self.DDP = False
+        self.ALBUM = False
 
         # Infer
         self.advising_steps = 1

@@ -52,7 +52,7 @@ if RunningParams.IMAGENET_REAL is True:
     }
 
 for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
-    imagenet_id = imagenet_folder.split('5k-1k/')[1]
+    imagenet_id = imagenet_folder.split('1k/')[1]
     image_paths = glob.glob(imagenet_folder + '/*.*')
 
     for idx, image_path in enumerate(image_paths):

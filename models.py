@@ -115,12 +115,20 @@ class AdvisingNetwork(nn.Module):
 
         avg_pool_features = RunningParams.conv_layer_size[RunningParams.conv_layer]
         softmax_features = resnet.fc.out_features
-        if RunningParams.XAI_method == RunningParams.NO_XAI:
-            fc0_in_features = avg_pool_features + softmax_features  # 512*2 + 1000
-        elif RunningParams.XAI_method == RunningParams.GradCAM:
-            fc0_in_features = avg_pool_features + 7*7 + softmax_features  # 512 + heatmap_size + 1000
-        elif RunningParams.XAI_method == RunningParams.NNs:
-            fc0_in_features = avg_pool_features + avg_pool_features*RunningParams.k_value + softmax_features  # 512 + NN_size + 1000
+        if RunningParams.USING_SOFTMAX:
+            if RunningParams.XAI_method == RunningParams.NO_XAI:
+                fc0_in_features = avg_pool_features + softmax_features  # avgavg_pool_size_pool + 1000
+            elif RunningParams.XAI_method == RunningParams.GradCAM:
+                fc0_in_features = avg_pool_features + 7*7 + softmax_features  # avg_pool_size + heatmap_size + 1000
+            elif RunningParams.XAI_method == RunningParams.NNs:
+                fc0_in_features = avg_pool_features + avg_pool_features*RunningParams.k_value + softmax_features  # avg_pool_size + NN_size*K + 1000
+        else:
+            if RunningParams.XAI_method == RunningParams.NO_XAI:
+                fc0_in_features = avg_pool_features
+            elif RunningParams.XAI_method == RunningParams.GradCAM:
+                fc0_in_features = avg_pool_features + 7 * 7
+            elif RunningParams.XAI_method == RunningParams.NNs:
+                fc0_in_features = avg_pool_features + avg_pool_features * RunningParams.k_value
 
         self.fc0 = nn.Linear(fc0_in_features, 512)
         self.fc0_bn = nn.BatchNorm1d(512, eps=1e-2)
@@ -128,6 +136,8 @@ class AdvisingNetwork(nn.Module):
         self.fc1_bn = nn.BatchNorm1d(128, eps=1e-2)
         self.fc2 = nn.Linear(128, 2)
         self.fc2_bn = nn.BatchNorm1d(2, eps=1e-2)
+
+        self.dropout = nn.Dropout(p=RunningParams.dropout)
 
         self.input_bn = nn.BatchNorm1d(avg_pool_features, eps=1e-2)
         if RunningParams.XAI_method == RunningParams.GradCAM:
@@ -163,22 +173,25 @@ class AdvisingNetwork(nn.Module):
             explanation_feat = torch.stack(q_list)
             avg_exp_feat = torch.stack(avg_feat)
 
-        if RunningParams.MAX_NORM is True:
-            input_feat = input_feat / input_feat.amax(dim=1, keepdim=True)
-            explanation_feat = explanation_feat / explanation_feat.amax(dim=1, keepdim=True)
-            scores = scores / scores.amax(dim=1, keepdim=True)
+        if RunningParams.USING_SOFTMAX is True:
+            # TODO: move RunningParams.NO_XAI, ... to Explainer class
+            if RunningParams.XAI_method == RunningParams.NO_XAI:
+                concat_feat = torch.concat([input_feat, scores], dim=1)
+            elif RunningParams.XAI_method == RunningParams.GradCAM:
+                concat_feat = torch.concat([input_feat, explanation_feat, scores], dim=1)
+            elif RunningParams.XAI_method == RunningParams.NNs:
+                concat_feat = torch.concat([input_feat, explanation_feat, scores], dim=1)
+        else:
+            if RunningParams.XAI_method == RunningParams.NO_XAI:
+                concat_feat = input_feat
+            elif RunningParams.XAI_method == RunningParams.GradCAM:
+                concat_feat = torch.concat([input_feat, explanation_feat], dim=1)
+            elif RunningParams.XAI_method == RunningParams.NNs:
+                concat_feat = torch.concat([input_feat, explanation_feat], dim=1)
 
-        # TODO: move RunningParams.NO_XAI, ... to Explainer class
-        if RunningParams.XAI_method == RunningParams.NO_XAI:
-            concat_feat = torch.concat([input_feat, scores], dim=1)
-        elif RunningParams.XAI_method == RunningParams.GradCAM:
-            concat_feat = torch.concat([input_feat, explanation_feat, scores], dim=1)
-        elif RunningParams.XAI_method == RunningParams.NNs:
-            concat_feat = torch.concat([input_feat, explanation_feat, scores], dim=1)
-
-        output = self.fc0_bn(torch.nn.functional.relu(self.fc0(concat_feat)))
-        output = self.fc1_bn(torch.nn.functional.relu(self.fc1(output)))
-        output = self.fc2_bn(torch.nn.functional.relu(self.fc2(output)))
+        output = self.dropout(self.fc0_bn(torch.nn.functional.relu(self.fc0(concat_feat))))
+        output = self.dropout(self.fc1_bn(torch.nn.functional.relu(self.fc1(output))))
+        output = self.dropout(self.fc2_bn(torch.nn.functional.relu(self.fc2(output))))
 
         if RunningParams.XAI_method == RunningParams.NO_XAI:
             return output, None, None

@@ -2,9 +2,13 @@ import torch
 import torchvision.transforms as transforms
 import json
 import os
+import numpy as np
 from params import RunningParams
 from torchvision.datasets import ImageFolder
-
+import albumentations as A
+from albumentations.pytorch.transforms import ToTensorV2
+from albumentations.augmentations.transforms import Normalize
+import cv2
 RunningParams = RunningParams()
 
 
@@ -34,7 +38,7 @@ class Dataset(object):
 
         self.IMAGENET_PILOT_VIS = "imagenet1k-pilot"
 
-        self.test_datasets = [self.IMAGENET_1K, self.DAMAGE_NET, self.ADVERSARIAL_PATCH_NEW, self.IMAGENET_SKETCH]
+        self.test_datasets = [self.IMAGENET_1K]
 
         self.IMAGENET_C_NOISE = [self.GAUSSIAN_NOISE, self.GAUSSIAN_BLUR]
 
@@ -1072,7 +1076,6 @@ class ImageFolderWithPaths(ImageFolder):
     """
 
     # override the __init__ method to drop no-label images
-
     if RunningParams.IMAGENET_REAL:
         def __init__(self, root, transform=None):
             super(ImageFolderWithPaths, self).__init__(root, transform=transform)
@@ -1113,10 +1116,10 @@ class ImageFolderWithPaths(ImageFolder):
     def __getitem__(self, index):
         # this is what ImageFolder normally returns
         original_tuple = super(ImageFolderWithPaths, self).__getitem__(index)
-        
+
         # the image file path
         path = self.imgs[index][0]
-        data = original_tuple[0] # --> 3x224x224 --> 7x3x224x224
+        data = original_tuple[0]  # --> 3x224x224 --> 7x3x224x224
         label = original_tuple[1]
         if data.shape[0] == 1:
             print('gray images')
@@ -1124,4 +1127,104 @@ class ImageFolderWithPaths(ImageFolder):
 
         # make a new tuple that includes original and the path
         tuple_with_path = (data, label, path)
+        return tuple_with_path
+
+
+class ImageFolderForNNs(ImageFolder):
+    """Custom dataset that includes image file paths. Extends
+    torchvision.datasets.ImageFolder
+    """
+
+    # override the __init__ method to drop no-label images
+
+    if RunningParams.IMAGENET_REAL:
+        def __init__(self, root, transform=None):
+            self.abm_transform = A.Compose(
+                [A.Resize(height=256, width=256),
+                 A.CenterCrop(height=224, width=224),
+                 Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                 ToTensorV2(),
+                 ],
+
+                additional_targets={'image0': 'image', 'image1': 'image',
+                                    'image2': 'image', 'image3': 'image', 'image4': 'image',
+                                    'image5': 'image', 'image6': 'image'}
+            )
+
+            super(ImageFolderForNNs, self).__init__(root, transform=transform)
+            # Load the pre-computed NNs
+            if os.path.basename(root) == 'train':
+                # self.faiss_nn_dict = np.load('faiss/faiss_1M3_dict.npy', allow_pickle=True, ).item()
+                self.faiss_nn_dict = np.load('faiss/faiss_1M3_train_class_dict.npy', allow_pickle=True, ).item()
+            else:
+                self.faiss_nn_dict = np.load('faiss/faiss_50K_val_class_dict.npy', allow_pickle=True, ).item()
+
+            print(len(self.faiss_nn_dict))
+            if os.path.basename(root) == 'train':
+                pass
+            else:
+                real_json = open("/home/giang/Downloads/KNN-ImageNet/reassessed-imagenet/real.json")
+                real_ids = json.load(real_json)
+                real_labels = {
+                    f"ILSVRC2012_val_{i + 1:08d}.JPEG": labels
+                    for i, labels in enumerate(real_ids)
+                }
+
+                original_len = len(self.imgs)
+                imgs = []
+                samples = []
+                targets = []
+                for sample_idx in range(original_len):
+                    pth = self.imgs[sample_idx][0]
+                    base_name = os.path.basename(pth)
+                    # Not ImageNet-val then we exit the function
+                    if base_name not in real_labels:
+                        return
+                    real_ids = real_labels[base_name]
+                    if len(real_ids) == 0:  # no label images
+                        continue
+                    else:
+                        imgs.append(self.imgs[sample_idx])
+                        samples.append(self.samples[sample_idx])
+                        targets.append(self.targets[sample_idx])
+
+                self.imgs = imgs
+                self.samples = samples
+                self.targets = targets
+
+    def __getitem__(self, index):
+        path, target = self.samples[index]
+        base_name = os.path.basename(path)
+        if RunningParams.XAI_method == RunningParams.NNs:
+            nns = self.faiss_nn_dict[base_name]  # 6NNs here
+        nns.append(path)  # Put query to the tail of the list
+
+        if RunningParams.ALBUM is True:
+            image0 = cv2.imread(nns[0])
+            image1 = cv2.imread(nns[1])
+            image2 = cv2.imread(nns[2])
+            image3 = cv2.imread(nns[3])
+            image4 = cv2.imread(nns[4])
+            image5 = cv2.imread(nns[5])
+            image6 = cv2.imread(nns[6])
+            transformed = self.abm_transform(image=image0, image0=image1, image1=image2, image2=image3,
+                                             image3=image4, image4=image5, image5=image6)
+            data = torch.stack(list(transformed.values()))
+
+        else:
+            tensors = list()
+            for path in nns:
+                sample = self.loader(path)
+                if self.transform is not None:
+                    sample = self.transform(sample)
+                tensors.append(sample)
+            data = torch.stack(tensors)
+
+        if self.target_transform is not None:
+            target = self.target_transform(target)
+
+        # TODO: Using albumentation to process multiple images at once
+
+        # make a new tuple that includes original and the path
+        tuple_with_path = (data, target, path)
         return tuple_with_path

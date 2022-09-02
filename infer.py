@@ -11,9 +11,9 @@ from torchray.attribution.grad_cam import grad_cam
 from torchvision import datasets, models, transforms
 from models import MyCustomResnet18, AdvisingNetwork, AdvisingNetworkv1
 from params import RunningParams
-from datasets import Dataset, ImageFolderWithPaths
+from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from torchvision.datasets import ImageFolder
-from visualize import Visualization
+# from visualize import Visualization
 from helpers import HelperFunctions
 from explainers import ModelExplainer
 
@@ -27,7 +27,7 @@ print(RunningParams.__dict__)
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_pretty-puddle-331.pt',
+                        default='best_model_ethereal-universe-312.pt',
                         help='Model check point')
     parser.add_argument('--dataset', type=str,
                         default='imagenet1k-val',
@@ -60,8 +60,12 @@ if __name__ == '__main__':
     # val_datasets = [args.dataset]
     # image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), Dataset.data_transforms['val'])
     #                   for x in val_datasets}
-    image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x), Dataset.data_transforms['val'])
-                      for x in val_datasets}
+    if RunningParams.XAI_method == RunningParams.NNs:
+        image_datasets = {x: ImageFolderForNNs(os.path.join(data_dir, x), Dataset.data_transforms['val'])
+                          for x in val_datasets}
+    else:
+        image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x), Dataset.data_transforms['val'])
+                          for x in val_datasets}
 
     dataset_sizes = {x: len(image_datasets[x]) for x in val_datasets}
 
@@ -73,27 +77,6 @@ if __name__ == '__main__':
     feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
     feature_extractor.cuda()
     feature_extractor = nn.DataParallel(feature_extractor)
-
-    if RunningParams.XAI_method == RunningParams.NNs:
-        if os.path.exists(RunningParams.INDEX_FILE):
-            print("FAISS index exists!")
-            faiss_cpu_index = faiss.read_index(RunningParams.INDEX_FILE)
-            faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
-                faiss_cpu_index
-            )
-            if RunningParams.PRECOMPUTED_NN is True:
-                KB_100K = torch.load(RunningParams.PRECOMPUTED_NN_FILE)
-            else:
-                faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/random_train_dataset_100k',
-                                                     transform=Dataset.data_transforms['train'])
-                faiss_data_loader = torch.utils.data.DataLoader(
-                    faiss_dataset,
-                    batch_size=RunningParams.batch_size,
-                    shuffle=False,
-                    num_workers=0,  # Set to 0 as suggested by
-                    # https://stackoverflow.com/questions/54773106/simple-way-to-load-specific-sample-using-pytorch-dataloader
-                    pin_memory=True,
-                )
 
     for ds in val_datasets:
         data_loader = torch.utils.data.DataLoader(
@@ -122,7 +105,10 @@ if __name__ == '__main__':
         infer_result_dict = dict()
 
         for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
-            x = data.cuda()
+            if RunningParams.XAI_method == RunningParams.NNs:
+                x = data[:, -1, :, :, :].cuda()  # query is the last tensor
+            else:
+                x = data.cuda()
             gts = gt.cuda()
 
             # Step 1: Forward pass input x through MODEL1 - Explainer
@@ -156,11 +142,11 @@ if __name__ == '__main__':
             elif RunningParams.XAI_method == RunningParams.NNs:
                 embeddings = embeddings.cpu().detach().numpy()
                 if RunningParams.PRECOMPUTED_NN is True:
-                    explanation = ModelExplainer.faiss_nearest_neighbors(
-                        MODEL1, embeddings, 'val', faiss_gpu_index, KB_100K, RunningParams.PRECOMPUTED_NN)
+                    explanation = data[:, :-1, :, :, :]
+                    explanation = explanation[:, 1:RunningParams.k_value + 1, :, :, :]
                 else:
-                    explanation = ModelExplainer.faiss_nearest_neighbors(
-                        MODEL1, embeddings, 'val', faiss_gpu_index, faiss_data_loader, RunningParams.PRECOMPUTED_NN)
+                    print("Error: Not implemented yet!")
+                    exit(-1)
 
             if RunningParams.advising_network is True:
                 # Forward input, explanations, and softmax scores through MODEL2
@@ -275,27 +261,27 @@ if __name__ == '__main__':
                     infer_result_dict[base_name]['gt_label'] = gt_label
                     infer_result_dict[base_name]['pred_label'] = pred_label
                     infer_result_dict[base_name]['result'] = result is True
-                    np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
 
             yes_cnt += sum(preds)
             true_cnt += sum(labels)
+        np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
 
         if RunningParams.M2_VISUALIZATION is True:
             for cat in categories:
                 img_ratio = len(confidence_dist[cat])*100/dataset_sizes[ds]
                 title = '{}: {:.2f}'.format(cat, img_ratio)
-                Visualization.visualize_histogram_from_list(data=confidence_dist[cat],
-                                                            title=title,
-                                                            x_label='Confidence',
-                                                            y_label='Images',
-                                                            file_name=os.path.join(save_dir, cat + '.pdf'),
-                                                            )
+                # Visualization.visualize_histogram_from_list(data=confidence_dist[cat],
+                #                                             title=title,
+                #                                             x_label='Confidence',
+                #                                             y_label='Images',
+                #                                             file_name=os.path.join(save_dir, cat + '.pdf'),
+                #                                             )
 
-                merge_pdf_cmd = 'img2pdf -o vis/{}Samples.pdf --rotation=ifvalid --pagesize A4^T vis/{}/*.JPEG'.format(cat, cat)
-                os.system(merge_pdf_cmd)
+                # merge_pdf_cmd = 'img2pdf -o vis/{}Samples.pdf --rotation=ifvalid --pagesize A4^T vis/{}/*.JPEG'.format(cat, cat)
+                # os.system(merge_pdf_cmd)
 
-            compress_cmd = 'tar -czvf analysis.tar.gz vis/'
-            os.system(compress_cmd)
+            # compress_cmd = 'tar -czvf analysis.tar.gz vis/'
+            # os.system(compress_cmd)
 
         epoch_acc = running_corrects.double() / len(image_datasets[ds])
         yes_ratio = yes_cnt.double() / len(image_datasets[ds])
