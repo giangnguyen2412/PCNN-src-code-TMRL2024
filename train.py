@@ -41,8 +41,8 @@ MODEL1 = models.resnet18(pretrained=True).eval()
 fc = MODEL1.fc
 fc = fc.cuda()
 
-# data_dir = '/home/giang/Downloads/advising_net_training/'
-data_dir = '/home/giang/tmp/'
+data_dir = '/home/giang/Downloads/advising_net_training/'
+# data_dir = '/home/giang/tmp/'
 
 virtual_train_dataset = '{}/train'.format(data_dir)
 
@@ -51,7 +51,6 @@ train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_60k'
 val_dataset = '/home/giang/Downloads/datasets/imagenet5k-1k'
 
 if not HelperFunctions.is_program_running(os.path.basename(__file__)):
-# if True:
     print('Creating symlink datasets...')
     if os.path.islink(virtual_train_dataset) is True:
         os.unlink(virtual_train_dataset)
@@ -93,46 +92,46 @@ if RunningParams.XAI_method == RunningParams.NNs:
         pin_memory=True,
     )
 
-    if os.path.exists(RunningParams.INDEX_FILE):
-        print("FAISS index exists!")
-        faiss_cpu_index = faiss.read_index(RunningParams.INDEX_FILE)
-        faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
-            faiss_cpu_index
-        )
-
-    else:
-        print("FAISS index NOT exists! Creating FAISS index then save to disk...")
-        stack_embeddings = []
-        stack_labels = []
-        gallery_paths = []
-        for batch_idx, (data, label) in enumerate(tqdm(faiss_data_loader)):
-            embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
-            embeddings = torch.flatten(embeddings, start_dim=1)
-            # print(embeddings.shape)
-            # TODO: add data tensors here to return data using index
-            # TODO: search in range only
-            # TODO: Move everything to GPU
-            stack_embeddings.append(embeddings.cpu().detach().numpy())
-            stack_labels.append(label.cpu().detach().numpy())
-            # gallery_paths.extend(path)
-
-        stack_embeddings = np.concatenate(stack_embeddings, axis=0)
-        stack_labels = np.concatenate(stack_labels, axis=0)
-        # stack_embeddings = stack_embeddings.cpu().detach().numpy()
-
-        descriptors = np.vstack(stack_embeddings)
-        cpu_index = faiss.IndexFlatL2(in_features)
-        faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
-            cpu_index
-        )
-        print(faiss_gpu_index.ntotal)
-
-        faiss_gpu_index.add(descriptors)
-
-        faiss_cpu_index = faiss.index_gpu_to_cpu(  # build the index
-            faiss_gpu_index
-        )
-        faiss.write_index(faiss_cpu_index, 'faiss/faiss.index')
+    # if os.path.exists(RunningParams.INDEX_FILE):
+    #     print("FAISS index exists!")
+    #     faiss_cpu_index = faiss.read_index(RunningParams.INDEX_FILE)
+    #     faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
+    #         faiss_cpu_index
+    #     )
+    #
+    # else:
+    #     print("FAISS index NOT exists! Creating FAISS index then save to disk...")
+    #     stack_embeddings = []
+    #     stack_labels = []
+    #     gallery_paths = []
+    #     for batch_idx, (data, label) in enumerate(tqdm(faiss_data_loader)):
+    #         embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
+    #         embeddings = torch.flatten(embeddings, start_dim=1)
+    #         # print(embeddings.shape)
+    #         # TODO: add data tensors here to return data using index
+    #         # TODO: search in range only
+    #         # TODO: Move everything to GPU
+    #         stack_embeddings.append(embeddings.cpu().detach().numpy())
+    #         stack_labels.append(label.cpu().detach().numpy())
+    #         # gallery_paths.extend(path)
+    #
+    #     stack_embeddings = np.concatenate(stack_embeddings, axis=0)
+    #     stack_labels = np.concatenate(stack_labels, axis=0)
+    #     # stack_embeddings = stack_embeddings.cpu().detach().numpy()
+    #
+    #     descriptors = np.vstack(stack_embeddings)
+    #     cpu_index = faiss.IndexFlatL2(in_features)
+    #     faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
+    #         cpu_index
+    #     )
+    #     print(faiss_gpu_index.ntotal)
+    #
+    #     faiss_gpu_index.add(descriptors)
+    #
+    #     faiss_cpu_index = faiss.index_gpu_to_cpu(  # build the index
+    #         faiss_gpu_index
+    #     )
+    #     faiss.write_index(faiss_cpu_index, 'faiss/faiss.index')
 
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
@@ -172,12 +171,13 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
             for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
                 if RunningParams.XAI_method == RunningParams.NNs:
-                    x = data[:, -1, :, :, :].cuda()  # query is the last tensor
+                    x = data[0].cuda()
                 else:
                     x = data.cuda()
                 gts = gt.cuda()
 
                 embeddings = feature_extractor(x).flatten(start_dim=1)  # 512x1 for RN 18
+
                 out = fc(embeddings)
                 model1_p = torch.nn.functional.softmax(out, dim=1)
                 score, index = torch.topk(model1_p, 1, dim=1)
@@ -203,9 +203,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 elif RunningParams.XAI_method == RunningParams.NNs:
                     embeddings = embeddings.cpu().detach().numpy()
                     if RunningParams.PRECOMPUTED_NN is True:
-                        explanation = data[:, :-1, :, :, :]
+                        explanation = data[1]
                         if phase == 'train':
-                            explanation = explanation[:, 1:RunningParams.k_value+1, :, :, :]  # ignore 1st NN = query
+                            explanation = explanation[:, 1:RunningParams.k_value + 1, :, :, :]  # ignore 1st NN = query
                         else:
                             explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
@@ -265,8 +265,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
 
             wandb.log({'{}_accuracy'.format(phase): epoch_acc, '{}_loss'.format(phase): epoch_loss})
 
-            print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
-                phase, epoch_acc*100, yes_ratio * 100, true_ratio*100))
+            print('{} - Loss: {:.4f} - Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
+                phase, epoch_loss, epoch_acc*100, yes_ratio * 100, true_ratio*100))
             # if RunningParams.XAI_method == RunningParams.NNs:
             #     print('{} - Label Loss: {:.4f} - Embedding Loss: {:.4f} '.format(
             #         phase, epoch_label_loss, epoch_embedding_loss))
@@ -347,7 +347,8 @@ config = {"train": train_dataset,
           'embedding_loss': RunningParams.embedding_loss,
           'continue_training': RunningParams.CONTINUE_TRAINING,
           'using_softmax': RunningParams.USING_SOFTMAX,
-          'dropout_rate': RunningParams.dropout
+          'dropout_rate': RunningParams.dropout,
+          'CrossCorrelation': RunningParams.CrossCorrelation,
           }
 
 print(config)

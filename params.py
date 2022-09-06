@@ -6,7 +6,7 @@ class RunningParams(object):
         # General
         self.IMAGENET_REAL = True
         self.advising_network = True
-        self.conv_layer = 2
+        self.conv_layer = 4
         self.conv_layer_size = {4: 512, 3: 256, 2: 128, 1: 64}
 
         # XAI methods
@@ -24,7 +24,7 @@ class RunningParams(object):
         self.batch_size = 256
         self.learning_rate = 0.001
         self.epochs = 25
-        self.query_frozen = False  # freeze?
+        self.query_frozen = True  # freeze?
         self.heatmap_frozen = False  # freeze?
         self.nns_frozen = False  # freeze?
         self.dropout = 0.0
@@ -39,6 +39,7 @@ class RunningParams(object):
         self.CONTINUE_TRAINING = False
         self.INDEX_FILE = 'faiss/faiss_100K.index'
         self.PRECOMPUTED_NN_FILE = 'KB_100K.pt'
+        self.CrossCorrelation = False
 
         # Data processing
         self.FFCV_loader = False

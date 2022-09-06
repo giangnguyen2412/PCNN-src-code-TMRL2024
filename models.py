@@ -152,26 +152,25 @@ class AdvisingNetwork(nn.Module):
                 torch.nn.init.xavier_normal_(m.weight, gain=1)
 
     def forward(self, images, explanations, scores):
-        input_feat = self.pooling_layer(self.avgpool(images)).squeeze()
+        input_spatial_feats = self.avgpool(images)
+        input_feat = self.pooling_layer(input_spatial_feats).squeeze()
+        input_spatial_feats = input_spatial_feats.flatten(start_dim=2)  # bsx512x48
 
         if RunningParams.XAI_method == RunningParams.GradCAM:
             explanation_feat = explanations.view(images.shape[0], -1)
         elif RunningParams.XAI_method == RunningParams.NNs:
-            q_list = []
-            avg_feat = []
+            if RunningParams.k_value == 1:
+                explanations = explanations.squeeze()
+                explanation_spatial_feats = self.avgpool(explanations)
+                explanation_feat = self.pooling_layer(explanation_spatial_feats).squeeze()
+                explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
+            else:
+                print('Not implemented with K > 1 yet!')
 
-            for q_idx in range(explanations.shape[0]):
-                exemplars = explanations[q_idx]
-                # Both query and NN using the same branch
-                explanation_feat = self.pooling_layer(self.avgpool(exemplars))
-                avg_exp_feat = torch.mean(explanation_feat, dim=0, keepdim=True).flatten()  # 1, 512
-
-                explanation_feat = explanation_feat.flatten()
-
-                q_list.append(explanation_feat)
-                avg_feat.append(avg_exp_feat)
-            explanation_feat = torch.stack(q_list)
-            avg_exp_feat = torch.stack(avg_feat)
+        if RunningParams.CrossCorrelation is True:
+            # b: batch_size, c: channel nums, m and n is the size of feature maps (e.g. 7x7=49)
+            attention_vectors = torch.einsum('bcm,bcn->bmn', explanation_spatial_feats, input_spatial_feats)
+            attention_vectors = attention_vectors.flatten(start_dim=1)
 
         if RunningParams.USING_SOFTMAX is True:
             # TODO: move RunningParams.NO_XAI, ... to Explainer class
@@ -180,14 +179,20 @@ class AdvisingNetwork(nn.Module):
             elif RunningParams.XAI_method == RunningParams.GradCAM:
                 concat_feat = torch.concat([input_feat, explanation_feat, scores], dim=1)
             elif RunningParams.XAI_method == RunningParams.NNs:
-                concat_feat = torch.concat([input_feat, explanation_feat, scores], dim=1)
+                if RunningParams.CrossCorrelation is True:
+                    concat_feat = torch.concat([input_feat, explanation_feat, attention_vectors, scores], dim=1)
+                else:
+                    concat_feat = torch.concat([input_feat, explanation_feat, scores], dim=1)
         else:
             if RunningParams.XAI_method == RunningParams.NO_XAI:
                 concat_feat = input_feat
             elif RunningParams.XAI_method == RunningParams.GradCAM:
                 concat_feat = torch.concat([input_feat, explanation_feat], dim=1)
             elif RunningParams.XAI_method == RunningParams.NNs:
-                concat_feat = torch.concat([input_feat, explanation_feat], dim=1)
+                if RunningParams.CrossCorrelation is True:
+                    concat_feat = torch.concat([input_feat, explanation_feat, attention_vectors], dim=1)
+                else:
+                    concat_feat = torch.concat([input_feat, explanation_feat], dim=1)
 
         output = self.dropout(self.fc0_bn(torch.nn.functional.relu(self.fc0(concat_feat))))
         output = self.dropout(self.fc1_bn(torch.nn.functional.relu(self.fc1(output))))
@@ -196,7 +201,4 @@ class AdvisingNetwork(nn.Module):
         if RunningParams.XAI_method == RunningParams.NO_XAI:
             return output, None, None
         else:
-            if RunningParams.k_value > 1 and RunningParams.XAI_method == RunningParams.NNs:
-                return output, input_feat, avg_exp_feat
-            else:
-                return output, input_feat, explanation_feat
+            return output, input_feat, explanation_feat

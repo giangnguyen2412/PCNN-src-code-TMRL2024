@@ -1193,11 +1193,11 @@ class ImageFolderForNNs(ImageFolder):
                 self.targets = targets
 
     def __getitem__(self, index):
-        path, target = self.samples[index]
-        base_name = os.path.basename(path)
+        query_path, target = self.samples[index]
+        base_name = os.path.basename(query_path)
         if RunningParams.XAI_method == RunningParams.NNs:
             nns = self.faiss_nn_dict[base_name]  # 6NNs here
-        nns.append(path)  # Put query to the tail of the list
+        # nns.append(path)  # Put query to the tail of the list
 
         if RunningParams.ALBUM is True:
             image0 = cv2.imread(nns[0])
@@ -1212,19 +1212,24 @@ class ImageFolderForNNs(ImageFolder):
             data = torch.stack(list(transformed.values()))
 
         else:
-            tensors = list()
-            for path in nns:
-                sample = self.loader(path)
+            # Transform NNs
+            explanations = list()
+            for pth in nns:
+                sample = self.loader(pth)
                 if self.transform is not None:
                     sample = self.transform(sample)
-                tensors.append(sample)
-            data = torch.stack(tensors)
+                explanations.append(sample)
+            explanations = torch.stack(explanations)
+
+            # Transform query
+            sample = self.loader(query_path)
+            if self.transform is not None:
+                query = self.transform(sample)
 
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        # TODO: Using albumentation to process multiple images at once
-
+        nns.append(query_path)
         # make a new tuple that includes original and the path
-        tuple_with_path = (data, target, path)
+        tuple_with_path = ((query, explanations), target, nns)
         return tuple_with_path
