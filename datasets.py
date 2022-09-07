@@ -1229,7 +1229,7 @@ class ImageFolderForNNs(ImageFolder):
         if self.target_transform is not None:
             target = self.target_transform(target)
 
-        nns.append(query_path)
+        # nns.append(query_path)
         # make a new tuple that includes original and the path
-        tuple_with_path = ((query, explanations), target, nns)
+        tuple_with_path = ((query, explanations), target, query_path)
         return tuple_with_path

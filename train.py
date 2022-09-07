@@ -201,17 +201,12 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 if RunningParams.XAI_method == RunningParams.GradCAM:
                     explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
                 elif RunningParams.XAI_method == RunningParams.NNs:
-                    embeddings = embeddings.cpu().detach().numpy()
                     if RunningParams.PRECOMPUTED_NN is True:
                         explanation = data[1]
                         if phase == 'train':
                             explanation = explanation[:, 1:RunningParams.k_value + 1, :, :, :]  # ignore 1st NN = query
                         else:
                             explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
-
-                    else:
-                        explanation = ModelExplainer.faiss_nearest_neighbors(
-                            MODEL1, embeddings, phase, faiss_gpu_index, faiss_data_loader)
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -223,8 +218,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                         else:
                             output, query, nns = model(images=x, explanations=explanation, scores=model1_p)
                             if RunningParams.XAI_method == RunningParams.NNs:
-                                emb_cos_sim = F.cosine_similarity(query, nns)
-                                embedding_loss = l1_dist(emb_cos_sim, labels)/(x.shape[0])
+                                pass
+                                # emb_cos_sim = F.cosine_similarity(query, nns)
+                                # embedding_loss = l1_dist(emb_cos_sim, labels)/(x.shape[0])
 
                         p = torch.nn.functional.softmax(output, dim=1)
                         _, preds = torch.max(p, 1)
@@ -243,8 +239,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 # statistics
                 running_loss += loss.item() * x.size(0)
                 running_label_loss += label_loss.item() * x.size(0)
-                if RunningParams.XAI_method == RunningParams.NNs:
-                    running_embedding_loss += embedding_loss.item() * x.size(0)
+                # if RunningParams.XAI_method == RunningParams.NNs:
+                #     running_embedding_loss += embedding_loss.item() * x.size(0)
 
                 running_corrects += torch.sum(preds == labels.data)
 

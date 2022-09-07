@@ -6,14 +6,15 @@ class RunningParams(object):
         # General
         self.IMAGENET_REAL = True
         self.advising_network = True
-        self.conv_layer = 4
+        self.conv_layer = 4  # ----------------------------------------- IMPORTANT PARAM --------
         self.conv_layer_size = {4: 512, 3: 256, 2: 128, 1: 64}
+        self.feat_map_size = {4: 49, 3: 196, 2: 784}
 
         # XAI methods
         self.NO_XAI = 'No-XAI'
         self.GradCAM = 'GradCAM'
         self.NNs = 'NNs'
-        self.XAI_method = self.NNs
+        self.XAI_method = self.NNs  # ----------------------------------------- IMPORTANT PARAM --------
         # TODO: write script to run a set of basic experiments: No-XAI, NNs with conv2,3,4, k1,3,5
 
         self.USING_SOFTMAX = False
@@ -21,10 +22,10 @@ class RunningParams(object):
         # TODO: No need to use softmax anymore at this time bcz we balanced this feature already
 
         # Training
-        self.batch_size = 256
+        self.batch_size = 32  # ----------------------------------------- IMPORTANT PARAM --------
         self.learning_rate = 0.001
         self.epochs = 25
-        self.query_frozen = True  # freeze?
+        self.query_frozen = True  # freeze? ----------------------------------------- IMPORTANT PARAM --------
         self.heatmap_frozen = False  # freeze?
         self.nns_frozen = False  # freeze?
         self.dropout = 0.0
@@ -34,12 +35,12 @@ class RunningParams(object):
 
         # Training NNs
         self.embedding_loss = False
-        self.k_value = 1
+        self.k_value = 3  # ----------------------------------------- IMPORTANT PARAM --------
         self.PRECOMPUTED_NN = True
         self.CONTINUE_TRAINING = False
         self.INDEX_FILE = 'faiss/faiss_100K.index'
         self.PRECOMPUTED_NN_FILE = 'KB_100K.pt'
-        self.CrossCorrelation = False
+        self.CrossCorrelation = True  # ----------------------------------------- IMPORTANT PARAM --------
 
         # Data processing
         self.FFCV_loader = False

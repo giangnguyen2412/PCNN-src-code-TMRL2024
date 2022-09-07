@@ -121,14 +121,22 @@ class AdvisingNetwork(nn.Module):
             elif RunningParams.XAI_method == RunningParams.GradCAM:
                 fc0_in_features = avg_pool_features + 7*7 + softmax_features  # avg_pool_size + heatmap_size + 1000
             elif RunningParams.XAI_method == RunningParams.NNs:
-                fc0_in_features = avg_pool_features + avg_pool_features*RunningParams.k_value + softmax_features  # avg_pool_size + NN_size*K + 1000
+                if RunningParams.CrossCorrelation is True:
+                    fc0_in_features = avg_pool_features + avg_pool_features * RunningParams.k_value + softmax_features \
+                                      + RunningParams.k_value*RunningParams.feat_map_size[RunningParams.conv_layer]**2
+                else:
+                    fc0_in_features = avg_pool_features + avg_pool_features*RunningParams.k_value + softmax_features
         else:
             if RunningParams.XAI_method == RunningParams.NO_XAI:
                 fc0_in_features = avg_pool_features
             elif RunningParams.XAI_method == RunningParams.GradCAM:
                 fc0_in_features = avg_pool_features + 7 * 7
             elif RunningParams.XAI_method == RunningParams.NNs:
-                fc0_in_features = avg_pool_features + avg_pool_features * RunningParams.k_value
+                if RunningParams.CrossCorrelation is True:
+                    fc0_in_features = avg_pool_features + avg_pool_features * RunningParams.k_value + \
+                                      RunningParams.k_value*RunningParams.feat_map_size[RunningParams.conv_layer]**2
+                else:
+                    fc0_in_features = avg_pool_features + avg_pool_features * RunningParams.k_value
 
         self.fc0 = nn.Linear(fc0_in_features, 512)
         self.fc0_bn = nn.BatchNorm1d(512, eps=1e-2)
@@ -164,13 +172,33 @@ class AdvisingNetwork(nn.Module):
                 explanation_spatial_feats = self.avgpool(explanations)
                 explanation_feat = self.pooling_layer(explanation_spatial_feats).squeeze()
                 explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
-            else:
-                print('Not implemented with K > 1 yet!')
 
-        if RunningParams.CrossCorrelation is True:
-            # b: batch_size, c: channel nums, m and n is the size of feature maps (e.g. 7x7=49)
-            attention_vectors = torch.einsum('bcm,bcn->bmn', explanation_spatial_feats, input_spatial_feats)
-            attention_vectors = attention_vectors.flatten(start_dim=1)
+                if RunningParams.CrossCorrelation is True:
+                    # b: batch_size, c: channel nums, m and n is the size of feature maps (e.g. 7x7=49)
+                    attention_vectors = torch.einsum('bcm,bcn->bmn', explanation_spatial_feats, input_spatial_feats)
+                    attention_vectors = attention_vectors.flatten(start_dim=1)
+            else:  # K > 1
+                explanation_feats = []
+                attention_vectors = []
+                for sample_idx in range(explanations.shape[0]):
+                    data = explanations[sample_idx]
+                    explanation_spatial_feats = self.avgpool(data)
+
+                    explanation_feat = self.pooling_layer(explanation_spatial_feats).squeeze()  # 3x512
+                    explanation_feat = explanation_feat.flatten()  # 1536
+                    explanation_feats.append(explanation_feat)
+
+                    explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)  # 3x512x49
+
+                    if RunningParams.CrossCorrelation is True:
+                        input_spatial_feat = input_spatial_feats[sample_idx]
+                        # k: k neighbors, c: channel nums, m and n is the size of feature maps (e.g. 7x7=49)
+                        attention_vector = torch.einsum('kcm,cn->kmn', explanation_spatial_feats, input_spatial_feat)
+                        attention_vector = attention_vector.flatten()  # 2401*K
+                        attention_vectors.append(attention_vector)
+
+                explanation_feat = torch.stack(explanation_feats)
+                attention_vectors = torch.stack(attention_vectors)
 
         if RunningParams.USING_SOFTMAX is True:
             # TODO: move RunningParams.NO_XAI, ... to Explainer class
