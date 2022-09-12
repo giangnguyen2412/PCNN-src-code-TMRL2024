@@ -1153,11 +1153,16 @@ class ImageFolderForNNs(ImageFolder):
 
             super(ImageFolderForNNs, self).__init__(root, transform=transform)
             # Load the pre-computed NNs
-            if os.path.basename(root) == 'train':
-                # self.faiss_nn_dict = np.load('faiss/faiss_1M3_dict.npy', allow_pickle=True, ).item()
-                self.faiss_nn_dict = np.load('faiss/faiss_1M3_train_class_dict.npy', allow_pickle=True, ).item()
+            if RunningParams.TOP1_NN is True:
+                if os.path.basename(root) == 'train':
+                    self.faiss_nn_dict = np.load('faiss/faiss_1M3_train_class_dict.npy', allow_pickle=True, ).item()
+                else:
+                    self.faiss_nn_dict = np.load('faiss/faiss_50K_val_class_dict.npy', allow_pickle=True, ).item()
             else:
-                self.faiss_nn_dict = np.load('faiss/faiss_50K_val_class_dict.npy', allow_pickle=True, ).item()
+                if os.path.basename(root) == 'train':
+                    self.faiss_nn_dict = np.load('faiss/faiss_50K_train_topk.npy', allow_pickle=True, ).item()
+                else:
+                    self.faiss_nn_dict = np.load('faiss/faiss_50K_val_topk.npy', allow_pickle=True, ).item()
 
             print(len(self.faiss_nn_dict))
             if os.path.basename(root) == 'train':

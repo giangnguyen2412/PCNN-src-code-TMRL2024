@@ -41,16 +41,17 @@ MODEL1 = models.resnet18(pretrained=True).eval()
 fc = MODEL1.fc
 fc = fc.cuda()
 
-data_dir = '/home/giang/Downloads/advising_net_training/'
-# data_dir = '/home/giang/tmp/'
+# data_dir = '/home/giang/Downloads/advising_net_training/'
+data_dir = '/home/giang/tmp/'
 
 virtual_train_dataset = '{}/train'.format(data_dir)
 
-train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_60k'
-# train_dataset = '/home/giang/Downloads/datasets/random_train_dataset_50k'
+# train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_60k'
+train_dataset = '/home/giang/Downloads/datasets/random_train_dataset'
 val_dataset = '/home/giang/Downloads/datasets/imagenet5k-1k'
 
 if not HelperFunctions.is_program_running(os.path.basename(__file__)):
+# if True:
     print('Creating symlink datasets...')
     if os.path.islink(virtual_train_dataset) is True:
         os.unlink(virtual_train_dataset)
@@ -247,9 +248,6 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 yes_cnt += sum(preds)
                 true_cnt += sum(labels)
 
-            if phase == 'train':
-                scheduler.step()
-
             epoch_loss = running_loss / len(image_datasets[phase])
             epoch_label_loss = running_label_loss / len(image_datasets[phase])
             if RunningParams.XAI_method == RunningParams.NNs:
@@ -258,6 +256,10 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             epoch_acc = running_corrects.double() / len(image_datasets[phase])
             yes_ratio = yes_cnt.double() / len(image_datasets[phase])
             true_ratio = true_cnt.double() / len(image_datasets[phase])
+
+            if phase == 'train':
+                scheduler.step()
+                # scheduler.step(epoch_acc)
 
             wandb.log({'{}_accuracy'.format(phase): epoch_acc, '{}_loss'.format(phase): epoch_loss})
 
@@ -312,7 +314,7 @@ if RunningParams.CONTINUE_TRAINING:
 
 criterion = nn.CrossEntropyLoss()
 
-# Observe that all parameters are being optimized
+# Observe all parameters that are being optimized
 optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)
 
 # Decay LR by a factor of 0.1 every 7 epochs
@@ -322,6 +324,9 @@ oneLR_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     optimizer_ft, max_lr=0.01,
     steps_per_epoch=dataset_sizes['train']//RunningParams.batch_size,
     epochs=RunningParams.epochs)
+
+# change to ReduceLROnPlateau scheduler, 'min': reduce LR if not decreasing
+# oneLR_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_ft, mode='min', patience=4)
 
 config = {"train": train_dataset,
           "val": val_dataset,

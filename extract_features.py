@@ -36,13 +36,13 @@ fc = fc.cuda()
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-RETRIEVE_TOP1_NEAREST = True
+RETRIEVE_TOP1_NEAREST = False
 
 
 in_features = MODEL1.fc.in_features
 print("Building FAISS index...")
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/train', transform=Dataset.data_transforms['train'])
-# faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/random_train_dataset_1k', transform=Dataset.data_transforms['train'])
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/random_train_dataset_100k', transform=Dataset.data_transforms['train'])
+# faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/imagenet1k-val', transform=Dataset.data_transforms['train'])
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
     batch_size=RunningParams.batch_size,
@@ -96,7 +96,7 @@ if RETRIEVE_TOP1_NEAREST is True:
             faiss_loader_dict[class_id] = class_id_loader
         np.save('faiss/faiss_1M3_class_idx_dict.npy', faiss_nns_class_dict)
 else:
-    INDEX_FILE = 'faiss/faiss_1M3.index'
+    INDEX_FILE = 'faiss/faiss_100K_topk.index'
     if os.path.exists(INDEX_FILE):
         print("FAISS index exists!")
         faiss_cpu_index = faiss.read_index(INDEX_FILE)
@@ -138,26 +138,42 @@ else:
         faiss_cpu_index = faiss.index_gpu_to_cpu(  # build the index
             faiss_gpu_index
         )
-        faiss.write_index(faiss_cpu_index, 'faiss/faiss_1M3.index')
+        faiss.write_index(faiss_cpu_index, 'faiss/faiss_100K_topk.index')
 
 
-# data_dir = '/home/giang/Downloads/advising_net_training/'
-data_dir = '/home/giang/Downloads/'
+if RETRIEVE_TOP1_NEAREST is True:
+    data_dir = '/home/giang/Downloads/'
 
-# print('Entries in faiss index: {}'.format(faiss_gpu_index.ntotal))
-image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
-                                      Dataset.data_transforms[x])
-              for x in ['train']}
+    image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
+                                          Dataset.data_transforms[x])
+                  for x in ['train']}
 
-train_loader = torch.utils.data.DataLoader(
-                image_datasets['train'],
-                batch_size=RunningParams.batch_size,
-                shuffle=False,  # turn shuffle to True
-                num_workers=16,
-                pin_memory=True,
-                )
+    train_loader = torch.utils.data.DataLoader(
+        image_datasets['train'],
+        batch_size=RunningParams.batch_size,
+        shuffle=False,  # turn shuffle to True
+        num_workers=16,
+        pin_memory=True,
+    )
 
-dataset_sizes = {x: len(image_datasets[x]) for x in ['train']}
+    dataset_sizes = {x: len(image_datasets[x]) for x in ['train']}
+
+else:
+    data_dir = '/home/giang/Downloads/datasets/'
+
+    image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
+                                              Dataset.data_transforms['val'])
+                      for x in ['imagenet1k-val']}
+
+    train_loader = torch.utils.data.DataLoader(
+        image_datasets['imagenet1k-val'],
+        batch_size=RunningParams.batch_size,
+        shuffle=False,  # turn shuffle to True
+        num_workers=16,
+        pin_memory=True,
+    )
+
+    dataset_sizes = {x: len(image_datasets[x]) for x in ['imagenet1k-val']}
 
 faiss_nn_dict = dict()
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
@@ -196,4 +212,4 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
 if RETRIEVE_TOP1_NEAREST:
     np.save('faiss/faiss_1M3_train_class_dict.npy', faiss_nn_dict)
 else:
-    np.save('faiss/faiss_1M3_dict.npy', faiss_nn_dict)
+    np.save('faiss/faiss_50K_val_topk.npy', faiss_nn_dict)
