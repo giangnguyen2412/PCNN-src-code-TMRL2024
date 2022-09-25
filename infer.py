@@ -21,16 +21,19 @@ RunningParams = RunningParams()
 Dataset = Dataset()
 HelperFunctions = HelperFunctions()
 ModelExplainer = ModelExplainer()
-print(RunningParams.__dict__)
+
+
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_ethereal-universe-312.pt',
+                        default='best_model_solar-lake-584.pt',
                         help='Model check point')
     parser.add_argument('--dataset', type=str,
-                        default='imagenet1k-val',
+                        default='balanced_val_dataset_6k',
                         help='Evaluation dataset')
 
     args = parser.parse_args()
@@ -43,14 +46,17 @@ if __name__ == '__main__':
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
 
     checkpoint = torch.load(model_path)
+    running_params = checkpoint['running_params']
+    RunningParams.XAI_method = running_params.XAI_method
+
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
     epoch = checkpoint['epoch']
     loss = checkpoint['val_loss']
     acc = checkpoint['val_acc']
-    running_params = checkpoint['running_params']
 
-    # RunningParams.XAI_method = running_params.XAI_method
+    print('Validation accuracy: {:.2f}'.format(acc))
+    print(RunningParams.__dict__)
 
     model.eval()
 
@@ -106,7 +112,7 @@ if __name__ == '__main__':
 
         for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
             if RunningParams.XAI_method == RunningParams.NNs:
-                x = data[:, -1, :, :, :].cuda()  # query is the last tensor
+                x = data[0].cuda()
             else:
                 x = data.cuda()
             gts = gt.cuda()
@@ -142,8 +148,10 @@ if __name__ == '__main__':
             elif RunningParams.XAI_method == RunningParams.NNs:
                 embeddings = embeddings.cpu().detach().numpy()
                 if RunningParams.PRECOMPUTED_NN is True:
-                    explanation = data[:, :-1, :, :, :]
-                    explanation = explanation[:, 1:RunningParams.k_value + 1, :, :, :]
+                    # explanation = data[:, :-1, :, :, :]
+                    # explanation = explanation[:, 1:RunningParams.k_value + 1, :, :, :]
+                    explanation = data[1]
+                    explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
                 else:
                     print("Error: Not implemented yet!")
                     exit(-1)
@@ -294,7 +302,7 @@ if __name__ == '__main__':
             print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Orig. accuracy: {:.2f} - Advising. accuracy: {:.2f}'.format(
                 ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100, advising_acc * 100))
         else:
-            print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Orig. accuracy: {:.2f} - Uncertain. ratio: {:.2f}'.format(
+            print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Always say Yes: {:.2f} - Uncertain. ratio: {:.2f}'.format(
                 ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100, uncertain_ratio * 100))
 
 

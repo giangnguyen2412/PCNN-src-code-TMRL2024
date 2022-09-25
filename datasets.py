@@ -20,7 +20,7 @@ class Dataset(object):
         self.IMAGENET_R = "imagenet-r"
 
         # These datasets have 1000 classes
-        self.IMAGENET_1K = "imagenet1k-val"
+        self.IMAGENET_1K = "balanced_val_dataset_6k"
         self.IMAGENET_1K_50K = "imagenet1k-val-50k"
         self.IMAGENET_1K_50K_CLEAN = "ImageNet-val-50K-clean"
 
@@ -1160,9 +1160,9 @@ class ImageFolderForNNs(ImageFolder):
                     self.faiss_nn_dict = np.load('faiss/faiss_50K_val_class_dict.npy', allow_pickle=True, ).item()
             else:
                 if os.path.basename(root) == 'train':
-                    self.faiss_nn_dict = np.load('faiss/faiss_50K_train_topk.npy', allow_pickle=True, ).item()
+                    self.faiss_nn_dict = np.load('faiss/faiss_balanced_train_dataset_60k_topk.npy', allow_pickle=True, ).item()
                 else:
-                    self.faiss_nn_dict = np.load('faiss/faiss_50K_val_topk.npy', allow_pickle=True, ).item()
+                    self.faiss_nn_dict = np.load('faiss/faiss_balanced_val_dataset_6k_topk.npy', allow_pickle=True, ).item()
 
             print(len(self.faiss_nn_dict))
             if os.path.basename(root) == 'train':

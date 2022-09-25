@@ -1,5 +1,4 @@
-import numpy as np
-
-faiss_nns_class_dict = np.load('faiss/faiss_50K_train_topk.npy', allow_pickle="False", ).item()
-
+from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
+resnet = simclr_resnet50x1_supervised_baseline(pretrained=True, use_data_parallel=False)
+print(resnet)
 pass

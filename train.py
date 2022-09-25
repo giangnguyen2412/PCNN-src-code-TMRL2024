@@ -30,7 +30,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -46,9 +46,9 @@ data_dir = '/home/giang/tmp/'
 
 virtual_train_dataset = '{}/train'.format(data_dir)
 
-# train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_60k'
-train_dataset = '/home/giang/Downloads/datasets/random_train_dataset'
-val_dataset = '/home/giang/Downloads/datasets/imagenet5k-1k'
+# train_dataset = '/home/giang/Downloads/datasets/random_train_dataset'
+train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_60k'
+val_dataset = '/home/giang/Downloads/datasets/balanced_val_dataset_6k'
 
 if not HelperFunctions.is_program_running(os.path.basename(__file__)):
 # if True:
@@ -78,64 +78,8 @@ feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feat
 feature_extractor.cuda()
 feature_extractor = nn.DataParallel(feature_extractor)
 
-# TODO: should I also implement this for FFCV?
-if RunningParams.XAI_method == RunningParams.NNs:
-    in_features = MODEL1.fc.in_features
-    print("Building FAISS index...")
-    # TODO: change search space to train
-    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/train', transform=Dataset.data_transforms['train'])
-    faiss_data_loader = torch.utils.data.DataLoader(
-        faiss_dataset,
-        batch_size=RunningParams.batch_size,
-        shuffle=False,  # turn shuffle to True
-        num_workers=0,  # Set to 0 as suggested by
-        # https://stackoverflow.com/questions/54773106/simple-way-to-load-specific-sample-using-pytorch-dataloader
-        pin_memory=True,
-    )
 
-    # if os.path.exists(RunningParams.INDEX_FILE):
-    #     print("FAISS index exists!")
-    #     faiss_cpu_index = faiss.read_index(RunningParams.INDEX_FILE)
-    #     faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
-    #         faiss_cpu_index
-    #     )
-    #
-    # else:
-    #     print("FAISS index NOT exists! Creating FAISS index then save to disk...")
-    #     stack_embeddings = []
-    #     stack_labels = []
-    #     gallery_paths = []
-    #     for batch_idx, (data, label) in enumerate(tqdm(faiss_data_loader)):
-    #         embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
-    #         embeddings = torch.flatten(embeddings, start_dim=1)
-    #         # print(embeddings.shape)
-    #         # TODO: add data tensors here to return data using index
-    #         # TODO: search in range only
-    #         # TODO: Move everything to GPU
-    #         stack_embeddings.append(embeddings.cpu().detach().numpy())
-    #         stack_labels.append(label.cpu().detach().numpy())
-    #         # gallery_paths.extend(path)
-    #
-    #     stack_embeddings = np.concatenate(stack_embeddings, axis=0)
-    #     stack_labels = np.concatenate(stack_labels, axis=0)
-    #     # stack_embeddings = stack_embeddings.cpu().detach().numpy()
-    #
-    #     descriptors = np.vstack(stack_embeddings)
-    #     cpu_index = faiss.IndexFlatL2(in_features)
-    #     faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
-    #         cpu_index
-    #     )
-    #     print(faiss_gpu_index.ntotal)
-    #
-    #     faiss_gpu_index.add(descriptors)
-    #
-    #     faiss_cpu_index = faiss.index_gpu_to_cpu(  # build the index
-    #         faiss_gpu_index
-    #     )
-    #     faiss.write_index(faiss_cpu_index, 'faiss/faiss.index')
-
-
-def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
+def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     since = time.time()
 
     best_model_wts = copy.deepcopy(model.state_dict())
@@ -170,6 +114,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
             yes_cnt = 0
             true_cnt = 0
 
+            sim_0s = []
+            sim_1s = []
             for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
                 if RunningParams.XAI_method == RunningParams.NNs:
                     x = data[0].cuda()
@@ -219,13 +165,21 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                         else:
                             output, query, nns = model(images=x, explanations=explanation, scores=model1_p)
                             if RunningParams.XAI_method == RunningParams.NNs:
-                                pass
-                                # emb_cos_sim = F.cosine_similarity(query, nns)
-                                # embedding_loss = l1_dist(emb_cos_sim, labels)/(x.shape[0])
+                                emb_cos_sim = F.cosine_similarity(query, nns)
+                                embedding_loss = l1_dist(emb_cos_sim, labels)/(x.shape[0])
+                                idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
+                                idx_1 = (labels == 1).nonzero(as_tuple=True)[0]
+                                sim_0 = emb_cos_sim[idx_0].mean()
+                                sim_1 = emb_cos_sim[idx_1].mean()
+                                sim_0s.append(sim_0.item())
+                                sim_1s.append(sim_1.item())
+
+                                # import pdb
+                                # pdb.set_trace()
 
                         p = torch.nn.functional.softmax(output, dim=1)
                         _, preds = torch.max(p, 1)
-                        label_loss = criterion(p, labels)
+                        label_loss = loss_func(p, labels)
                         if RunningParams.XAI_method == RunningParams.NNs and RunningParams.embedding_loss is True:
                             loss = label_loss + embedding_loss
                             # loss = embedding_loss
@@ -248,6 +202,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                 yes_cnt += sum(preds)
                 true_cnt += sum(labels)
 
+            import statistics
+            print("Mean for True: {:.2f} and Mean for False: {:.2f}".format(statistics.mean(sim_1s), statistics.mean(sim_0s)))
             epoch_loss = running_loss / len(image_datasets[phase])
             epoch_label_loss = running_label_loss / len(image_datasets[phase])
             if RunningParams.XAI_method == RunningParams.NNs:
@@ -283,6 +239,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
                     'optimizer_state_dict': optimizer.state_dict(),
                     'val_loss': epoch_loss,
                     'val_acc': epoch_acc*100,
+                    'val_yes_ratio': yes_ratio * 100,
                     'running_params': RunningParams,
                 }, ckpt_path)
 
@@ -350,6 +307,7 @@ config = {"train": train_dataset,
           'using_softmax': RunningParams.USING_SOFTMAX,
           'dropout_rate': RunningParams.dropout,
           'CrossCorrelation': RunningParams.CrossCorrelation,
+          'TOP1_NN': RunningParams.TOP1_NN,
           }
 
 print(config)

@@ -163,17 +163,17 @@ else:
 
     image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
                                               Dataset.data_transforms['val'])
-                      for x in ['imagenet1k-val']}
+                      for x in ['balanced_val_dataset_6k']}
 
     train_loader = torch.utils.data.DataLoader(
-        image_datasets['imagenet1k-val'],
+        image_datasets['balanced_val_dataset_6k'],
         batch_size=RunningParams.batch_size,
         shuffle=False,  # turn shuffle to True
         num_workers=16,
         pin_memory=True,
     )
 
-    dataset_sizes = {x: len(image_datasets[x]) for x in ['imagenet1k-val']}
+    dataset_sizes = {x: len(image_datasets[x]) for x in ['balanced_val_dataset_6k']}
 
 faiss_nn_dict = dict()
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
@@ -212,4 +212,4 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
 if RETRIEVE_TOP1_NEAREST:
     np.save('faiss/faiss_1M3_train_class_dict.npy', faiss_nn_dict)
 else:
-    np.save('faiss/faiss_50K_val_topk.npy', faiss_nn_dict)
+    np.save('faiss/faiss_balanced_val_dataset_6k_topk.npy', faiss_nn_dict)

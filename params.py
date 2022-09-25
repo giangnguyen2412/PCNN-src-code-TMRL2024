@@ -4,13 +4,16 @@ from torchvision import transforms
 class RunningParams(object):
     def __init__(self):
         # General
+        self.SIMCLR_MODEL = True
         self.IMAGENET_REAL = True
         self.advising_network = True
         self.conv_layer = 4  # ----------------------------------------- IMPORTANT PARAM --------
         self.conv_layer_size = {4: 512, 3: 256, 2: 128, 1: 64}
+        if self.SIMCLR_MODEL is True:
+            self.conv_layer_size = {4: 2048, 3: 1024, 2: 512, 1: 256}
         self.feat_map_size = {4: 49, 3: 196, 2: 784}
         self.CONTINUE_TRAINING = False
-        self.TOP1_NN = True
+        self.TOP1_NN = True  # ----------------------------------------- IMPORTANT PARAM --------
 
         # XAI methods
         self.NO_XAI = 'No-XAI'
@@ -55,6 +58,5 @@ class RunningParams(object):
         # Visualization
         self.M2_VISUALIZATION = False
 
-
-
-
+        # Unused
+        self.BATCH_NORM = True

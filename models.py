@@ -1,4 +1,4 @@
-
+import torch.nn.functional as F
 import torch
 import torch.nn as nn
 from torchvision import models
@@ -98,6 +98,11 @@ class AdvisingNetwork(nn.Module):
     def __init__(self):
         super(AdvisingNetwork, self).__init__()
         resnet = models.resnet18(pretrained=True)
+
+        if RunningParams.SIMCLR_MODEL is True:
+            from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
+            resnet = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
+
         if RunningParams.query_frozen is True:
             for param in resnet.parameters():
                 param.requires_grad = False
@@ -123,10 +128,10 @@ class AdvisingNetwork(nn.Module):
                 fc0_in_features = avg_pool_features + 7*7 + softmax_features  # avg_pool_size + heatmap_size + 1000
             elif RunningParams.XAI_method == RunningParams.NNs:
                 if RunningParams.CrossCorrelation is True:
-                    fc0_in_features = softmax_features \
-                                      + RunningParams.k_value*RunningParams.feat_map_size[RunningParams.conv_layer]**2
+                    fc0_in_features = avg_pool_features + avg_pool_features * RunningParams.k_value + softmax_features \
+                                      + RunningParams.k_value*RunningParams.feat_map_size[RunningParams.conv_layer]**2 + 1
                 else:
-                    fc0_in_features = softmax_features
+                    fc0_in_features = avg_pool_features + avg_pool_features*RunningParams.k_value + softmax_features + 1
         else:
             if RunningParams.XAI_method == RunningParams.NO_XAI:
                 fc0_in_features = avg_pool_features
@@ -134,9 +139,10 @@ class AdvisingNetwork(nn.Module):
                 fc0_in_features = avg_pool_features + 7 * 7
             elif RunningParams.XAI_method == RunningParams.NNs:
                 if RunningParams.CrossCorrelation is True:
-                    fc0_in_features = RunningParams.k_value*RunningParams.feat_map_size[RunningParams.conv_layer]**2
+                    # fc0_in_features = avg_pool_features + avg_pool_features * RunningParams.k_value + \
+                    fc0_in_features = 1
                 else:
-                    fc0_in_features = None
+                    fc0_in_features = avg_pool_features + avg_pool_features * RunningParams.k_value + 1
 
         self.fc0 = nn.Linear(fc0_in_features, 512)
         self.fc0_bn = nn.BatchNorm1d(512, eps=1e-2)
@@ -198,7 +204,13 @@ class AdvisingNetwork(nn.Module):
                         attention_vectors.append(attention_vector)
 
                 explanation_feat = torch.stack(explanation_feats)
-                attention_vectors = torch.stack(attention_vectors)
+                if RunningParams.CrossCorrelation is True:
+                    attention_vectors = torch.stack(attention_vectors)
+
+        emb_cos_sim = F.cosine_similarity(input_feat, explanation_feat)
+        emb_cos_sim = emb_cos_sim.unsqueeze(dim=1)
+        # import pdb
+        # pdb.set_trace()
 
         if RunningParams.USING_SOFTMAX is True:
             # TODO: move RunningParams.NO_XAI, ... to Explainer class
@@ -208,9 +220,9 @@ class AdvisingNetwork(nn.Module):
                 concat_feat = torch.concat([input_feat, explanation_feat, scores], dim=1)
             elif RunningParams.XAI_method == RunningParams.NNs:
                 if RunningParams.CrossCorrelation is True:
-                    concat_feat = torch.concat([attention_vectors, scores], dim=1)
+                    concat_feat = torch.concat([emb_cos_sim, input_feat, explanation_feat, attention_vectors, scores], dim=1)
                 else:
-                    concat_feat = torch.concat([scores], dim=1)
+                    concat_feat = torch.concat([emb_cos_sim, input_feat, explanation_feat, scores], dim=1)
         else:
             if RunningParams.XAI_method == RunningParams.NO_XAI:
                 concat_feat = input_feat
@@ -218,9 +230,10 @@ class AdvisingNetwork(nn.Module):
                 concat_feat = torch.concat([input_feat, explanation_feat], dim=1)
             elif RunningParams.XAI_method == RunningParams.NNs:
                 if RunningParams.CrossCorrelation is True:
-                    concat_feat = torch.concat([attention_vectors], dim=1)
+                    # concat_feat = torch.concat([emb_cos_sim, input_feat, explanation_feat, attention_vectors], dim=1)
+                    concat_feat = torch.concat([emb_cos_sim], dim=1)
                 else:
-                    concat_feat = torch.concat([input_feat], dim=1)
+                    concat_feat = torch.concat([emb_cos_sim, input_feat, explanation_feat], dim=1)
 
         output = self.dropout(self.fc0_bn(torch.nn.functional.relu(self.fc0(concat_feat))))
         output = self.dropout(self.fc1_bn(torch.nn.functional.relu(self.fc1(output))))
@@ -230,4 +243,5 @@ class AdvisingNetwork(nn.Module):
             return output, None, None
         else:
             return output, input_feat, explanation_feat
+
 
