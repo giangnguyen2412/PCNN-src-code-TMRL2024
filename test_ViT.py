@@ -14,6 +14,9 @@ import random
 import pdb
 import faiss
 
+import torch
+from cross_vit import CrossViT
+
 
 from tqdm import tqdm
 from torchray.attribution.grad_cam import grad_cam
@@ -32,6 +35,8 @@ plt.ion()   # interactive mode
 # os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
+os.environ['WANDB_MODE'] = 'offline'
+
 RunningParams = RunningParams()
 Dataset = Dataset()
 Explainer = ModelExplainer()
@@ -46,8 +51,8 @@ data_dir = '/home/giang/Downloads/advising_net_training/'
 
 virtual_train_dataset = '{}/train'.format(data_dir)
 
-train_dataset = '/home/giang/Downloads/datasets/random_train_dataset_1k'
-# train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_60k'
+# train_dataset = '/home/giang/Downloads/datasets/random_train_dataset_1k'
+train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_60k'
 val_dataset = '/home/giang/Downloads/datasets/balanced_val_dataset_6k'
 
 if not HelperFunctions.is_program_running(os.path.basename(__file__)):
@@ -160,21 +165,13 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                 with torch.set_grad_enabled(phase == 'train'):
                     if RunningParams.XAI_method == RunningParams.NO_XAI:
-                        output, _, _ = model(images=x, explanations=None, scores=model1_p)
-                    else:
-                        output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=model1_p)
-                        if RunningParams.XAI_method == RunningParams.NNs:
-                            # emb_cos_sim = F.cosine_similarity(query, nns)
-                            # embedding_loss = l1_dist(emb_cos_sim, labels)/(x.shape[0])
-                            idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
-                            idx_1 = (labels == 1).nonzero(as_tuple=True)[0]
-                            sim_0 = emb_cos_sim[idx_0].mean()
-                            sim_1 = emb_cos_sim[idx_1].mean()
-                            sim_0s.append(sim_0.item())
-                            sim_1s.append(sim_1.item())
-
-                        # import pdb
-                        # pdb.set_trace()
+                        pass
+                    elif RunningParams.XAI_method == RunningParams.NNs:
+                        if RunningParams.k_value == 1:
+                            output = model(x, explanation.squeeze())
+                        else:
+                            assert "Not implemented yet!"
+                            return -1
 
                     p = torch.nn.functional.softmax(output, dim=1)
                     confs, preds = torch.max(p, 1)
@@ -208,7 +205,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 true_cnt += sum(labels)
 
             import statistics
-            print("k: {} | Mean for True: {:.2f} and Mean for False: {:.2f}".format(RunningParams.k_value, statistics.mean(sim_1s), statistics.mean(sim_0s)))
+            # print("k: {} | Mean for True: {:.2f} and Mean for False: {:.2f}".format(RunningParams.k_value, statistics.mean(sim_1s), statistics.mean(sim_0s)))
             epoch_loss = running_loss / len(image_datasets[phase])
             epoch_label_loss = running_label_loss / len(image_datasets[phase])
             if RunningParams.XAI_method == RunningParams.NNs:
@@ -259,8 +256,28 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     return model, best_acc
 
 
-model2_name = 'AdvisingNetwork'
-MODEL2 = AdvisingNetwork()
+model2_name = 'CrossViT'
+# MODEL2 = AdvisingNetwork()
+
+MODEL2 = CrossViT(
+    image_size = 224,  # Change from 256 to 224
+    num_classes = 2,  # Change from 1000 to 2 (binary classification)
+    depth = 4,               # number of multi-scale encoding blocks
+    sm_dim = 192,            # high res dimension
+    sm_patch_size = 16,      # high res patch size (should be smaller than lg_patch_size)
+    sm_enc_depth = 2,        # high res depth
+    sm_enc_heads = 8,        # high res heads
+    sm_enc_mlp_dim = 2048,   # high res feedforward dimension
+    lg_dim = 192,            # low res dimension: 384 -> 192 to make it same with above
+    lg_patch_size = 16,      # low res patch size: 64 -> 16 to make it same with above
+    lg_enc_depth = 2,        # low res depth: 3 -> 2 to make it same with above
+    lg_enc_heads = 8,        # low res heads
+    lg_enc_mlp_dim = 2048,   # low res feedforward dimensions
+    cross_attn_depth = 2,    # cross attention rounds
+    cross_attn_heads = 8,    # cross attention heads
+    dropout = 0.1,
+    emb_dropout = 0.1
+)
 
 MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
@@ -336,3 +353,15 @@ _, best_acc = train_model(
 
 
 wandb.finish()
+
+
+
+
+
+# img1 = torch.randn(128, 3, 224, 224)  # 256 -> 224
+# img2 = torch.randn(128, 3, 224, 224)
+#
+#
+# pred = v(img1, img2)  # (1, 2) # 1000 -> 2
+# print(pred)
+# pass

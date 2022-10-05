@@ -9,7 +9,7 @@ import faiss
 from tqdm import tqdm
 from torchray.attribution.grad_cam import grad_cam
 from torchvision import datasets, models, transforms
-from models import MyCustomResnet18, AdvisingNetwork, AdvisingNetworkv1
+from models import AdvisingNetwork
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from torchvision.datasets import ImageFolder
@@ -23,14 +23,14 @@ HelperFunctions = HelperFunctions()
 ModelExplainer = ModelExplainer()
 
 
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_solar-lake-584.pt',
+                        default='best_model_honest-galaxy-625.pt',
                         help='Model check point')
     parser.add_argument('--dataset', type=str,
                         default='balanced_val_dataset_6k',
@@ -141,6 +141,9 @@ if __name__ == '__main__':
                 model2_gt = (predicted_ids == gts) * 1  # 0 and 1
 
             labels = model2_gt
+            # Get the idx of wrong predictions
+            idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
+
 
             # Generate explanations
             if RunningParams.XAI_method == RunningParams.GradCAM:
@@ -152,6 +155,11 @@ if __name__ == '__main__':
                     # explanation = explanation[:, 1:RunningParams.k_value + 1, :, :, :]
                     explanation = data[1]
                     explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
+
+                    # Make the random epplanations
+                    Pseudo-code --> Need to debug here to see
+                    random_exp = torch.random(explanation[0].shape)
+                    explanation[idx_0] = random_exp
                 else:
                     print("Error: Not implemented yet!")
                     exit(-1)
@@ -166,11 +174,14 @@ if __name__ == '__main__':
                 p = torch.nn.functional.softmax(output, dim=1)
                 _, preds = torch.max(p, 1)
 
+                REMOVE_UNCERT = True
                 for sample_idx in range(x.shape[0]):
                     pred = preds[sample_idx].item()
                     model2_conf = p[sample_idx][pred].item()
-                    if model2_conf < 0.6:
+                    if model2_conf < 0.60:
                         uncertain_pred_cnt += 1
+                        if REMOVE_UNCERT is True:
+                            preds[sample_idx] = -1
 
             # Running ADVISING process
             # TODO: Reduce compute overhead by only running on disagreed samples
@@ -295,6 +306,8 @@ if __name__ == '__main__':
         yes_ratio = yes_cnt.double() / len(image_datasets[ds])
         true_ratio = true_cnt.double() / len(image_datasets[ds])
         uncertain_ratio = uncertain_pred_cnt / len(image_datasets[ds])
+        if REMOVE_UNCERT is True:
+            epoch_acc = running_corrects.double() / (len(image_datasets[ds]) - uncertain_pred_cnt)
 
         if RunningParams.MODEL2_ADVISING is True:
             advising_acc = advising_crt_cnt.double() / len(image_datasets[ds])
@@ -302,10 +315,9 @@ if __name__ == '__main__':
             print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Orig. accuracy: {:.2f} - Advising. accuracy: {:.2f}'.format(
                 ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100, advising_acc * 100))
         else:
-            print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Always say Yes: {:.2f} - Uncertain. ratio: {:.2f}'.format(
-                ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100, uncertain_ratio * 100))
-
-
-
-
-
+            if REMOVE_UNCERT is True:
+                print('{} - Acc: {:.2f} - Always say Yes: {:.2f} - Uncertain. ratio: {:.2f}'.format(
+                    ds, epoch_acc * 100, true_ratio * 100, uncertain_ratio * 100))
+            else:
+                print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Always say Yes: {:.2f} - Uncertain. ratio: {:.2f}'.format(
+                    ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100, uncertain_ratio * 100))

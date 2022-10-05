@@ -1155,9 +1155,10 @@ class ImageFolderForNNs(ImageFolder):
             # Load the pre-computed NNs
             if RunningParams.TOP1_NN is True:
                 if os.path.basename(root) == 'train':
-                    self.faiss_nn_dict = np.load('faiss/faiss_1M3_train_class_dict.npy', allow_pickle=True, ).item()
+                    self.faiss_nn_dict = np.load('faiss/faiss_1M3_train_class_dict_simclr.npy', allow_pickle=True, ).item()
                 else:
-                    self.faiss_nn_dict = np.load('faiss/faiss_50K_val_class_dict.npy', allow_pickle=True, ).item()
+                    self.faiss_nn_dict = np.load('faiss/faiss_50K_val_class_dict_simclr.npy', allow_pickle=True, ).item()
+                    # replace by simclr npy files here and run again
             else:
                 if os.path.basename(root) == 'train':
                     self.faiss_nn_dict = np.load('faiss/faiss_balanced_train_dataset_60k_topk.npy', allow_pickle=True, ).item()

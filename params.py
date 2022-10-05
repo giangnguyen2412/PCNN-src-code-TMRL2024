@@ -60,3 +60,8 @@ class RunningParams(object):
 
         # Unused
         self.BATCH_NORM = True
+
+        # Uncategorized
+        self.COSINE_ONLY = True  # ----------------------------------------- IMPORTANT PARAM --------
+
+

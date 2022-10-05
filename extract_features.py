@@ -24,9 +24,11 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,3"
 
-MODEL1 = models.resnet18(pretrained=True).eval()
+from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
+MODEL1 = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
+# MODEL1 = models.resnet18(pretrained=True).eval()
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
 feature_extractor.cuda()
 feature_extractor = nn.DataParallel(feature_extractor)
@@ -36,12 +38,12 @@ fc = fc.cuda()
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-RETRIEVE_TOP1_NEAREST = False
+RETRIEVE_TOP1_NEAREST = True
 
 
 in_features = MODEL1.fc.in_features
 print("Building FAISS index...")
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/random_train_dataset_100k', transform=Dataset.data_transforms['train'])
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/train', transform=Dataset.data_transforms['train'])
 # faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/imagenet1k-val', transform=Dataset.data_transforms['train'])
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
@@ -53,10 +55,10 @@ faiss_data_loader = torch.utils.data.DataLoader(
 )
 
 if RETRIEVE_TOP1_NEAREST is True:
-    INDEX_FILE = 'faiss/faiss_1M3_class_idx_dict.npy'
+    INDEX_FILE = 'faiss/faiss_1M3_class_idx_dict_simclr.npy'
     if os.path.exists(INDEX_FILE):
         print("FAISS class index exists!")
-        faiss_nns_class_dict = np.load('faiss/faiss_1M3_class_idx_dict.npy', allow_pickle="False", ).item()
+        faiss_nns_class_dict = np.load('faiss/faiss_1M3_class_idx_dict_simclr.npy', allow_pickle="False", ).item()
         targets = faiss_data_loader.dataset.targets
         faiss_data_loader_ids_dict = dict()
         faiss_loader_dict = dict()
@@ -94,7 +96,7 @@ if RETRIEVE_TOP1_NEAREST is True:
             faiss_gpu_index.add(descriptors)
             faiss_nns_class_dict[class_id] = faiss_gpu_index
             faiss_loader_dict[class_id] = class_id_loader
-        np.save('faiss/faiss_1M3_class_idx_dict.npy', faiss_nns_class_dict)
+        np.save('faiss/faiss_1M3_class_idx_dict_simclr.npy', faiss_nns_class_dict)
 else:
     INDEX_FILE = 'faiss/faiss_100K_topk.index'
     if os.path.exists(INDEX_FILE):
@@ -141,11 +143,13 @@ else:
         faiss.write_index(faiss_cpu_index, 'faiss/faiss_100K_topk.index')
 
 
+resnet18 = models.resnet18(pretrained=True).eval().cuda()
+
 if RETRIEVE_TOP1_NEAREST is True:
     data_dir = '/home/giang/Downloads/'
 
     image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
-                                          Dataset.data_transforms[x])
+                                          Dataset.data_transforms['train'])
                   for x in ['train']}
 
     train_loader = torch.utils.data.DataLoader(
@@ -180,7 +184,8 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
     embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
     embeddings = torch.flatten(embeddings, start_dim=1)
     if RETRIEVE_TOP1_NEAREST is True:
-        out = fc(embeddings)
+        # out = fc(embeddings)
+        out = resnet18(data.cuda())
         embeddings = embeddings.cpu().detach().numpy()
         model1_p = torch.nn.functional.softmax(out, dim=1)
         score, index = torch.topk(model1_p, 1, dim=1)
@@ -210,6 +215,6 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             faiss_nn_dict[base_name] = nn_list
 
 if RETRIEVE_TOP1_NEAREST:
-    np.save('faiss/faiss_1M3_train_class_dict.npy', faiss_nn_dict)
+    np.save('faiss/faiss_1M3_train_class_dict_simclr.npy', faiss_nn_dict)
 else:
     np.save('faiss/faiss_balanced_val_dataset_6k_topk.npy', faiss_nn_dict)
