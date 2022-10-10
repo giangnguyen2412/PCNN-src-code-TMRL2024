@@ -18,7 +18,7 @@ import faiss
 from tqdm import tqdm
 from torchray.attribution.grad_cam import grad_cam
 from torchvision import datasets, models, transforms
-from models import AdvisingNetwork
+from models import AdvisingNetwork, TransformerAdvisingNetwork
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
@@ -29,8 +29,8 @@ import torchvision as tv
 torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
-# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1,3"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -259,8 +259,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     return model, best_acc
 
 
-model2_name = 'AdvisingNetwork'
-MODEL2 = AdvisingNetwork()
+model2_name = 'TransformerAdvisingNetwork'
+MODEL2 = TransformerAdvisingNetwork()
 
 MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
