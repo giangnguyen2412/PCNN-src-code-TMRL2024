@@ -4,6 +4,7 @@ import torch
 import torch.nn as nn
 from torchvision import models
 from params import RunningParams
+from cross_vit import CrossTransformer
 
 RunningParams = RunningParams()
 
@@ -236,14 +237,7 @@ class TransformerAdvisingNetwork(nn.Module):
                     else:
                         fc0_in_features = avg_pool_features + avg_pool_features * RunningParams.k_value
 
-        d_model = fc0_in_features
-        nhead = 2
-        d_hid = 2048
-        dropout = 0.2
-        nlayers = 2
-        print(d_model)
-        encoder_layers = TransformerEncoderLayer(d_model, nhead, d_hid, dropout)
-        self.transformer_encoder = TransformerEncoder(encoder_layers, nlayers)
+        self.cross_transformer = CrossTransformer(sm_dim=2048, lg_dim=2048, depth=1, heads=8, dim_head=64, dropout=0.0).cuda()
 
         self.fc0 = nn.Linear(fc0_in_features, 512)
         self.fc0_bn = nn.BatchNorm1d(512, eps=1e-2)
@@ -324,11 +318,6 @@ class TransformerAdvisingNetwork(nn.Module):
                 if RunningParams.COSINE_ONLY is True and RunningParams.k_value > 1:
                     emb_cos_sim = torch.stack(emb_cos_sims)
 
-        # emb_cos_sim = F.cosine_similarity(input_feat, explanation_feat)
-        # emb_cos_sim = emb_cos_sim.unsqueeze(dim=1)
-        # import pdb
-        # pdb.set_trace()
-
         if RunningParams.USING_SOFTMAX is True:
             # TODO: move RunningParams.NO_XAI, ... to Explainer class
             if RunningParams.XAI_method == RunningParams.NO_XAI:
@@ -364,4 +353,3 @@ class TransformerAdvisingNetwork(nn.Module):
             return output, None, None
         else:
             return output, input_feat, explanation_feat, emb_cos_sim
-

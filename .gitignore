@@ -12,3 +12,4 @@ vis/
 *.tar.gz
 *.npy
 *.pt
+modelvshuman

@@ -115,15 +115,15 @@ import numpy as np
 from shutil import copyfile
 
 # This block is to get the hard/easy/medium distribution of ImageNet/Stanford Dogs
-IMAGENET_REAL = True
+IMAGENET_REAL = False
 
 model = torchvision.models.resnet18(pretrained=True).cuda()
 model.eval()
 
 
-imagenet_folders = glob.glob("/home/giang/Downloads/datasets/imagenet1k-val/*")
+imagenet_folders = glob.glob("/home/giang/Downloads/train/*")
 
-dataset_path = "/home/giang/Downloads/RN18_dataset_val"
+dataset_path = "/home/giang/Downloads/RN18_dataset_train"
 
 check_and_rm(dataset_path)
 check_and_mkdir(dataset_path)
@@ -137,7 +137,7 @@ check_and_mkdir("{}/Wrong/Easy".format(dataset_path))
 check_and_mkdir("{}/Wrong/Hard".format(dataset_path))
 
 if IMAGENET_REAL:
-    real_json = open("/home/giang/Downloads/KNN-ImageNet/reassessed-imagenet/real.json")
+    real_json = open("reassessed-imagenet/real.json")
     real_ids = json.load(real_json)
     real_labels = {
         f"ILSVRC2012_val_{i + 1:08d}.JPEG": labels for i, labels in enumerate(real_ids)
@@ -151,6 +151,7 @@ for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
     # print(i)
     # print([correct, wrong])
     # print([easy, medium, hard])
+
     imagenet_id = os.path.basename(imagenet_folder)
     wnid = imagenet_id
 
@@ -229,7 +230,7 @@ for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
 
         copyfile(image_path, dst_file)
 
-np.save('RN18_val_dict', RN18_dict)
+np.save('RN18_train_dict', RN18_dict)
 
 print(medium, easy, hard)
 print([correct, wrong])

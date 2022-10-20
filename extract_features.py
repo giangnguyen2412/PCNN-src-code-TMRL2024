@@ -24,7 +24,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
 MODEL1 = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
@@ -146,21 +146,21 @@ else:
 resnet18 = models.resnet18(pretrained=True).eval().cuda()
 
 if RETRIEVE_TOP1_NEAREST is True:
-    data_dir = '/home/giang/Downloads/'
+    data_dir = '/home/giang/Downloads/datasets/'
 
     image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
-                                          Dataset.data_transforms['train'])
-                  for x in ['train']}
+                                          Dataset.data_transforms['val'])
+                  for x in ['imagenet1k-val']}
 
     train_loader = torch.utils.data.DataLoader(
-        image_datasets['train'],
+        image_datasets['imagenet1k-val'],
         batch_size=RunningParams.batch_size,
         shuffle=False,  # turn shuffle to True
         num_workers=16,
         pin_memory=True,
     )
 
-    dataset_sizes = {x: len(image_datasets[x]) for x in ['train']}
+    dataset_sizes = {x: len(image_datasets[x]) for x in ['imagenet1k-val']}
 
 else:
     data_dir = '/home/giang/Downloads/datasets/'
@@ -215,6 +215,6 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             faiss_nn_dict[base_name] = nn_list
 
 if RETRIEVE_TOP1_NEAREST:
-    np.save('faiss/faiss_1M3_train_class_dict_simclr.npy', faiss_nn_dict)
+    np.save('faiss/faiss_50K_val_class_dict_simclr.npy', faiss_nn_dict)
 else:
     np.save('faiss/faiss_balanced_val_dataset_6k_topk.npy', faiss_nn_dict)

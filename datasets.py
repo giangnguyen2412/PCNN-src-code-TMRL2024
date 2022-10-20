@@ -58,7 +58,7 @@ class Dataset(object):
         }
 
         if RunningParams.IMAGENET_REAL is True:
-            real_json = open("/home/giang/Downloads/KNN-ImageNet/reassessed-imagenet/real.json")
+            real_json = open("reassessed-imagenet/real.json")
             real_ids = json.load(real_json)
             self.real_labels = {
                 f"ILSVRC2012_val_{i + 1:08d}.JPEG": labels
@@ -1083,7 +1083,7 @@ class ImageFolderWithPaths(ImageFolder):
             if os.path.basename(root) == 'train':
                 pass
             else:
-                real_json = open("/home/giang/Downloads/KNN-ImageNet/reassessed-imagenet/real.json")
+                real_json = open("reassessed-imagenet/real.json")
                 real_ids = json.load(real_json)
                 real_labels = {
                     f"ILSVRC2012_val_{i + 1:08d}.JPEG": labels
@@ -1169,7 +1169,7 @@ class ImageFolderForNNs(ImageFolder):
             if os.path.basename(root) == 'train':
                 pass
             else:
-                real_json = open("/home/giang/Downloads/KNN-ImageNet/reassessed-imagenet/real.json")
+                real_json = open("reassessed-imagenet/real.json")
                 real_ids = json.load(real_json)
                 real_labels = {
                     f"ILSVRC2012_val_{i + 1:08d}.JPEG": labels

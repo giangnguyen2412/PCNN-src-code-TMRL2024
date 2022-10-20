@@ -22,12 +22,12 @@ class RunningParams(object):
         self.XAI_method = self.NNs  # ----------------------------------------- IMPORTANT PARAM --------
         # TODO: write script to run a set of basic experiments: No-XAI, NNs with conv2,3,4, k1,3,5
 
-        self.USING_SOFTMAX = False  # ----------------------------------------- IMPORTANT PARAM --------
+        self.USING_SOFTMAX = True  # ----------------------------------------- IMPORTANT PARAM --------
         # TODO: make the difference b/w two run Running params
         # TODO: No need to use softmax anymore at this time bcz we balanced this feature already
 
         # Training
-        self.batch_size = 32  # ----------------------------------------- IMPORTANT PARAM --------
+        self.batch_size = 512  # ----------------------------------------- IMPORTANT PARAM --------
         self.learning_rate = 0.001
         self.epochs = 25
         self.query_frozen = True  # False = Trainable; True = Freeze? -------------------- IMPORTANT PARAM --------
@@ -44,7 +44,7 @@ class RunningParams(object):
         self.PRECOMPUTED_NN = True
         self.INDEX_FILE = 'faiss/faiss_100K.index'
         self.PRECOMPUTED_NN_FILE = 'KB_100K.pt'
-        self.CrossCorrelation = False  # ----------------------------------------- IMPORTANT PARAM --------
+        self.CrossCorrelation = True  # ----------------------------------------- IMPORTANT PARAM --------
 
         # Data processing
         self.FFCV_loader = False
@@ -63,5 +63,4 @@ class RunningParams(object):
 
         # Uncategorized
         self.COSINE_ONLY = False  # ----------------------------------------- IMPORTANT PARAM --------
-
 

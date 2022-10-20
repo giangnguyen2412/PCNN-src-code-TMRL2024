@@ -12,13 +12,13 @@ import copy
 import wandb
 import random
 import pdb
-# import faiss
+import faiss
 
 
 from tqdm import tqdm
-# from torchray.attribution.grad_cam import grad_cam
 from torchvision import datasets, models, transforms
 from models import AdvisingNetwork, TransformerAdvisingNetwork
+from transformer import Transformer_AdvisingNetwork
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
@@ -30,7 +30,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -41,23 +41,23 @@ MODEL1 = models.resnet18(pretrained=True).eval()
 fc = MODEL1.fc
 fc = fc.cuda()
 
-data_dir = '/home/giang/Downloads/advising_network'
-# data_dir = '/home/giang/tmp/'
+# data_dir = '/home/giang/Downloads/advising_network'
+data_dir = '/home/giang/tmp'
 
 virtual_train_dataset = '{}/train'.format(data_dir)
+virtual_val_dataset = '{}/val'.format(data_dir)
 
-train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_60k'
-# train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_60k'
+train_dataset = '/home/giang/Downloads/datasets/random_train_dataset'
+# train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_180k'
 val_dataset = '/home/giang/Downloads/datasets/balanced_val_dataset_6k'
 
-if not HelperFunctions.is_program_running(os.path.basename(__file__)):
-# if True:
+# if not HelperFunctions.is_program_running(os.path.basename(__file__)):
+if True:
     print('Creating symlink datasets...')
     if os.path.islink(virtual_train_dataset) is True:
         os.unlink(virtual_train_dataset)
     os.symlink(train_dataset, virtual_train_dataset)
 
-    virtual_val_dataset = '{}/val'.format(data_dir)
     if os.path.islink(virtual_val_dataset) is True:
         os.unlink(virtual_val_dataset)
     os.symlink(val_dataset, virtual_val_dataset)
@@ -208,7 +208,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 true_cnt += sum(labels)
 
             import statistics
-            print("k: {} | Mean for True: {:.2f} and Mean for False: {:.2f}".format(RunningParams.k_value, statistics.mean(sim_1s), statistics.mean(sim_0s)))
+            # print("k: {} | Mean for True: {:.2f} and Mean for False: {:.2f}".format(RunningParams.k_value, statistics.mean(sim_1s), statistics.mean(sim_0s)))
             epoch_loss = running_loss / len(image_datasets[phase])
             epoch_label_loss = running_label_loss / len(image_datasets[phase])
             if RunningParams.XAI_method == RunningParams.NNs:
@@ -224,8 +224,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
             wandb.log({'{}_accuracy'.format(phase): epoch_acc, '{}_loss'.format(phase): epoch_loss})
 
-            print('{} - Loss: {:.4f} - Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
-                phase, epoch_loss, epoch_acc*100, yes_ratio * 100, true_ratio*100))
+            print('{} - {} - Loss: {:.4f} - Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
+                wandb.run.name, phase, epoch_loss, epoch_acc*100, yes_ratio * 100, true_ratio*100))
             # if RunningParams.XAI_method == RunningParams.NNs:
             #     print('{} - Label Loss: {:.4f} - Embedding Loss: {:.4f} '.format(
             #         phase, epoch_label_loss, epoch_embedding_loss))
@@ -259,8 +259,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     return model, best_acc
 
 
-model2_name = 'TransformerAdvisingNetwork'
-MODEL2 = TransformerAdvisingNetwork()
+model2_name = 'Transformer_AdvisingNetwork'
+MODEL2 = Transformer_AdvisingNetwork()
 
 MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
@@ -324,7 +324,9 @@ wandb.save('params.py', policy='now')
 wandb.save('explainers.py', policy='now')
 wandb.save('models.py', policy='now')
 wandb.save('datasets.py', policy='now')
-wandb.save('train.py', policy='now')
+wandb.save('avs_traing.py', policy='now')
+wandb.save('transformer.py', policy='now')
+wandb.save('cross_vit.py', policy='now')
 
 
 _, best_acc = train_model(

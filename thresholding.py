@@ -44,7 +44,7 @@ gray_transform = torchvision.transforms.Compose(
 confidence_dict = dict()
 
 if RunningParams.IMAGENET_REAL is True:
-    real_json = open("/home/giang/Downloads/KNN-ImageNet/reassessed-imagenet/real.json")
+    real_json = open("reassessed-imagenet/real.json")
     real_ids = json.load(real_json)
     real_labels = {
         f"ILSVRC2012_val_{i + 1:08d}.JPEG": labels
