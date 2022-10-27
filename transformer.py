@@ -37,21 +37,8 @@ class Transformer_AdvisingNetwork(nn.Module):
             for param in resnet.parameters():
                 param.requires_grad = False
         conv_features = list(resnet.children())[:RunningParams.conv_layer-6]  # delete the last fc layer
-        self.avgpool = nn.Sequential(*conv_features)
+        self.conv_layers = nn.Sequential(*conv_features)
         self.pooling_layer = nn.AdaptiveAvgPool2d(output_size=(1, 1))
-
-        avg_pool_features = RunningParams.conv_layer_size[RunningParams.conv_layer]
-        softmax_features = resnet.fc.out_features
-
-        if RunningParams.USING_SOFTMAX is True:
-            if RunningParams.XAI_method == RunningParams.NO_XAI:
-                fc0_in_features = avg_pool_features + softmax_features  # avgavg_pool_size_pool + 1000
-            elif RunningParams.XAI_method == RunningParams.NNs:
-                if RunningParams.CrossCorrelation is True:
-                    fc0_in_features = avg_pool_features + avg_pool_features * RunningParams.k_value + softmax_features \
-                                      + RunningParams.k_value*RunningParams.feat_map_size[RunningParams.conv_layer]**2
-                else:
-                    fc0_in_features = avg_pool_features + avg_pool_features*RunningParams.k_value + softmax_features
 
         self.transformer = Transformer(dim=2048, depth=2, heads=8, dim_head=64, mlp_dim=512, dropout=0.0)
         self.cross_transformer = CrossTransformer(sm_dim=2048, lg_dim=2048, depth=2, heads=8,
@@ -60,10 +47,13 @@ class Transformer_AdvisingNetwork(nn.Module):
         # TODO: What is dim_head, mlp_dim? How these affect the performance?
         # Branch 1 takes softmax scores and cosine similarity
         self.branch1 = BinaryMLP(1, 512)
-        # Branch 2 takes CC map and sep_token
-        self.branch2 = BinaryMLP(RunningParams.k_value*RunningParams.feat_map_size[RunningParams.conv_layer]**2, 1024)
-        # Branch 3 takes transformer features and sep_token
-        self.branch3 = BinaryMLP(RunningParams.k_value*RunningParams.conv_layer_size[RunningParams.conv_layer]*2 + 1, 32)
+        self.branch2 = BinaryMLP(1000, 512)
+        # Branch 3 takes transformer features and sep_token*2
+        self.branch3 = BinaryMLP(RunningParams.k_value*RunningParams.conv_layer_size[RunningParams.conv_layer]*2 +
+                                 RunningParams.k_value*2, 32)
+
+        # 3 heads + 3 sep tokens
+        self.output_layer = BinaryMLP(2*3 + 3, 2)
 
         self.dropout = nn.Dropout(p=RunningParams.dropout)
 
@@ -73,52 +63,85 @@ class Transformer_AdvisingNetwork(nn.Module):
                 torch.nn.init.xavier_normal_(m.weight, gain=1)
 
     def forward(self, images, explanations, scores):
-        input_spatial_feats = self.avgpool(images)
+        input_spatial_feats = self.conv_layers(images)
         input_feat = self.pooling_layer(input_spatial_feats).squeeze()
         input_spatial_feats = input_spatial_feats.flatten(start_dim=2)  # bsx512x49
 
         if RunningParams.XAI_method == RunningParams.NNs:
             if RunningParams.k_value == 1:
                 explanations = explanations.squeeze()
-                explanation_spatial_feats = self.avgpool(explanations)
+                explanation_spatial_feats = self.conv_layers(explanations)
                 explanation_feat = self.pooling_layer(explanation_spatial_feats).squeeze()
                 explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
-
-                if RunningParams.CrossCorrelation is True:
-                    # b: batch_size, c: channel nums, m and n is the size of feature maps (e.g. 7x7=49)
-                    attention_vectors = torch.einsum('bcm,bcn->bmn', explanation_spatial_feats, input_spatial_feats)
-                    attention_vectors = attention_vectors.flatten(start_dim=1)
 
                 emb_cos_sim = F.cosine_similarity(input_feat, explanation_feat)
                 emb_cos_sim = emb_cos_sim.unsqueeze(dim=1)
             else:  # K > 1
-                pass
+                explanation_spatial_feats = []
+                for sample_idx in range(RunningParams.k_value):
+                    data = explanations[:, 0, :]
+                    explanation_spatial_feat = self.conv_layers(data)
+                    explanation_spatial_feat = explanation_spatial_feat.flatten(start_dim=2)  #
+                    explanation_spatial_feats.append(explanation_spatial_feat)
+
+                # Expect to have kx2048x49
+                explanation_spatial_feats = torch.stack(explanation_spatial_feats, dim=1)
 
         # change from 2048x49 -> 49x2048
         input_spatial_feats = torch.transpose(input_spatial_feats, 1, 2)
-        explanation_spatial_feats = torch.transpose(explanation_spatial_feats, 1, 2)
+        if RunningParams.k_value == 1:
+            explanation_spatial_feats = torch.transpose(explanation_spatial_feats, 1, 2)
+        else:
+            explanation_spatial_feats = torch.transpose(explanation_spatial_feats, 2, 3)  # 4x3x49x2048
 
+        sep_token = torch.zeros([explanations.shape[0], 1], requires_grad=False).cuda()
         transformer_encoder_depth = 1
 
-        for _ in range(transformer_encoder_depth):
-            input_spt_feats = self.transformer(input_spatial_feats)
-            exp_spt_feats = self.transformer(explanation_spatial_feats)
+        if RunningParams.k_value == 1:
+            for _ in range(transformer_encoder_depth):
+                input_spt_feats = self.transformer(input_spatial_feats)
+                exp_spt_feats = self.transformer(explanation_spatial_feats)
 
-            input_spatial_feats, explanation_spatial_feats = self.cross_transformer(input_spt_feats, exp_spt_feats)
+                input_spatial_feats, explanation_spatial_feats = self.cross_transformer(input_spt_feats, exp_spt_feats)
 
-        input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
-        input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
-        # Extracting the cls token
-        input_cls, exp_cls = map(lambda t: t[:, 0], (input_emb, exp_emb))
-        sep_token = torch.zeros([input_spt_feats.shape[0], 1], requires_grad=False).cuda()
-        transformer_emb = torch.cat([input_cls, sep_token, exp_cls], dim=1)
+                input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
+                input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
+                # Extracting the cls token
+                input_cls, exp_cls = map(lambda t: t[:, 0], (input_emb, exp_emb))
+                transformer_emb = torch.cat([sep_token, input_cls, sep_token, exp_cls], dim=1)
+
+        else:
+            transformer_embs = []
+            for sample_idx in range(RunningParams.k_value):
+                explanation = explanation_spatial_feats[:, sample_idx, :]
+                for _ in range(transformer_encoder_depth):
+                    input_spt_feats = self.transformer(input_spatial_feats)
+                    explanation = self.transformer(explanation)
+
+                    input_spatial_feats, explanation = self.cross_transformer(input_spt_feats, explanation)
+
+                    input_emb, exp_emb = input_spatial_feats, explanation
+                    input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
+                    input_cls, exp_cls = map(lambda t: t[:, 0], (input_emb, exp_emb))
+                    transformer_emb = torch.cat([sep_token, input_cls, sep_token, exp_cls], dim=1)
+                    transformer_embs.append(transformer_emb)
+
+                transformer_emb = torch.cat(transformer_embs, dim=1)
 
         output1 = self.branch1(torch.cat([emb_cos_sim], dim=1))
-        output2 = self.branch2(attention_vectors)
+        output2 = self.branch2(torch.cat([scores], dim=1))
         output3 = self.branch3(transformer_emb)
-        output = output3
+        output1_p = torch.nn.functional.softmax(output1, dim=1)
+        output2_p = torch.nn.functional.softmax(output2, dim=1)
+        output3_p = torch.nn.functional.softmax(output3, dim=1)
+        # output = output1_p + output2_p + output3_p
+        output = torch.cat([sep_token, output1_p, sep_token, output2_p, sep_token, output3_p], dim=1)
+        output = self.output_layer(output)
 
         if RunningParams.XAI_method == RunningParams.NO_XAI:
             return output, None, None
-        else:
-            return output, input_feat, explanation_feat, emb_cos_sim
+        elif RunningParams.XAI_method == RunningParams.NNs:
+            if RunningParams.k_value == 1:
+                return output, input_feat, explanation_feat, emb_cos_sim
+            else:
+                return output, input_feat, None, None

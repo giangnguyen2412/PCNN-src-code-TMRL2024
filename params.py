@@ -63,4 +63,3 @@ class RunningParams(object):
 
         # Uncategorized
         self.COSINE_ONLY = False  # ----------------------------------------- IMPORTANT PARAM --------
-

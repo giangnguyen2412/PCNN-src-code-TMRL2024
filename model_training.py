@@ -41,18 +41,18 @@ MODEL1 = models.resnet18(pretrained=True).eval()
 fc = MODEL1.fc
 fc = fc.cuda()
 
-# data_dir = '/home/giang/Downloads/advising_network'
-data_dir = '/home/giang/tmp'
+data_dir = '/home/giang/Downloads/advising_network'
+# data_dir = '/home/giang/tmp'
 
 virtual_train_dataset = '{}/train'.format(data_dir)
 virtual_val_dataset = '{}/val'.format(data_dir)
 
-train_dataset = '/home/giang/Downloads/datasets/random_train_dataset'
-# train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_180k'
+# train_dataset = '/home/giang/Downloads/datasets/random_train_dataset'
+train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_180k'
 val_dataset = '/home/giang/Downloads/datasets/balanced_val_dataset_6k'
 
-# if not HelperFunctions.is_program_running(os.path.basename(__file__)):
-if True:
+if not HelperFunctions.is_program_running(os.path.basename(__file__)):
+# if True:
     print('Creating symlink datasets...')
     if os.path.islink(virtual_train_dataset) is True:
         os.unlink(virtual_train_dataset)
@@ -152,6 +152,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                         explanation = data[1]
                         if phase == 'train':
                             explanation = explanation[:, 1:RunningParams.k_value + 1, :, :, :]  # ignore 1st NN = query
+                            # explanation = explanation[:, 2:, :, :, :]  # ignore 1st NN = query
                         else:
                             explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
@@ -166,15 +167,13 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                         if RunningParams.XAI_method == RunningParams.NNs:
                             # emb_cos_sim = F.cosine_similarity(query, nns)
                             # embedding_loss = l1_dist(emb_cos_sim, labels)/(x.shape[0])
-                            idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
-                            idx_1 = (labels == 1).nonzero(as_tuple=True)[0]
-                            sim_0 = emb_cos_sim[idx_0].mean()
-                            sim_1 = emb_cos_sim[idx_1].mean()
-                            sim_0s.append(sim_0.item())
-                            sim_1s.append(sim_1.item())
-
-                        # import pdb
-                        # pdb.set_trace()
+                            # idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
+                            # idx_1 = (labels == 1).nonzero(as_tuple=True)[0]
+                            # sim_0 = emb_cos_sim[idx_0].mean()
+                            # sim_1 = emb_cos_sim[idx_1].mean()
+                            # sim_0s.append(sim_0.item())
+                            # sim_1s.append(sim_1.item())
+                            pass
 
                     p = torch.nn.functional.softmax(output, dim=1)
                     confs, preds = torch.max(p, 1)
@@ -186,6 +185,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     else:
                         loss = label_loss
 
+                    # CONFIDENCE_LOSS = RunningParams.CONFIDENCE_LOSS
                     CONFIDENCE_LOSS = False
                     if CONFIDENCE_LOSS is True:
                         conf_loss = (1 - confs).mean()
@@ -266,7 +266,7 @@ MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
 if RunningParams.CONTINUE_TRAINING:
-    model_path = 'best_models/best_model_pretty-puddle-331.pt'
+    model_path = 'best_models/best_model_flowing-universe-771.pt'
     checkpoint = torch.load(model_path)
     MODEL2.load_state_dict(checkpoint['model_state_dict'])
 

@@ -5,6 +5,7 @@ import numpy as np
 import os
 import argparse
 import faiss
+import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 from torchray.attribution.grad_cam import grad_cam
@@ -16,6 +17,8 @@ from torchvision.datasets import ImageFolder
 # from visualize import Visualization
 from helpers import HelperFunctions
 from explainers import ModelExplainer
+from transformer import Transformer_AdvisingNetwork
+
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -23,14 +26,36 @@ HelperFunctions = HelperFunctions()
 ModelExplainer = ModelExplainer()
 
 
-# os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
+
+
+CATEGORY_ANALYSIS = True
+if CATEGORY_ANALYSIS is True:
+    import glob
+    correctness = ['Correct', 'Wrong']
+    diffs = ['Easy', 'Medium', 'Hard']
+    category_dict = {}
+    category_record = {}
+
+    for c in correctness:
+        for d in diffs:
+            dir = os.path.join('/home/giang/Downloads/RN18_dataset_val', c, d)
+            files = glob.glob(os.path.join(dir, '*', '*.*'))
+            key = c + d
+            for file in files:
+                base_name = os.path.basename(file)
+                category_dict[base_name] = key
+
+            category_record[key] = {}
+            category_record[key]['total'] = 0
+            category_record[key]['crt'] = 0
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_honest-galaxy-625.pt',
+                        default='best_model_smooth-moon-795.pt',
                         help='Model check point')
     parser.add_argument('--dataset', type=str,
                         default='balanced_val_dataset_6k',
@@ -40,7 +65,7 @@ if __name__ == '__main__':
     model_path = os.path.join('best_models', args.ckpt)
     print(args)
 
-    model = AdvisingNetwork()
+    model = Transformer_AdvisingNetwork()
     model = nn.DataParallel(model).cuda()
 
     optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)
@@ -100,7 +125,7 @@ if __name__ == '__main__':
         uncertain_pred_cnt = 0
 
         categories = ['CorrectlyAccept', 'IncorrectlyAccept', 'CorrectlyReject', 'IncorrectlyReject']
-        save_dir = '/home/giang/Downloads/advising_net_training/vis/'
+        save_dir = '/home/giang/Downloads/advising_network/vis/'
         HelperFunctions.check_and_rm(save_dir)
         HelperFunctions.check_and_mkdir(save_dir)
         confidence_dist = dict()
@@ -131,6 +156,12 @@ if __name__ == '__main__':
                 for sample_idx in range(x.shape[0]):
                     query = pths[sample_idx]
                     base_name = os.path.basename(query)
+
+                    if CATEGORY_ANALYSIS is True:
+                        key = category_dict[base_name]
+                        category_record[key]['total'] += 1
+
+
                     real_ids = Dataset.real_labels[base_name]
                     # TODO: Ignore images having no labels
                     if predicted_ids[sample_idx].item() in real_ids:
@@ -144,22 +175,19 @@ if __name__ == '__main__':
             # Get the idx of wrong predictions
             idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
 
-
             # Generate explanations
             if RunningParams.XAI_method == RunningParams.GradCAM:
                 explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
             elif RunningParams.XAI_method == RunningParams.NNs:
                 embeddings = embeddings.cpu().detach().numpy()
                 if RunningParams.PRECOMPUTED_NN is True:
-                    # explanation = data[:, :-1, :, :, :]
-                    # explanation = explanation[:, 1:RunningParams.k_value + 1, :, :, :]
                     explanation = data[1]
                     explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
                     # Make the random epplanations
-                    Pseudo-code --> Need to debug here to see
-                    random_exp = torch.random(explanation[0].shape)
-                    explanation[idx_0] = random_exp
+                    # Pseudo-code --> Need to debug here to see
+                    # random_exp = torch.random(explanation[0].shape)
+                    # explanation[idx_0] = random_exp
                 else:
                     print("Error: Not implemented yet!")
                     exit(-1)
@@ -169,12 +197,12 @@ if __name__ == '__main__':
                 if RunningParams.XAI_method == RunningParams.NO_XAI:
                     output, _, _ = model(images=x, explanations=None, scores=model1_p)
                 else:
-                    output, query, nns = model(images=x, explanations=explanation, scores=model1_p)
+                    output, query, nns, _ = model(images=x, explanations=explanation, scores=model1_p)
 
                 p = torch.nn.functional.softmax(output, dim=1)
                 _, preds = torch.max(p, 1)
 
-                REMOVE_UNCERT = True
+                REMOVE_UNCERT = False
                 for sample_idx in range(x.shape[0]):
                     pred = preds[sample_idx].item()
                     model2_conf = p[sample_idx][pred].item()
@@ -182,6 +210,15 @@ if __name__ == '__main__':
                         uncertain_pred_cnt += 1
                         if REMOVE_UNCERT is True:
                             preds[sample_idx] = -1
+
+                if CATEGORY_ANALYSIS is True:
+                    for sample_idx in range(x.shape[0]):
+                        query = pths[sample_idx]
+                        base_name = os.path.basename(query)
+
+                        key = category_dict[base_name]
+                        if preds[sample_idx].item() == labels[sample_idx].item():
+                            category_record[key]['crt'] += 1
 
             # Running ADVISING process
             # TODO: Reduce compute overhead by only running on disagreed samples

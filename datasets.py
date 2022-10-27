@@ -21,6 +21,7 @@ class Dataset(object):
 
         # These datasets have 1000 classes
         self.IMAGENET_1K = "balanced_val_dataset_6k"
+        self.IMAGENET_1K = "balanced_val_dataset_6k"
         self.IMAGENET_1K_50K = "imagenet1k-val-50k"
         self.IMAGENET_1K_50K_CLEAN = "ImageNet-val-50K-clean"
 
