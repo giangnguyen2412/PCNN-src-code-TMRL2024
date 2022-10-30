@@ -117,13 +117,18 @@ from shutil import copyfile
 # This block is to get the hard/easy/medium distribution of ImageNet/Stanford Dogs
 IMAGENET_REAL = False
 
-model = torchvision.models.resnet18(pretrained=True).cuda()
+model = torchvision.models.resnet34(pretrained=True).cuda()
 model.eval()
 
 
 imagenet_folders = glob.glob("/home/giang/Downloads/train/*")
 
-dataset_path = "/home/giang/Downloads/RN18_dataset_train"
+TRAIN_DOG = True
+if TRAIN_DOG == True:
+    imagenet_folders = glob.glob('/home/giang/Downloads/SDogs_dataset/train/*')
+    # imagenet_folders = '/home/giang/Downloads/Dogs_dataset/val/*'
+
+dataset_path = "/home/giang/Downloads/RN34_dataset_Dog_train"
 
 check_and_rm(dataset_path)
 check_and_mkdir(dataset_path)
@@ -230,7 +235,7 @@ for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
 
         copyfile(image_path, dst_file)
 
-np.save('RN18_train_dict', RN18_dict)
+# np.save('RN18_train_dict', RN18_dict)
 
 print(medium, easy, hard)
 print([correct, wrong])

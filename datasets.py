@@ -21,7 +21,8 @@ class Dataset(object):
 
         # These datasets have 1000 classes
         self.IMAGENET_1K = "balanced_val_dataset_6k"
-        self.IMAGENET_1K = "balanced_val_dataset_6k"
+        self.IMAGENET_1K = "SDogs_val"
+
         self.IMAGENET_1K_50K = "imagenet1k-val-50k"
         self.IMAGENET_1K_50K_CLEAN = "ImageNet-val-50K-clean"
 
@@ -1158,7 +1159,7 @@ class ImageFolderForNNs(ImageFolder):
                 if os.path.basename(root) == 'train':
                     self.faiss_nn_dict = np.load('faiss/faiss_1M3_train_class_dict_simclr.npy', allow_pickle=True, ).item()
                 else:
-                    self.faiss_nn_dict = np.load('faiss/faiss_50K_val_class_dict_simclr.npy', allow_pickle=True, ).item()
+                        self.faiss_nn_dict = np.load('faiss/faiss_50K_val_class_dict_simclr.npy', allow_pickle=True, ).item()
                     # replace by simclr npy files here and run again
             else:
                 if os.path.basename(root) == 'train':

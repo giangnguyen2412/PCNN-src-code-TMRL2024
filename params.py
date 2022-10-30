@@ -27,7 +27,7 @@ class RunningParams(object):
         # TODO: No need to use softmax anymore at this time bcz we balanced this feature already
 
         # Training
-        self.batch_size = 512  # ----------------------------------------- IMPORTANT PARAM --------
+        self.batch_size = 32  # ----------------------------------------- IMPORTANT PARAM --------
         self.learning_rate = 0.001
         self.epochs = 25
         self.query_frozen = True  # False = Trainable; True = Freeze? -------------------- IMPORTANT PARAM --------
@@ -40,7 +40,7 @@ class RunningParams(object):
 
         # Training NNs
         self.embedding_loss = False
-        self.k_value = 1  # ----------------------------------------- IMPORTANT PARAM --------
+        self.k_value = 5  # ----------------------------------------- IMPORTANT PARAM --------
         self.PRECOMPUTED_NN = True
         self.INDEX_FILE = 'faiss/faiss_100K.index'
         self.PRECOMPUTED_NN_FILE = 'KB_100K.pt'

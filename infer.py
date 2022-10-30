@@ -27,7 +27,7 @@ ModelExplainer = ModelExplainer()
 
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,5"
 
 
 CATEGORY_ANALYSIS = True
@@ -55,7 +55,7 @@ if CATEGORY_ANALYSIS is True:
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_smooth-moon-795.pt',
+                        default='best_model_eternal-armadillo-847.pt',
                         help='Model check point')
     parser.add_argument('--dataset', type=str,
                         default='balanced_val_dataset_6k',
@@ -202,7 +202,7 @@ if __name__ == '__main__':
                 p = torch.nn.functional.softmax(output, dim=1)
                 _, preds = torch.max(p, 1)
 
-                REMOVE_UNCERT = False
+                REMOVE_UNCERT = True
                 for sample_idx in range(x.shape[0]):
                     pred = preds[sample_idx].item()
                     model2_conf = p[sample_idx][pred].item()
@@ -354,7 +354,12 @@ if __name__ == '__main__':
         else:
             if REMOVE_UNCERT is True:
                 print('{} - Acc: {:.2f} - Always say Yes: {:.2f} - Uncertain. ratio: {:.2f}'.format(
-                    ds, epoch_acc * 100, true_ratio * 100, uncertain_ratio * 100))
+                    ds, epoch_acc * 100, true_ratio * 100, 0 * 100))
             else:
                 print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Always say Yes: {:.2f} - Uncertain. ratio: {:.2f}'.format(
                     ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100, uncertain_ratio * 100))
+
+        if CATEGORY_ANALYSIS is True:
+            for c in correctness:
+                for d in diffs:
+                    print("{} - {} - {:.2f}".format(c, d, category_record[c+d]['crt']*100/category_record[c+d]['total']))
