@@ -40,7 +40,7 @@ if CATEGORY_ANALYSIS is True:
 
     for c in correctness:
         for d in diffs:
-            dir = os.path.join('/home/giang/Downloads/RN18_dataset_val', c, d)
+            dir = os.path.join('/home/giang/Downloads/RN18_dataset_Dog_val', c, d)
             files = glob.glob(os.path.join(dir, '*', '*.*'))
             key = c + d
             for file in files:
@@ -51,6 +51,7 @@ if CATEGORY_ANALYSIS is True:
             category_record[key]['total'] = 0
             category_record[key]['crt'] = 0
 
+imagenet_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/imagenet1k-val', Dataset.data_transforms['train'])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -100,7 +101,6 @@ if __name__ == '__main__':
 
     dataset_sizes = {x: len(image_datasets[x]) for x in val_datasets}
 
-    model1_name = 'resnet18'
     MODEL1 = models.resnet18(pretrained=True).eval()
     fc = MODEL1.fc
     fc = fc.cuda()
@@ -149,6 +149,13 @@ if __name__ == '__main__':
             score, index = torch.topk(model1_p, 1, dim=1)
             _, model1_ranks = torch.topk(model1_p, 1000, dim=1)
             predicted_ids = index.squeeze()
+
+            if RunningParams.TRAIN_DOG is True:
+                for sample_idx in range(x.shape[0]):
+                    key = list(data_loader.dataset.class_to_idx.keys())[
+                        list(data_loader.dataset.class_to_idx.values()).index(gts[sample_idx])]
+                    id = imagenet_dataset.class_to_idx[key]
+                    gts[sample_idx] = id
 
             # MODEL1 Y/N label for input x
             if RunningParams.IMAGENET_REAL and ds == Dataset.IMAGENET_1K:
@@ -363,3 +370,4 @@ if __name__ == '__main__':
             for c in correctness:
                 for d in diffs:
                     print("{} - {} - {:.2f}".format(c, d, category_record[c+d]['crt']*100/category_record[c+d]['total']))
+        print(category_record)

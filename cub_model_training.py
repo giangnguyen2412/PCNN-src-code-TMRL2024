@@ -27,15 +27,19 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
 Explainer = ModelExplainer()
 
-model1_name = 'resnet18'
-MODEL1 = models.resnet18(pretrained=True).eval()
+import torchvision
+inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
+inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
+my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
+inat_resnet.load_state_dict(my_model_state_dict, strict=True)
+MODEL1 = inat_resnet
+
 fc = MODEL1.fc
 fc = fc.cuda()
 
@@ -45,37 +49,8 @@ data_dir = '/home/giang/tmp'
 virtual_train_dataset = '{}/train'.format(data_dir)
 virtual_val_dataset = '{}/val'.format(data_dir)
 
-# train_dataset = '/home/giang/Downloads/datasets/random_train_dataset'
-train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_180k'
-val_dataset = '/home/giang/Downloads/datasets/balanced_val_dataset_6k'
-
-TRAIN_DOG = True
-if TRAIN_DOG == True:
-    train_dataset = '/home/giang/Downloads/datasets/SDogs_train_RN18'
-    val_dataset = '/home/giang/Downloads/datasets/SDogs_val'
-    category_val_dataset = '/home/giang/Downloads/RN18_dataset_Dog_val'
-    CATEGORY_ANALYSIS = True
-    if CATEGORY_ANALYSIS is True:
-        import glob
-
-        correctness = ['Correct', 'Wrong']
-        diffs = ['Easy', 'Medium', 'Hard']
-        category_dict = {}
-        category_record = {}
-
-        for c in correctness:
-            for d in diffs:
-                dir = os.path.join(category_val_dataset, c, d)
-                files = glob.glob(os.path.join(dir, '*', '*.*'))
-                key = c + d
-                for file in files:
-                    base_name = os.path.basename(file)
-                    category_dict[base_name] = key
-
-                category_record[key] = {}
-                category_record[key]['total'] = 0
-                category_record[key]['crt'] = 0
-
+train_dataset = '/home/giang/Downloads/RN50_dataset_CUB/train/combined'
+val_dataset = '/home/giang/Downloads/RN50_dataset_CUB/test/combined'
 
 if not HelperFunctions.is_program_running(os.path.basename(__file__)):
 # if True:
@@ -90,19 +65,18 @@ if not HelperFunctions.is_program_running(os.path.basename(__file__)):
 else:
     print('Script is running! No creating symlink datasets!')
 
-imagenet_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/imagenet1k-val', Dataset.data_transforms['train'])
 
 if RunningParams.XAI_method == RunningParams.NNs:
-    image_datasets = {x: ImageFolderForNNs(os.path.join(data_dir, x), Dataset.data_transforms[x]) for x in ['train', 'val']}
+    image_datasets = dict()
+    image_datasets['train'] = ImageFolderForNNs(train_dataset, Dataset.data_transforms['train'])
+    image_datasets['val'] = ImageFolderForNNs(val_dataset, Dataset.data_transforms['val'])
 else:
-    image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x), Dataset.data_transforms[x]) for x in ['train', 'val']}
+    pass
+    # Not implemented
 
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 class_names = image_datasets['train'].classes
 l1_dist = nn.PairwiseDistance(p=1)
-
-IMAGENET_MEAN = np.array([0.485, 0.456, 0.406]) * 255
-IMAGENET_STD = np.array([0.229, 0.224, 0.225]) * 255
 
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
 feature_extractor.cuda()
@@ -160,30 +134,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 score, index = torch.topk(model1_p, 1, dim=1)
                 predicted_ids = index.squeeze()
 
-                if TRAIN_DOG is True:
-                    for sample_idx in range(x.shape[0]):
-                        key = list(data_loader.dataset.class_to_idx.keys())[
-                            list(data_loader.dataset.class_to_idx.values()).index(gts[sample_idx])]
-                        id = imagenet_dataset.class_to_idx[key]
-                        gts[sample_idx] = id
-
-                # MODEL1 Y/N label for input x
-                if RunningParams.IMAGENET_REAL and phase == 'val':
-                    model2_gt = torch.zeros([x.shape[0]], dtype=torch.int64).cuda()
-                    for sample_idx in range(x.shape[0]):
-                        query = pths[sample_idx]
-                        base_name = os.path.basename(query)
-                        real_ids = Dataset.real_labels[base_name]
-                        if predicted_ids[sample_idx].item() in real_ids:
-                            model2_gt[sample_idx] = 1
-                        else:
-                            model2_gt[sample_idx] = 0
-
-                        if CATEGORY_ANALYSIS is True:
-                            key = category_dict[base_name]
-                            category_record[key]['total'] += 1
-                else:
-                    model2_gt = (predicted_ids == gts) * 1  # 0 and 1
+                model2_gt = (predicted_ids == gts) * 1  # 0 and 1
                 labels = model2_gt
 
                 if RunningParams.XAI_method == RunningParams.GradCAM:
@@ -205,26 +156,12 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                         output, _, _ = model(images=x, explanations=None, scores=model1_p)
                     else:
                         output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=model1_p)
-                        if RunningParams.XAI_method == RunningParams.NNs:
-                            # emb_cos_sim = F.cosine_similarity(query, nns)
-                            # embedding_loss = l1_dist(emb_cos_sim, labels)/(x.shape[0])
-                            # idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
-                            # idx_1 = (labels == 1).nonzero(as_tuple=True)[0]
-                            # sim_0 = emb_cos_sim[idx_0].mean()
-                            # sim_1 = emb_cos_sim[idx_1].mean()
-                            # sim_0s.append(sim_0.item())
-                            # sim_1s.append(sim_1.item())
-                            pass
 
                     p = torch.nn.functional.softmax(output, dim=1)
                     confs, preds = torch.max(p, 1)
                     label_loss = loss_func(p, labels)
 
-                    if RunningParams.XAI_method == RunningParams.NNs and RunningParams.embedding_loss is True:
-                        loss = label_loss + embedding_loss
-                        # loss = embedding_loss
-                    else:
-                        loss = label_loss
+                    loss = label_loss
 
                     # CONFIDENCE_LOSS = RunningParams.CONFIDENCE_LOSS
                     CONFIDENCE_LOSS = False
@@ -236,16 +173,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
-
-                    if phase == 'val':
-                        if CATEGORY_ANALYSIS is True:
-                            for sample_idx in range(x.shape[0]):
-                                query = pths[sample_idx]
-                                base_name = os.path.basename(query)
-
-                                key = category_dict[base_name]
-                                if preds[sample_idx].item() == labels[sample_idx].item():
-                                    category_record[key]['crt'] += 1
 
                 # statistics
                 running_loss += loss.item() * x.size(0)
@@ -272,18 +199,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             if phase == 'train':
                 scheduler.step()
                 # scheduler.step(epoch_acc)
-
-            if CATEGORY_ANALYSIS is True and phase == 'val':
-                bin_acc = []
-                for c in correctness:
-                    for d in diffs:
-                        print("{} - {} - {:.2f}".format(c, d,
-                                                        category_record[c + d]['crt'] * 100 / category_record[c + d][
-                                                            'total']))
-                        bin_acc.append(category_record[c + d]['crt']/ category_record[c + d]['total'])
-                avg_acc = statistics.mean(bin_acc)
-                print('Avg acc - {:.2f}'.format(avg_acc))
-                epoch_acc = avg_acc
 
             wandb.log({'{}_accuracy'.format(phase): epoch_acc, '{}_loss'.format(phase): epoch_loss})
 
@@ -321,7 +236,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     model.load_state_dict(best_model_wts)
     return model, best_acc
 
-
 model2_name = 'Transformer_AdvisingNetwork'
 MODEL2 = Transformer_AdvisingNetwork()
 
@@ -329,7 +243,7 @@ MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
 if RunningParams.CONTINUE_TRAINING:
-    model_path = 'best_models/best_model_whole-universe-848.pt'
+    model_path = 'best_models/best_model_driven-energy-883.pt'
     checkpoint = torch.load(model_path)
     MODEL2.load_state_dict(checkpoint['model_state_dict'])
     print('Continue training from ckpt {}'.format(model_path))
@@ -355,7 +269,6 @@ config = {"train": train_dataset,
           "val": val_dataset,
           "train_size": dataset_sizes['train'],
           "val_size": dataset_sizes['val'],
-          "model1": model1_name,
           "model2": model2_name,
           "num_epochs": RunningParams.epochs,
           "batch_size": RunningParams.batch_size,

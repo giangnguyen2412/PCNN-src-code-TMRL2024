@@ -14,6 +14,7 @@ class RunningParams(object):
         self.feat_map_size = {4: 49, 3: 196, 2: 784}
         self.CONTINUE_TRAINING = False
         self.TOP1_NN = True  # ----------------------------------------- IMPORTANT PARAM --------
+        self.CUB_TRAINING = True
 
         # XAI methods
         self.NO_XAI = 'No-XAI'
@@ -27,9 +28,9 @@ class RunningParams(object):
         # TODO: No need to use softmax anymore at this time bcz we balanced this feature already
 
         # Training
-        self.batch_size = 32  # ----------------------------------------- IMPORTANT PARAM --------
+        self.batch_size = 512  # ----------------------------------------- IMPORTANT PARAM --------
         self.learning_rate = 0.001
-        self.epochs = 25
+        self.epochs = 100
         self.query_frozen = True  # False = Trainable; True = Freeze? -------------------- IMPORTANT PARAM --------
         self.heatmap_frozen = False  # freeze?
         self.nns_frozen = False  # freeze?
@@ -42,8 +43,6 @@ class RunningParams(object):
         self.embedding_loss = False
         self.k_value = 5  # ----------------------------------------- IMPORTANT PARAM --------
         self.PRECOMPUTED_NN = True
-        self.INDEX_FILE = 'faiss/faiss_100K.index'
-        self.PRECOMPUTED_NN_FILE = 'KB_100K.pt'
         self.CrossCorrelation = True  # ----------------------------------------- IMPORTANT PARAM --------
 
         # Data processing
@@ -63,3 +62,4 @@ class RunningParams(object):
 
         # Uncategorized
         self.COSINE_ONLY = False  # ----------------------------------------- IMPORTANT PARAM --------
+

@@ -160,6 +160,10 @@ class Transformer_AdvisingNetwork(nn.Module):
                     transformer_embs.append(transformer_emb)
 
                 transformer_emb = torch.cat(transformer_embs, dim=1)
+                MERGE_CONF = False
+                if MERGE_CONF:
+                    # transformer_emb = torch.cat([transformer_emb, sep_token, scores], dim=1)
+                    transformer_emb = torch.cat([transformer_emb, sep_token, scores.amax(dim=1, keepdim=True)], dim=1)
 
         # output1 = self.branch1(torch.cat([emb_cos_sim], dim=1))
         output3 = self.branch3(transformer_emb)

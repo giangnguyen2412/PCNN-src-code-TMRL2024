@@ -26,9 +26,22 @@ plt.ion()   # interactive mode
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
-from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
-MODEL1 = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
-# MODEL1 = models.resnet18(pretrained=True).eval()
+# from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
+# MODEL1 = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
+# # MODEL1 = models.resnet18(pretrained=True).eval()
+# feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
+# feature_extractor.cuda()
+# feature_extractor = nn.DataParallel(feature_extractor)
+# fc = MODEL1.fc
+# fc = fc.cuda()
+
+import torchvision
+inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
+inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
+my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
+inat_resnet.load_state_dict(my_model_state_dict, strict=True)
+MODEL1 = inat_resnet
+
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
 feature_extractor.cuda()
 feature_extractor = nn.DataParallel(feature_extractor)
@@ -41,20 +54,10 @@ RunningParams = RunningParams()
 RETRIEVE_TOP1_NEAREST = True
 
 
-in_features = MODEL1.fc.in_features
+in_features = 2048
 print("Building FAISS index...")
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/train', transform=Dataset.data_transforms['train'])
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB/train/combined', transform=Dataset.data_transforms['train'])
 
-TRAIN_DOG = True
-if TRAIN_DOG == True:
-    if RETRIEVE_TOP1_NEAREST:
-        faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/train', transform=Dataset.data_transforms['train'])
-    else:
-        faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/SDogs_dataset/train', transform=Dataset.data_transforms['train'])
-    imagenet_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/imagenet1k-val',
-                                         Dataset.data_transforms['train'])
-
-# faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/imagenet1k-val', transform=Dataset.data_transforms['train'])
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
     batch_size=RunningParams.batch_size,
@@ -65,7 +68,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
 )
 
 if RETRIEVE_TOP1_NEAREST is True:
-    INDEX_FILE = 'faiss/faiss_1M3_class_idx_dict_simclr.npy'
+    INDEX_FILE = 'faiss/faiss_CUB200_class_idx_dict_simclr.npy'
     if os.path.exists(INDEX_FILE):
         print("FAISS class index exists!")
         faiss_nns_class_dict = np.load(INDEX_FILE, allow_pickle="False", ).item()
@@ -108,7 +111,7 @@ if RETRIEVE_TOP1_NEAREST is True:
             faiss_loader_dict[class_id] = class_id_loader
         np.save(INDEX_FILE, faiss_nns_class_dict)
 else:
-    INDEX_FILE = 'faiss/faiss_SDogs_topk.index'
+    INDEX_FILE = 'faiss/faiss_CUB200__topk_class_idx_dict_simclr.index'
     if os.path.exists(INDEX_FILE):
         print("FAISS index exists!")
         faiss_cpu_index = faiss.read_index(INDEX_FILE)
@@ -153,68 +156,36 @@ else:
         faiss.write_index(faiss_cpu_index, INDEX_FILE)
 
 
-resnet34 = models.resnet34(pretrained=True).eval().cuda()
-resnet34 = nn.DataParallel(resnet34)
+# resnet34 = models.resnet34(pretrained=True).eval().cuda()
+# resnet34 = nn.DataParallel(resnet34)
 
+data_dir = '/home/giang/Downloads/RN50_dataset_CUB/test/combined'
 
-if RETRIEVE_TOP1_NEAREST is True:
-    data_dir = '/home/giang/Downloads/datasets/'
+image_datasets = dict()
+image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
 
-    if TRAIN_DOG is True:
-        data_dir = '/home/giang/Downloads/SDogs_dataset/'
+MODEL1 = nn.DataParallel(MODEL1)
+train_loader = torch.utils.data.DataLoader(
+    image_datasets['train'],
+    batch_size=128,
+    shuffle=False,  # turn shuffle to True
+    num_workers=16,
+    pin_memory=True,
+)
 
-    image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
-                                          Dataset.data_transforms['train'])
-                  for x in ['train']}
-
-    train_loader = torch.utils.data.DataLoader(
-        image_datasets['train'],
-        batch_size=RunningParams.batch_size,
-        shuffle=False,  # turn shuffle to True
-        num_workers=16,
-        pin_memory=True,
-    )
-
-    dataset_sizes = {x: len(image_datasets[x]) for x in ['train']}
-
-else:
-    data_dir = '/home/giang/Downloads/datasets/'
-
-    if TRAIN_DOG is True:
-        data_dir = '/home/giang/Downloads/SDogs_dataset/'
-
-    image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
-                                              Dataset.data_transforms['val'])
-                      for x in ['val']}
-
-    train_loader = torch.utils.data.DataLoader(
-        image_datasets['val'],
-        batch_size=RunningParams.batch_size,
-        shuffle=False,  # turn shuffle to True
-        num_workers=16,
-        pin_memory=True,
-    )
-
-    dataset_sizes = {x: len(image_datasets[x]) for x in ['val']}
 
 faiss_nn_dict = dict()
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
     embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
     embeddings = torch.flatten(embeddings, start_dim=1)
     if RETRIEVE_TOP1_NEAREST is True:
-        # out = fc(embeddings)
-        out = resnet34(data.cuda())
+        out = MODEL1(data.cuda())
         embeddings = embeddings.cpu().detach().numpy()
         model1_p = torch.nn.functional.softmax(out, dim=1)
         score, index = torch.topk(model1_p, 1, dim=1)
         for sample_idx in range(data.shape[0]):
             base_name = os.path.basename(paths[sample_idx])
             predicted_idx = index[sample_idx].item()
-
-            # if TRAIN_DOG is True:
-            #     key = list(imagenet_dataset.class_to_idx.keys())[
-            #         list(imagenet_dataset.class_to_idx.values()).index(predicted_idx)]
-            #     predicted_idx = train_loader.dataset.class_to_idx[key]
 
             # Dataloader and knowledge base
             loader = faiss_loader_dict[predicted_idx]
@@ -239,6 +210,6 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             faiss_nn_dict[base_name] = nn_list
 
 if RETRIEVE_TOP1_NEAREST:
-    np.save('faiss/faiss_SDogs_train_RN34_top1.npy', faiss_nn_dict)
+    np.save('faiss/faiss_CUB_val_top1.npy', faiss_nn_dict)
 else:
-    np.save('faiss/faiss_SDogs_val_RN34_topk.npy', faiss_nn_dict)
+    np.save('faiss/blah.npy', faiss_nn_dict)

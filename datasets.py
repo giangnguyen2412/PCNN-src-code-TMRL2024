@@ -21,8 +21,7 @@ class Dataset(object):
 
         # These datasets have 1000 classes
         self.IMAGENET_1K = "balanced_val_dataset_6k"
-        self.IMAGENET_1K = "SDogs_val"
-
+        # self.IMAGENET_1K = "p_val"
         self.IMAGENET_1K_50K = "imagenet1k-val-50k"
         self.IMAGENET_1K_50K_CLEAN = "ImageNet-val-50K-clean"
 
@@ -1155,17 +1154,27 @@ class ImageFolderForNNs(ImageFolder):
 
             super(ImageFolderForNNs, self).__init__(root, transform=transform)
             # Load the pre-computed NNs
-            if RunningParams.TOP1_NN is True:
-                if os.path.basename(root) == 'train':
-                    self.faiss_nn_dict = np.load('faiss/faiss_1M3_train_class_dict_simclr.npy', allow_pickle=True, ).item()
+            if RunningParams.CUB_TRAINING is True:
+                if RunningParams.TOP1_NN is True:
+                    if 'train' in root:
+                        self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_top1.npy', allow_pickle=True, ).item()
+                    else:
+                        self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1.npy', allow_pickle=True, ).item()
                 else:
-                        self.faiss_nn_dict = np.load('faiss/faiss_50K_val_class_dict_simclr.npy', allow_pickle=True, ).item()
-                    # replace by simclr npy files here and run again
+                    pass
+                    # Not yet run faiss for topK
             else:
-                if os.path.basename(root) == 'train':
-                    self.faiss_nn_dict = np.load('faiss/faiss_balanced_train_dataset_60k_topk.npy', allow_pickle=True, ).item()
+                if RunningParams.TOP1_NN is True:
+                    if os.path.basename(root) == 'train':
+                        self.faiss_nn_dict = np.load('faiss/faiss_1M3_train_class_dict_simclr.npy', allow_pickle=True, ).item()
+                    else:
+                        self.faiss_nn_dict = np.load('faiss/faiss_50K_val_class_dict_simclr.npy', allow_pickle=True, ).item()
+                        # replace by simclr npy files here and run again
                 else:
-                    self.faiss_nn_dict = np.load('faiss/faiss_balanced_val_dataset_6k_topk.npy', allow_pickle=True, ).item()
+                    if os.path.basename(root) == 'train':
+                        self.faiss_nn_dict = np.load('faiss/faiss_balanced_train_dataset_60k_topk.npy', allow_pickle=True, ).item()
+                    else:
+                        self.faiss_nn_dict = np.load('faiss/faiss_balanced_val_dataset_6k_topk.npy', allow_pickle=True, ).item()
 
             print(len(self.faiss_nn_dict))
             if os.path.basename(root) == 'train':
