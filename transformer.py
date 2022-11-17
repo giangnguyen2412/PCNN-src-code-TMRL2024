@@ -87,7 +87,7 @@ class Transformer_AdvisingNetwork(nn.Module):
     def forward(self, images, explanations, scores):
         input_spatial_feats = self.conv_layers(images)
         input_feat = self.pooling_layer(input_spatial_feats).squeeze()
-        input_spatial_feats = input_spatial_feats.flatten(start_dim=2)  # bsx512x49
+        input_spatial_feats = input_spatial_feats.flatten(start_dim=2)  # bsxcx49
 
         if RunningParams.XAI_method == RunningParams.NNs:
             if RunningParams.k_value == 1:
@@ -146,8 +146,12 @@ class Transformer_AdvisingNetwork(nn.Module):
             for sample_idx in range(RunningParams.k_value):
                 explanation = explanation_spatial_feats[:, sample_idx, :]
                 for _ in range(transformer_encoder_depth):
-                    input_spt_feats = self.transformer(input_spatial_feats)
-                    explanation = self.transformer(explanation)
+                    # input_spt_feats = self.transformer(input_spatial_feats)
+                    # explanation = self.transformer(explanation)
+
+                    # Skip the self-attention
+                    input_spt_feats = input_spatial_feats
+                    explanation = explanation
 
                     input_spatial_feats, explanation = self.cross_transformer(input_spt_feats, explanation)
 
@@ -160,12 +164,7 @@ class Transformer_AdvisingNetwork(nn.Module):
                     transformer_embs.append(transformer_emb)
 
                 transformer_emb = torch.cat(transformer_embs, dim=1)
-                MERGE_CONF = False
-                if MERGE_CONF:
-                    # transformer_emb = torch.cat([transformer_emb, sep_token, scores], dim=1)
-                    transformer_emb = torch.cat([transformer_emb, sep_token, scores.amax(dim=1, keepdim=True)], dim=1)
 
-        # output1 = self.branch1(torch.cat([emb_cos_sim], dim=1))
         output3 = self.branch3(transformer_emb)
         output = output3
 

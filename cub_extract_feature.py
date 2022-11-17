@@ -24,22 +24,20 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
-# from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
-# MODEL1 = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
-# # MODEL1 = models.resnet18(pretrained=True).eval()
-# feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
-# feature_extractor.cuda()
-# feature_extractor = nn.DataParallel(feature_extractor)
-# fc = MODEL1.fc
-# fc = fc.cuda()
 
 import torchvision
 inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
 inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
 my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
 inat_resnet.load_state_dict(my_model_state_dict, strict=True)
+# Freeze backbone (for training only)
+for param in list(inat_resnet.parameters())[:-2]:
+    param.requires_grad = False
+# to CUDA
+inat_resnet.cuda()
+
 MODEL1 = inat_resnet
 
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
@@ -133,11 +131,6 @@ else:
             stack_embeddings.append(embeddings.cpu().detach().numpy())
             stack_labels.append(label.cpu().detach().numpy())
 
-            # for sample_idx in range(input_data.shape[0]):
-            #     base_name = os.path.basename(paths[sample_idx]) + '.pt'
-            #     save_path = os.path.join('/home/giang/Downloads/datasets/processed_train', base_name)
-            #     torch.save(input_data[sample_idx], save_path)
-
         stack_embeddings = np.concatenate(stack_embeddings, axis=0)
         stack_labels = np.concatenate(stack_labels, axis=0)
 
@@ -156,9 +149,6 @@ else:
         faiss.write_index(faiss_cpu_index, INDEX_FILE)
 
 
-# resnet34 = models.resnet34(pretrained=True).eval().cuda()
-# resnet34 = nn.DataParallel(resnet34)
-
 data_dir = '/home/giang/Downloads/RN50_dataset_CUB/test/combined'
 
 image_datasets = dict()
@@ -168,7 +158,7 @@ MODEL1 = nn.DataParallel(MODEL1)
 train_loader = torch.utils.data.DataLoader(
     image_datasets['train'],
     batch_size=128,
-    shuffle=False,  # turn shuffle to True
+    shuffle=True,  # Don't turn shuffle to False --> model works wrongly
     num_workers=16,
     pin_memory=True,
 )

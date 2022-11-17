@@ -28,7 +28,7 @@ class RunningParams(object):
         # TODO: No need to use softmax anymore at this time bcz we balanced this feature already
 
         # Training
-        self.batch_size = 512  # ----------------------------------------- IMPORTANT PARAM --------
+        self.batch_size = 32  # ----------------------------------------- IMPORTANT PARAM --------
         self.learning_rate = 0.001
         self.epochs = 100
         self.query_frozen = True  # False = Trainable; True = Freeze? -------------------- IMPORTANT PARAM --------
