@@ -27,7 +27,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,5,6,7"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -39,6 +39,7 @@ inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
 my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
 inat_resnet.load_state_dict(my_model_state_dict, strict=True)
 MODEL1 = inat_resnet
+MODEL1.eval()
 
 fc = MODEL1.fc
 fc = fc.cuda()
@@ -96,18 +97,21 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
 
+            if phase == 'train':
+                shuffle = True
+                model.train()  # Training mode
+            else:
+                shuffle = False
+                model.eval()  # Evaluation mode
+
+
             data_loader = torch.utils.data.DataLoader(
                 image_datasets[phase],
                 batch_size=RunningParams.batch_size,
-                shuffle=True,  # turn shuffle to True
+                shuffle=shuffle,  # turn shuffle to True
                 num_workers=16,
                 pin_memory=True,
             )
-
-            if phase == 'train':
-                model.train()  # Training mode
-            else:
-                model.eval()  # Evaluation mode
 
             running_loss = 0.0
             running_corrects = 0
@@ -118,8 +122,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             yes_cnt = 0
             true_cnt = 0
 
-            sim_0s = []
-            sim_1s = []
             for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
                 if RunningParams.XAI_method == RunningParams.NNs:
                     x = data[0].cuda()
