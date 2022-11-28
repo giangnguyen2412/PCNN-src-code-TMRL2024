@@ -27,34 +27,48 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 
-import torchvision
-inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
-inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
-my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
-inat_resnet.load_state_dict(my_model_state_dict, strict=True)
-# Freeze backbone (for training only)
-for param in list(inat_resnet.parameters())[:-2]:
-    param.requires_grad = False
-# to CUDA
-inat_resnet.cuda()
+Dataset = Dataset()
+RunningParams = RunningParams()
 
-MODEL1 = inat_resnet
+HIGHPERFORMANCE_FEATURE_EXTRACTOR = False
+if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
+    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+
+    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+    my_model_state_dict = torch.load(
+        'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+    resnet.load_state_dict(my_model_state_dict, strict=True)
+    # Freeze backbone (for training only)
+    for param in list(resnet.parameters())[:-2]:
+        param.requires_grad = False
+    # to CUDA
+    inat_resnet = resnet.cuda()
+    MODEL1 = inat_resnet
+    MODEL1.eval()
+else:
+    import torchvision
+
+    inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
+    inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
+    my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
+    inat_resnet.load_state_dict(my_model_state_dict, strict=True)
+    # Freeze backbone (for training only)
+    for param in list(inat_resnet.parameters())[:-2]:
+        param.requires_grad = False
+    # to CUDA
+    inat_resnet.cuda()
+    MODEL1 = inat_resnet
+    MODEL1.eval()
 
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
 feature_extractor.cuda()
 feature_extractor = nn.DataParallel(feature_extractor)
-fc = MODEL1.fc
-fc = fc.cuda()
-
-Dataset = Dataset()
-RunningParams = RunningParams()
 
 RETRIEVE_TOP1_NEAREST = True
 
-
 in_features = 2048
-print("Building FAISS index...")
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB/train/combined', transform=Dataset.data_transforms['train'])
+print("Building FAISS index...! Training set is the knowledge base.")
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB_LP/train', transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
@@ -66,7 +80,10 @@ faiss_data_loader = torch.utils.data.DataLoader(
 )
 
 if RETRIEVE_TOP1_NEAREST is True:
-    INDEX_FILE = 'faiss/faiss_CUB200_class_idx_dict_simclr.npy'
+    if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
+        INDEX_FILE = 'faiss/faiss_CUB200_class_idx_dict_HP_extractor.npy'
+    else:
+        INDEX_FILE = 'faiss/faiss_CUB200_class_idx_dict_LP_extractor.npy'
     if os.path.exists(INDEX_FILE):
         print("FAISS class index exists!")
         faiss_nns_class_dict = np.load(INDEX_FILE, allow_pickle="False", ).item()
@@ -109,7 +126,7 @@ if RETRIEVE_TOP1_NEAREST is True:
             faiss_loader_dict[class_id] = class_id_loader
         np.save(INDEX_FILE, faiss_nns_class_dict)
 else:
-    INDEX_FILE = 'faiss/faiss_CUB200__topk_class_idx_dict_simclr.index'
+    INDEX_FILE = 'faiss/faiss_CUB200_topk_dict_LP_extractor.index'
     if os.path.exists(INDEX_FILE):
         print("FAISS index exists!")
         faiss_cpu_index = faiss.read_index(INDEX_FILE)
@@ -148,13 +165,41 @@ else:
         )
         faiss.write_index(faiss_cpu_index, INDEX_FILE)
 
+HIGHPERFORMANCE_MODEL1 = RunningParams.HIGHPERFORMANCE_MODEL1
+if HIGHPERFORMANCE_MODEL1 is True:
+    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
-data_dir = '/home/giang/Downloads/RN50_dataset_CUB/test/combined'
+    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+    my_model_state_dict = torch.load(
+        'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+    resnet.load_state_dict(my_model_state_dict, strict=True)
+    # Freeze backbone (for training only)
+    for param in list(resnet.parameters())[:-2]:
+        param.requires_grad = False
+    # to CUDA
+    inat_resnet = resnet.cuda()
+    MODEL1 = inat_resnet
+    MODEL1.eval()
+else:
+    import torchvision
 
+    inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
+    inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
+    my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
+    inat_resnet.load_state_dict(my_model_state_dict, strict=True)
+    # Freeze backbone (for training only)
+    for param in list(inat_resnet.parameters())[:-2]:
+        param.requires_grad = False
+    # to CUDA
+    inat_resnet.cuda()
+    MODEL1 = inat_resnet
+    MODEL1.eval()
+
+MODEL1 = nn.DataParallel(MODEL1).eval()
+
+data_dir = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
 image_datasets = dict()
 image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
-
-MODEL1 = nn.DataParallel(MODEL1)
 train_loader = torch.utils.data.DataLoader(
     image_datasets['train'],
     batch_size=128,
@@ -168,9 +213,9 @@ faiss_nn_dict = dict()
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
     embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
     embeddings = torch.flatten(embeddings, start_dim=1)
+    embeddings = embeddings.cpu().detach().numpy()
     if RETRIEVE_TOP1_NEAREST is True:
         out = MODEL1(data.cuda())
-        embeddings = embeddings.cpu().detach().numpy()
         model1_p = torch.nn.functional.softmax(out, dim=1)
         score, index = torch.topk(model1_p, 1, dim=1)
         for sample_idx in range(data.shape[0]):
@@ -200,6 +245,18 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             faiss_nn_dict[base_name] = nn_list
 
 if RETRIEVE_TOP1_NEAREST:
-    np.save('faiss/faiss_CUB_val_top1.npy', faiss_nn_dict)
+    if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
+        if HIGHPERFORMANCE_MODEL1 is True:
+            np.save('faiss/faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy', faiss_nn_dict)
+        else:
+            np.save('faiss/faiss_CUB_val_top1_LP_MODEL1_HP_FE.npy', faiss_nn_dict)
+    else:
+        if HIGHPERFORMANCE_MODEL1 is True:
+            np.save('faiss/faiss_CUB_val_top1_HP_INAT.npy', faiss_nn_dict)
+        else:
+            np.save('faiss/faiss_CUB_val_top1.npy', faiss_nn_dict)
 else:
-    np.save('faiss/blah.npy', faiss_nn_dict)
+    if HIGHPERFORMANCE_MODEL1 is True:
+        np.save('faiss/faiss_CUB_val_topk_HP_INAT.npy', faiss_nn_dict)
+    else:
+        np.save('faiss/faiss_CUB_val_topk.npy', faiss_nn_dict)

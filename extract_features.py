@@ -8,7 +8,6 @@ import matplotlib.pyplot as plt
 import time
 import os
 import copy
-import wandb
 import random
 import pdb
 import faiss
@@ -26,20 +25,22 @@ plt.ion()   # interactive mode
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
-from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
-MODEL1 = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
-# MODEL1 = models.resnet18(pretrained=True).eval()
+# from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
+# MODEL1 = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
+# feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
+# feature_extractor.cuda()
+
+import torchvision
+MODEL1 = torchvision.models.resnet34(pretrained=True).cuda()
+MODEL1.eval()
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
-feature_extractor.cuda()
 feature_extractor = nn.DataParallel(feature_extractor)
 fc = MODEL1.fc
-fc = fc.cuda()
 
 Dataset = Dataset()
 RunningParams = RunningParams()
 
 RETRIEVE_TOP1_NEAREST = True
-
 
 in_features = MODEL1.fc.in_features
 print("Building FAISS index...")
@@ -48,9 +49,10 @@ faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/train', transform=Da
 TRAIN_DOG = True
 if TRAIN_DOG == True:
     if RETRIEVE_TOP1_NEAREST:
-        faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/train', transform=Dataset.data_transforms['train'])
+        faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/Dogs_train', transform=Dataset.data_transforms['train'])
     else:
-        faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/SDogs_dataset/train', transform=Dataset.data_transforms['train'])
+        pass
+
     imagenet_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/imagenet1k-val',
                                          Dataset.data_transforms['train'])
 
@@ -65,7 +67,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
 )
 
 if RETRIEVE_TOP1_NEAREST is True:
-    INDEX_FILE = 'faiss/faiss_1M3_class_idx_dict_simclr.npy'
+    INDEX_FILE = 'faiss/faiss_Dogs_class_idx_dict_RN34.npy'
     if os.path.exists(INDEX_FILE):
         print("FAISS class index exists!")
         faiss_nns_class_dict = np.load(INDEX_FILE, allow_pickle="False", ).item()
@@ -153,29 +155,44 @@ else:
         faiss.write_index(faiss_cpu_index, INDEX_FILE)
 
 
+# Use RN34 to determine whether an image or correct or wrong
 resnet34 = models.resnet34(pretrained=True).eval().cuda()
+resnet34.eval()
 resnet34 = nn.DataParallel(resnet34)
+
+if TRAIN_DOG is True:
+    def load_imagenet_dog_label():
+        count = 0
+        dog_id_list = list()
+        input_f = open("/home/giang/Downloads/SDogs_dataset/dog_type.txt")
+        for line in input_f:
+            dog_id = (line.split('-')[0])
+            dog_id_list.append(dog_id)
+        return dog_id_list
+
+
+    dogs_id = load_imagenet_dog_label()
 
 
 if RETRIEVE_TOP1_NEAREST is True:
     data_dir = '/home/giang/Downloads/datasets/'
 
     if TRAIN_DOG is True:
-        data_dir = '/home/giang/Downloads/SDogs_dataset/'
+        data_dir = '/home/giang/Downloads/datasets/'
 
     image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
-                                          Dataset.data_transforms['train'])
-                  for x in ['train']}
+                                          Dataset.data_transforms['val'])
+                  for x in ['Dogs_val']}
 
     train_loader = torch.utils.data.DataLoader(
-        image_datasets['train'],
+        image_datasets['Dogs_val'],
         batch_size=RunningParams.batch_size,
         shuffle=False,  # turn shuffle to True
         num_workers=16,
         pin_memory=True,
     )
 
-    dataset_sizes = {x: len(image_datasets[x]) for x in ['train']}
+    dataset_sizes = {x: len(image_datasets[x]) for x in ['Dogs_val']}
 
 else:
     data_dir = '/home/giang/Downloads/datasets/'
@@ -198,11 +215,11 @@ else:
     dataset_sizes = {x: len(image_datasets[x]) for x in ['val']}
 
 faiss_nn_dict = dict()
+nondog = 0
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
     embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
     embeddings = torch.flatten(embeddings, start_dim=1)
     if RETRIEVE_TOP1_NEAREST is True:
-        # out = fc(embeddings)
         out = resnet34(data.cuda())
         embeddings = embeddings.cpu().detach().numpy()
         model1_p = torch.nn.functional.softmax(out, dim=1)
@@ -211,10 +228,20 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             base_name = os.path.basename(paths[sample_idx])
             predicted_idx = index[sample_idx].item()
 
-            # if TRAIN_DOG is True:
-            #     key = list(imagenet_dataset.class_to_idx.keys())[
-            #         list(imagenet_dataset.class_to_idx.values()).index(predicted_idx)]
-            #     predicted_idx = train_loader.dataset.class_to_idx[key]
+            if TRAIN_DOG is True:
+                # key = list(imagenet_dataset.class_to_idx.keys())[
+                #     list(imagenet_dataset.class_to_idx.values()).index(predicted_idx)]
+                # predicted_idx = train_loader.dataset.class_to_idx[key]
+                dog_wnid = imagenet_dataset.classes[predicted_idx]
+                if dog_wnid not in dogs_id:
+                    dog_wnid = random.choice([wnid for wnid in dogs_id if wnid != dog_wnid])
+                    nondog += 1
+
+                dog_idx = train_loader.dataset.class_to_idx[dog_wnid]
+                predicted_idx = dog_idx
+
+                gt_idx = label[sample_idx].item()
+
 
             # Dataloader and knowledge base
             loader = faiss_loader_dict[predicted_idx]
@@ -238,7 +265,8 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                 nn_list.append(faiss_data_loader.dataset.imgs[id][0])
             faiss_nn_dict[base_name] = nn_list
 
+print("Non-dogs: {} files".format(nondog))
 if RETRIEVE_TOP1_NEAREST:
-    np.save('faiss/faiss_SDogs_train_RN34_top1.npy', faiss_nn_dict)
+    np.save('faiss/faiss_SDogs_val_RN34_top1.npy', faiss_nn_dict)
 else:
     np.save('faiss/faiss_SDogs_val_RN34_topk.npy', faiss_nn_dict)

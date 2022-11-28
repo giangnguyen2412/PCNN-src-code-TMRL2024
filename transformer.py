@@ -35,16 +35,18 @@ class Transformer_AdvisingNetwork(nn.Module):
         # resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
         # my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
         # resnet.load_state_dict(my_model_state_dict, strict=True)
+        if RunningParams.CUB_TRAINING is True:
+            from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+            resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+            my_model_state_dict = torch.load(
+                'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+            resnet.load_state_dict(my_model_state_dict, strict=True)
+        elif RunningParams.DOGS_TRAINING is True:
+            resnet = torchvision.models.resnet50(pretrained=True).cuda()
 
-        from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
-        resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-        my_model_state_dict = torch.load(
-            'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
-        resnet.load_state_dict(my_model_state_dict, strict=True)
-
-        # if RunningParams.SIMCLR_MODEL is True:
-        #     from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
-        #     resnet = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
+            if RunningParams.SIMCLR_MODEL is True:
+                from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
+                resnet = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
 
         if RunningParams.query_frozen is True:
             for param in resnet.parameters():
@@ -156,10 +158,6 @@ class Transformer_AdvisingNetwork(nn.Module):
                 for _ in range(transformer_encoder_depth):
                     input_spt_feats = self.transformer(input_spatial_feats)
                     explanation = self.transformer(explanation)
-
-                    # Skip the self-attention
-                    # input_spt_feats = input_spatial_feats
-                    # explanation = explanation
 
                     input_spatial_feats, explanation = self.cross_transformer(input_spt_feats, explanation)
 

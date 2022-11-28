@@ -27,15 +27,20 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,5,6"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
 Explainer = ModelExplainer()
 
-model1_name = 'resnet18'
-MODEL1 = models.resnet18(pretrained=True).eval()
+if [RunningParams.IMAGENET_TRAINING, RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING].count(True) > 1:
+    print("There are more than one training datasets chosen, skipping training!!!")
+    exit(-1)
+
+if RunningParams.DOGS_TRAINING is True:
+    MODEL1 = models.resnet34(pretrained=True).eval().cuda()
+else:
+    MODEL1 = models.resnet18(pretrained=True).eval().cuda()
 fc = MODEL1.fc
 fc = fc.cuda()
 
@@ -49,12 +54,13 @@ virtual_val_dataset = '{}/val'.format(data_dir)
 train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_180k'
 val_dataset = '/home/giang/Downloads/datasets/balanced_val_dataset_6k'
 
-TRAIN_DOG = True
-if TRAIN_DOG == True:
-    train_dataset = '/home/giang/Downloads/datasets/SDogs_train_RN18'
-    val_dataset = '/home/giang/Downloads/datasets/SDogs_val'
+TRAIN_DOG = RunningParams.DOGS_TRAINING
+if TRAIN_DOG is True:
+    train_dataset = '/home/giang/Downloads/datasets/Dogs_train'
+    val_dataset = '/home/giang/Downloads/datasets/Dogs_val'
+
     category_val_dataset = '/home/giang/Downloads/RN18_dataset_Dog_val'
-    CATEGORY_ANALYSIS = True
+    CATEGORY_ANALYSIS = False
     if CATEGORY_ANALYSIS is True:
         import glob
 
@@ -98,11 +104,6 @@ else:
     image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x), Dataset.data_transforms[x]) for x in ['train', 'val']}
 
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
-class_names = image_datasets['train'].classes
-l1_dist = nn.PairwiseDistance(p=1)
-
-IMAGENET_MEAN = np.array([0.485, 0.456, 0.406]) * 255
-IMAGENET_STD = np.array([0.229, 0.224, 0.225]) * 255
 
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
 feature_extractor.cuda()
@@ -144,8 +145,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             yes_cnt = 0
             true_cnt = 0
 
-            sim_0s = []
-            sim_1s = []
             for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
                 if RunningParams.XAI_method == RunningParams.NNs:
                     x = data[0].cuda()
@@ -162,13 +161,14 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                 if TRAIN_DOG is True:
                     for sample_idx in range(x.shape[0]):
-                        key = list(data_loader.dataset.class_to_idx.keys())[
-                            list(data_loader.dataset.class_to_idx.values()).index(gts[sample_idx])]
-                        id = imagenet_dataset.class_to_idx[key]
-                        gts[sample_idx] = id
+                        wnid = data_loader.dataset.classes[gts[sample_idx]]
+                        gts[sample_idx] = imagenet_dataset.class_to_idx[wnid]
+
+                        # wnid = imagenet_dataset.classes[predicted_ids[sample_idx]]
+                        # predicted_ids[sample_idx] = data_loader.dataset.class_to_idx[wnid]
 
                 # MODEL1 Y/N label for input x
-                if RunningParams.IMAGENET_REAL and phase == 'val':
+                if RunningParams.IMAGENET_REAL and phase == 'val' and RunningParams.IMAGENET_TRAINING:
                     model2_gt = torch.zeros([x.shape[0]], dtype=torch.int64).cuda()
                     for sample_idx in range(x.shape[0]):
                         query = pths[sample_idx]
@@ -205,16 +205,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                         output, _, _ = model(images=x, explanations=None, scores=model1_p)
                     else:
                         output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=model1_p)
-                        if RunningParams.XAI_method == RunningParams.NNs:
-                            # emb_cos_sim = F.cosine_similarity(query, nns)
-                            # embedding_loss = l1_dist(emb_cos_sim, labels)/(x.shape[0])
-                            # idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
-                            # idx_1 = (labels == 1).nonzero(as_tuple=True)[0]
-                            # sim_0 = emb_cos_sim[idx_0].mean()
-                            # sim_1 = emb_cos_sim[idx_1].mean()
-                            # sim_0s.append(sim_0.item())
-                            # sim_1s.append(sim_1.item())
-                            pass
 
                     p = torch.nn.functional.softmax(output, dim=1)
                     confs, preds = torch.max(p, 1)
@@ -322,7 +312,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     return model, best_acc
 
 
-model2_name = 'Transformer_AdvisingNetwork'
 MODEL2 = Transformer_AdvisingNetwork()
 
 MODEL2 = MODEL2.cuda()
@@ -355,8 +344,6 @@ config = {"train": train_dataset,
           "val": val_dataset,
           "train_size": dataset_sizes['train'],
           "val_size": dataset_sizes['val'],
-          "model1": model1_name,
-          "model2": model2_name,
           "num_epochs": RunningParams.epochs,
           "batch_size": RunningParams.batch_size,
           "learning_rate": RunningParams.learning_rate,

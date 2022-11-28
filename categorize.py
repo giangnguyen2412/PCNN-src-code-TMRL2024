@@ -96,12 +96,12 @@ transform = torchvision.transforms.Compose(
 class GPUParams(object):
     def __init__(self):
         os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-        os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+        os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
         print(torch.cuda.device_count())
         print(torch.cuda.get_device_name(device=0))
 
-        self.device = torch.device("cuda:4")
+        self.device = torch.device("cuda:0")
 
 
 # This block creates the Hard ImageNet dataset (possibly using ImageNetReaL labels)
@@ -114,58 +114,44 @@ from PIL import Image
 import numpy as np
 from shutil import copyfile
 
-device = torch.device("cuda:4")
-
-
 # This block is to get the hard/easy/medium distribution of ImageNet/Stanford Dogs
 IMAGENET_REAL = False
 
-model = torchvision.models.resnet34(pretrained=True).to(device)
+model = torchvision.models.resnet34(pretrained=True).cuda()
+model.eval()
 
-CUB = True
-if CUB is True:
-    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
-    model = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-    my_model_state_dict = torch.load(
-        '/home/giang/Downloads/visual-correspondence-XAI/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
-    print("LOADED.......")
-    model.load_state_dict(my_model_state_dict, strict=True)
-    model.to(device)
+imagenet_folders = glob.glob("/home/giang/Downloads/val/*")
 
-    from torchvision.datasets import ImageFolder
-    from torch.utils.data import DataLoader
-
-    validation_folder = ImageFolder(root='/home/giang/Downloads/datasets/CUB/combined/',
-                                    transform=transform)
-    val_loader = DataLoader(validation_folder, batch_size=512, shuffle=False, num_workers=8, pin_memory=False)
-
-imagenet_folders = glob.glob("/home/giang/Downloads/train/*")
-
-if CUB is True:
-    imagenet_folders = glob.glob("/home/giang/Downloads/datasets/CUB/combined/*")
-
-TRAIN_DOG = False
+TRAIN_DOG = True
 if TRAIN_DOG == True:
-    imagenet_folders = glob.glob('/home/giang/Downloads/SDogs_dataset/val/*')
-    # imagenet_folders = '/home/giang/Downloads/Dogs_dataset/val/*'
+    imagenet_folders = glob.glob('/home/giang/Downloads/SDogs_dataset/train/*')
 
-dataset_path = "/home/giang/Downloads/RN50_dataset_CUB"
+    def load_imagenet_dog_label():
+        count = 0
+        dog_id_list = list()
+        input_f = open("/home/giang/Downloads/SDogs_dataset/dog_type.txt")
+        for line in input_f:
+            dog_id = (line.split('-')[0])
+            dog_id_list.append(dog_id)
+        return dog_id_list
+
+
+    dogs_id = load_imagenet_dog_label()
+
+dataset_path = "/home/giang/Downloads/RN34_SDogs_train"
+
 
 check_and_rm(dataset_path)
 check_and_mkdir(dataset_path)
-if not CUB:
-    check_and_mkdir("{}/Correct".format(dataset_path))
-    check_and_mkdir("{}/Correct/Medium".format(dataset_path))
-    check_and_mkdir("{}/Correct/Easy".format(dataset_path))
-    check_and_mkdir("{}/Correct/Hard".format(dataset_path))
-    check_and_mkdir("{}/Wrong".format(dataset_path))
-    check_and_mkdir("{}/Wrong/Medium".format(dataset_path))
-    check_and_mkdir("{}/Wrong/Easy".format(dataset_path))
-    check_and_mkdir("{}/Wrong/Hard".format(dataset_path))
-if CUB:
-    check_and_mkdir("{}/True".format(dataset_path))
-    check_and_mkdir("{}/False".format(dataset_path))
+check_and_mkdir("{}/Correct".format(dataset_path))
+# check_and_mkdir("{}/Correct/Medium".format(dataset_path))
+# check_and_mkdir("{}/Correct/Easy".format(dataset_path))
+# check_and_mkdir("{}/Correct/Hard".format(dataset_path))
+check_and_mkdir("{}/Wrong".format(dataset_path))
+# check_and_mkdir("{}/Wrong/Medium".format(dataset_path))
+# check_and_mkdir("{}/Wrong/Easy".format(dataset_path))
+# check_and_mkdir("{}/Wrong/Hard".format(dataset_path))
 
 if IMAGENET_REAL:
     real_json = open("reassessed-imagenet/real.json")
@@ -179,6 +165,9 @@ correct, wrong, easy, medium, hard = 0,0,0,0,0
 RN_dict = {}
 
 for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
+    # print(i)
+    # print([correct, wrong])
+    # print([easy, medium, hard])
 
     imagenet_id = os.path.basename(imagenet_folder)
     wnid = imagenet_id
@@ -186,26 +175,23 @@ for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
     image_paths = glob.glob(imagenet_folder + "/*.*")
     for idx, image_path in enumerate(image_paths):
         img = Image.open(image_path)
-        if not CUB:
-            if img.mode != "RGB" or img.size[0] < 224 or img.size[1] < 224:
-                continue
-        if CUB:
-            if img.mode != "RGB":
-                continue
+        if img.mode != "RGB" or img.size[0] < 224 or img.size[1] < 224:
+            continue
 
         img_name = os.path.basename(image_path)
-        x = transform(img).unsqueeze(0).to(device)
+        x = transform(img).unsqueeze(0).cuda()
         out = model(x)
-        if CUB:
-            p = torch.nn.functional.softmax(out.unsqueeze(0), dim=1)
-        else:
-            p = torch.nn.functional.softmax(out, dim=1)
+        p = torch.nn.functional.softmax(out, dim=1)
         score, index = torch.topk(p, 1)
         confidence_score = score[0][0].item()
         category_id = int(index[0][0].item())
-        prediction_id = convert_imagenet_label_to_id(
+        prediction_id = convert_imagenet_label_to_id(  # wnid
             label_map, key_list, val_list, category_id
         )
+
+        if TRAIN_DOG:
+            if prediction_id not in dogs_id:
+                continue
 
         if IMAGENET_REAL is True:
             if len(real_labels[img_name]) == 0:
@@ -216,15 +202,12 @@ for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
             else:
                 correctness = False
         else:
-            if CUB:
-                prediction_id = val_loader.dataset.classes[category_id]
-
             if prediction_id == imagenet_id:
                 correctness = True
-                correct += 1
             else:
                 correctness = False
-                wrong += 1
+
+        #         print(prediction_id, imagenet_id)
 
         RN_dict[img_name] = {}
         RN_dict[img_name]['Output'] = correctness
@@ -236,46 +219,41 @@ for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
         else:
             RN_dict[img_name]['gt_wnid'] = imagenet_id
 
-        if not CUB:
-            if correctness is True:
-                correct += 1
-                output = 'Correct'
-                if confidence_score < 0.3:
-                    harness = 'Hard'
-                    hard += 1
-                elif 0.4 <= confidence_score < 0.6:
-                    harness = 'Medium'
-                    medium += 1
-                elif confidence_score >= 0.8:
-                    harness = 'Easy'
-                    easy += 1
-                else:
-                    continue
+        if correctness is True:
+            correct += 1
+            output = 'Correct'
+            # if confidence_score < 0.35:
+            #     harness = 'Hard'
+            #     hard += 1
+            # elif 0.35 <= confidence_score < 0.75:
+            #     harness = 'Medium'
+            #     medium += 1
+            # elif confidence_score >= 0.75:
+            #     harness = 'Easy'
+            #     easy += 1
 
-            else:
-                wrong += 1
-                output = 'Wrong'
-                if confidence_score < 0.3:
-                    harness = 'Easy'
-                    easy += 1
-                elif 0.4 <= confidence_score < 0.6:
-                    harness = 'Medium'
-                    medium += 1
-                elif confidence_score >= 0.8:
-                    harness = 'Hard'
-                    hard += 1
-                else:
-                    continue
+        else:
+            wrong += 1
+            output = 'Wrong'
+            # if confidence_score < 0.35:
+            #     harness = 'Easy'
+            #     easy += 1
+            # elif 0.35 <= confidence_score < 0.75:
+            #     harness = 'Medium'
+            #     medium += 1
+            # elif confidence_score >= 0.75:
+            #     harness = 'Hard'
+            #     hard += 1
 
-        #TODO : consider change this
         # img_dir = os.path.join(dataset_path, output, harness, wnid)
-        img_dir = os.path.join(dataset_path, str(correctness), wnid)
+        img_dir = os.path.join(dataset_path, output, wnid)
         check_and_mkdir(img_dir)
         dst_file = os.path.join(img_dir, img_name)
 
-        # copyfile(image_path, dst_file)
+        copyfile(image_path, dst_file)
 
-# np.save('RN_train_dict', RN_dict)
+# np.save('RN18_train_dict', RN_dict)
 
 print(medium, easy, hard)
 print([correct, wrong])
+

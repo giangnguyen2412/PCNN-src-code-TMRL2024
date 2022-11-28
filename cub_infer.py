@@ -6,6 +6,7 @@ import os
 import argparse
 import faiss
 import matplotlib.pyplot as plt
+import cv2
 
 from tqdm import tqdm
 from torchray.attribution.grad_cam import grad_cam
@@ -18,42 +19,71 @@ from torchvision.datasets import ImageFolder
 from helpers import HelperFunctions
 from explainers import ModelExplainer
 from transformer import Transformer_AdvisingNetwork
+from visualize import Visualization
 
 
 RunningParams = RunningParams()
 Dataset = Dataset()
 HelperFunctions = HelperFunctions()
 ModelExplainer = ModelExplainer()
+Visualization = Visualization()
 
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,5,6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,4,5,6"
 
+import albumentations as A
+from albumentations.pytorch.transforms import ToTensorV2
+from albumentations.augmentations.transforms import Normalize
+abm_transform = A.Compose(
+                [A.Resize(height=256, width=256),
+                 A.CenterCrop(height=224, width=224),
+                 Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+                 ToTensorV2(),
+                 ],
+
+                additional_targets={'image0': 'image', 'image1': 'image',
+                                    'image2': 'image', 'image3': 'image', 'image4': 'image'}
+            )
 
 CATEGORY_ANALYSIS = True
-if CATEGORY_ANALYSIS is True:
-    import glob
-    correctness = ['Correct', 'Wrong']
-    category_dict = {}
-    category_record = {}
 
-    for c in correctness:
-        dir = os.path.join('/home/giang/Downloads/RN50_dataset_CUB_backup', c)
-        files = glob.glob(os.path.join(dir, '*', '*.*'))
-        key = c
-        for file in files:
-            base_name = os.path.basename(file)
-            category_dict[base_name] = key
+if RunningParams.MODEL2_ADVISING is True:
+    in_features = 2048
+    print("Building FAISS index...! Training set is the knowledge base.")
+    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB_LP/train',
+                                         transform=Dataset.data_transforms['train'])
 
-        category_record[key] = {}
-        category_record[key]['total'] = 0
-        category_record[key]['crt'] = 0
+    faiss_data_loader = torch.utils.data.DataLoader(
+        faiss_dataset,
+        batch_size=RunningParams.batch_size,
+        shuffle=False,  # turn shuffle to True
+        num_workers=16,  # Set to 0 as suggested by
+        # https://stackoverflow.com/questions/54773106/simple-way-to-load-specific-sample-using-pytorch-dataloader
+        pin_memory=True,
+    )
 
+    HIGHPERFORMANCE_FEATURE_EXTRACTOR = True
+    if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
+        INDEX_FILE = 'faiss/faiss_CUB200_class_idx_dict_HP_extractor.npy'
+    else:
+        INDEX_FILE = 'faiss/faiss_CUB200_class_idx_dict_LP_extractor.npy'
+    if os.path.exists(INDEX_FILE):
+        print("FAISS class index exists!")
+        faiss_nns_class_dict = np.load(INDEX_FILE, allow_pickle="False", ).item()
+        targets = faiss_data_loader.dataset.targets
+        faiss_data_loader_ids_dict = dict()
+        faiss_loader_dict = dict()
+        for class_id in tqdm(range(len(faiss_data_loader.dataset.class_to_idx))):
+            faiss_data_loader_ids_dict[class_id] = [x for x in range(len(targets)) if targets[x] == class_id] # check this value
+            class_id_subset = torch.utils.data.Subset(faiss_dataset, faiss_data_loader_ids_dict[class_id])
+            class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
+            faiss_loader_dict[class_id] = class_id_loader
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_fanciful-rain-945.pt',
+                        default='best_model_flowing-morning-1004.pt',
                         help='Model check point')
     # parser.add_argument('--dataset', type=str,
     #                     default='balanced_val_dataset_6k',
@@ -83,31 +113,68 @@ if __name__ == '__main__':
 
     model.eval()
 
-    test_dir = '/home/giang/Downloads/RN50_dataset_CUB/test/combined'
+    test_dir = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'])
     dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
 
-    import torchvision
+    HIGHPERFORMANCE_MODEL1 = RunningParams.HIGHPERFORMANCE_MODEL1
+    if HIGHPERFORMANCE_MODEL1 is True:
+        from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
-    inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
-    inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
-    my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
-    inat_resnet.load_state_dict(my_model_state_dict, strict=True)
-    MODEL1 = inat_resnet
-    MODEL1.eval()
+        resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+        my_model_state_dict = torch.load(
+            'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+        resnet.load_state_dict(my_model_state_dict, strict=True)
+        MODEL1 = resnet.cuda()
+        MODEL1.eval()
+        fc = list(MODEL1.children())[-1].cuda()
+        fc = nn.DataParallel(fc)
 
-    fc = MODEL1.fc
-    fc = fc.cuda()
+        categorized_path = '/home/giang/Downloads/HP_INAT_RN50_dataset_CUB_backup'
+
+    else:
+        import torchvision
+        inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
+        inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
+        my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
+        inat_resnet.load_state_dict(my_model_state_dict, strict=True)
+        MODEL1 = inat_resnet
+        MODEL1.eval()
+
+        fc = MODEL1.fc.cuda()
+        fc = nn.DataParallel(fc)
+
+        categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_backup'
 
     feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
     feature_extractor.cuda()
     feature_extractor = nn.DataParallel(feature_extractor)
 
+
+    if CATEGORY_ANALYSIS is True:
+        import glob
+
+        correctness_bins = ['Correct', 'Wrong']
+        category_dict = {}
+        category_record = {}
+
+        for c in correctness_bins:
+            dir = os.path.join(categorized_path, c)
+            files = glob.glob(os.path.join(dir, '*', '*.*'))
+            key = c
+            for file in files:
+                base_name = os.path.basename(file)
+                category_dict[base_name] = key
+
+            category_record[key] = {}
+            category_record[key]['total'] = 0
+            category_record[key]['crt'] = 0
+
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=RunningParams.batch_size,
+            batch_size=50,
             shuffle=True,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -120,17 +187,21 @@ if __name__ == '__main__':
         uncertain_pred_cnt = 0
 
         categories = ['CorrectlyAccept', 'IncorrectlyAccept', 'CorrectlyReject', 'IncorrectlyReject']
-        save_dir = '/home/giang/Downloads/advising_network/vis/'
+        save_dir = '/home/giang/Downloads/advising_network/vis'
         HelperFunctions.check_and_rm(save_dir)
         HelperFunctions.check_and_mkdir(save_dir)
-        confidence_dist = dict()
+        model1_confidence_dist = dict()
+        model2_confidence_dist = dict()
         for cat in categories:
-            confidence_dist[cat] = list()
+            model1_confidence_dist[cat] = list()
+            model2_confidence_dist[cat] = list()
             HelperFunctions.check_and_mkdir(os.path.join(save_dir, cat))
 
         infer_result_dict = dict()
 
         for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
+            # if batch_idx == 5:
+            #     break
             if RunningParams.XAI_method == RunningParams.NNs:
                 x = data[0].cuda()
             else:
@@ -140,8 +211,9 @@ if __name__ == '__main__':
             # Step 1: Forward pass input x through MODEL1 - Explainer
             embeddings = feature_extractor(x).flatten(start_dim=1)  # 512x1 for RN 18
             out = fc(embeddings)
+            out = MODEL1(x)
             model1_p = torch.nn.functional.softmax(out, dim=1)
-            score, index = torch.topk(model1_p, 1, dim=1)
+            model1_score, index = torch.topk(model1_p, 1, dim=1)
             _, model1_ranks = torch.topk(model1_p, 200, dim=1)
             predicted_ids = index.squeeze()
 
@@ -164,7 +236,6 @@ if __name__ == '__main__':
             if RunningParams.XAI_method == RunningParams.GradCAM:
                 explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
             elif RunningParams.XAI_method == RunningParams.NNs:
-                embeddings = embeddings.cpu().detach().numpy()
                 if RunningParams.PRECOMPUTED_NN is True:
                     explanation = data[1]
                     explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
@@ -185,7 +256,7 @@ if __name__ == '__main__':
                     output, query, nns, _ = model(images=x, explanations=explanation, scores=model1_p)
 
                 p = torch.nn.functional.softmax(output, dim=1)
-                _, preds = torch.max(p, 1)
+                model2_score, preds = torch.max(p, 1)
 
                 REMOVE_UNCERT = False
                 for sample_idx in range(x.shape[0]):
@@ -209,32 +280,67 @@ if __name__ == '__main__':
             # TODO: Reduce compute overhead by only running on disagreed samples
             advising_steps = RunningParams.advising_steps
             # When using advising & still disagree & examining only top $advising_steps + 1
-            while RunningParams.MODEL2_ADVISING is True and sum(preds) > 0:
+            # while RunningParams.MODEL2_ADVISING is True and sum(preds) < x.shape[0]:
+            if RunningParams.MODEL2_ADVISING is True:
+                embeddings = embeddings.cpu().detach().numpy()
+                tmp_predicted_ids = torch.clone(predicted_ids)
+                tmp_preds = torch.clone(preds)
+                print(tmp_preds.sum())
                 for k in range(1, RunningParams.advising_steps):
                     # top-k predicted labels
                     model1_topk = model1_ranks[:, k]
                     for pred_idx in range(x.shape[0]):
-                        if preds[pred_idx] == 0:
-                            # Change the predicted id to top-k if MODEL2 disagrees
-                            predicted_ids[pred_idx] = model1_topk[pred_idx]
-                    # Unsqueeze to fit into grad_cam()
-                    index = torch.unsqueeze(predicted_ids, dim=1)
-                    # Generate heatmap explanation using new category ids
-                    advising_saliency = grad_cam(MODEL1, x, index, saliency_layer=RunningParams.GradCAM_RNlayer, resize=True)
+                        # if MODEL2 disagrees, change the predicted id to top-k
+                        if tmp_preds[pred_idx].item() == 0:
+                            tmp_predicted_ids[pred_idx] = model1_topk[pred_idx]
 
-                    # TODO: If the explanation is No-XAI, the inputs in advising process don't change
-                    if RunningParams.advising_network is True:
-                        advising_output = model(x, advising_saliency, model1_p)
-                        advising_p = torch.nn.functional.softmax(advising_output, dim=1)
-                        _, preds = torch.max(advising_p, 1)
-                break
+                    post_explanaton = []
+                    for sample_idx, pred_id in enumerate(tmp_predicted_ids):
+                        if tmp_preds[sample_idx].item() == 1 and k == 1:  # First step
+                            advising_explanation = explanation[sample_idx]
+                        elif tmp_preds[sample_idx].item() == 1 and k > 1:
+                            advising_explanation = adv_post_explanation[sample_idx]
+                        else:
+                            pred_id = pred_id.item()
+                            loader = faiss_loader_dict[pred_id]
+                            faiss_index = faiss_nns_class_dict[pred_id]
+                            ###############################
+                            ### x is query and retrieve 5 samples as we are in test mode
+                            _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), RunningParams.k_value)
+                            nn_list = list()
+                            for id in range(indices.shape[1]):
+                                id = loader.dataset.indices[indices[0, id]]
+                                nn_list.append(cv2.imread(loader.dataset.dataset.imgs[id][0]))
+                            if RunningParams.k_value == 3:
+                                advising_explanation = abm_transform(image=nn_list[0], image0=nn_list[1], image1=nn_list[2])
+                            elif RunningParams.k_value == 5:
+                                advising_explanation = abm_transform(image=nn_list[0], image0=nn_list[1], image1=nn_list[2],
+                                                                     image2=nn_list[3], image3=nn_list[4])
+                            advising_explanation = torch.stack(list(advising_explanation.values()))
 
-            # If MODEL2 still disagrees, we revert the ids to top-1 predicted labels
-            model1_top1 = model1_ranks[:, 0]
-            for pred_idx in range(x.shape[0]):
-                if preds[pred_idx] == 0:
-                    # Change the predicted id to top-k if MODEL2 disagrees
-                    predicted_ids[pred_idx] = model1_top1[pred_idx]
+                        post_explanaton.append(advising_explanation)
+
+                    adv_post_explanation = torch.stack(post_explanaton)
+                    advising_output, _, _, _ = model(images=x, explanations=adv_post_explanation, scores=None)
+                    advising_p = torch.nn.functional.softmax(advising_output, dim=1)
+                    advising_score, step_preds = torch.max(advising_p, 1)
+
+                    tmp_preds = step_preds
+
+                    for sample_idx in range(x.shape[0]):
+                        # Change the MODEL2 decision from No to Yes
+                        if tmp_preds[sample_idx].item() != preds[sample_idx].item() and tmp_preds[sample_idx].item() == 1:
+                            predicted_ids[sample_idx] = model1_topk[sample_idx]
+
+                    if k == RunningParams.advising_steps -1:
+                        # If MODEL2 still disagrees, we revert the ids to top-1 predicted labels
+                        model1_top1 = model1_ranks[:, 0]
+                        for pred_idx in range(x.shape[0]):
+                            if tmp_preds[pred_idx] == 0:
+                                # Change the predicted id to top-k if MODEL2 disagrees
+                                predicted_ids[pred_idx] = model1_top1[pred_idx]
+
+                print(tmp_preds.sum())
 
             # statistics
             if RunningParams.MODEL2_ADVISING:
@@ -267,61 +373,56 @@ if __name__ == '__main__':
                     base_name = os.path.basename(query)
                     save_path = os.path.join(save_dir, model2_decision, base_name)
 
-                    gt_label = HelperFunctions.label_map.get(gts[sample_idx].item()).split(",")[0]
-                    gt_label = gt_label[0].lower() + gt_label[1:]
+                    gt_label = image_datasets['cub_test'].classes[gts[sample_idx].item()]
+                    pred_label = image_datasets['cub_test'].classes[predicted_ids[sample_idx].item()]
 
-                    pred_label = HelperFunctions.label_map.get(predicted_ids[sample_idx].item()).split(",")[0]
-                    pred_label = pred_label[0].lower() + pred_label[1:]
+                    model1_confidence = int(model1_score[sample_idx].item()*100)
+                    model2_confidence = int(model2_score[sample_idx].item()*100)
+                    model1_confidence_dist[model2_decision].append(model1_confidence)
+                    model2_confidence_dist[model2_decision].append(model2_confidence)
 
-                    confidence = int(score[sample_idx].item()*100)
-                    confidence_dist[model2_decision].append(confidence)
-
-                    if RunningParams.IMAGENET_REAL is True and ds == Dataset.IMAGENET_1K:
-                        real_ids = Dataset.real_labels[base_name]
-                        gt_labels = []
-                        for id in real_ids:
-                            gt_label = HelperFunctions.label_map.get(id).split(",")[0]
-                            gt_label = gt_label[0].lower() + gt_label[1:]
-                            gt_labels.append(gt_label)
-
-                        gt_label = '|'.join(gt_labels)
                     # Finding the extreme cases
-                    if (action == 'Accept' and confidence < 50) or (action == 'Reject' and confidence > 80):
-                        # Visualization.visualize_model2_decisions(query,
+                    # if (action == 'Accept' and confidence < 50) or (action == 'Reject' and confidence > 80):
+                    if True:
+                        prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
+                        # Visualization.visualize_model2_decision_with_prototypes(query,
                         #                                          gt_label,
                         #                                          pred_label,
                         #                                          model2_decision,
                         #                                          save_path,
                         #                                          save_dir,
-                        #                                          confidence)
-                        pass
+                        #                                          model1_confidence,
+                        #                                         model2_confidence,
+                        #                                         prototypes)
+
 
                     infer_result_dict[base_name] = dict()
                     infer_result_dict[base_name]['model2_decision'] = model2_decision
-                    infer_result_dict[base_name]['confidence'] = confidence
+                    infer_result_dict[base_name]['confidence1'] = model1_confidence
+                    infer_result_dict[base_name]['confidence2'] = model2_confidence
                     infer_result_dict[base_name]['gt_label'] = gt_label
                     infer_result_dict[base_name]['pred_label'] = pred_label
                     infer_result_dict[base_name]['result'] = result is True
 
             yes_cnt += sum(preds)
             true_cnt += sum(labels)
-        np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
+            np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
 
         if RunningParams.M2_VISUALIZATION is True:
             for cat in categories:
-                img_ratio = len(confidence_dist[cat])*100/dataset_sizes[ds]
-                title = '{}: {:.2f}'.format(cat, img_ratio)
-                # Visualization.visualize_histogram_from_list(data=confidence_dist[cat],
-                #                                             title=title,
-                #                                             x_label='Confidence',
-                #                                             y_label='Images',
-                #                                             file_name=os.path.join(save_dir, cat + '.pdf'),
-                #                                             )
-
-                # merge_pdf_cmd = 'img2pdf -o vis/{}Samples.pdf --rotation=ifvalid --pagesize A4^T vis/{}/*.JPEG'.format(cat, cat)
-                # os.system(merge_pdf_cmd)
-
-            # compress_cmd = 'tar -czvf analysis.tar.gz vis/'
+                img_ratio = len(model1_confidence_dist[cat])*100/dataset_sizes[ds]
+                title = '{}: {:.2f}% of test set'.format(cat, img_ratio)
+            #     Visualization.visualize_histogram_from_list(data=model1_confidence_dist[cat],
+            #                                                 title=title,
+            #                                                 x_label='Confidence',
+            #                                                 y_label='Images',
+            #                                                 file_name=os.path.join(save_dir, cat + 'Confidence.pdf'),
+            #                                                 )
+            # #
+            #     merge_pdf_cmd = 'img2pdf -o vis/{}Samples.pdf --rotation=ifvalid --pagesize A4^T vis/{}/*.jpg'.format(cat, cat)
+            #     os.system(merge_pdf_cmd)
+            #
+            # compress_cmd = 'tar -czvf analysis.tar.gz vis/*.pdf'
             # os.system(compress_cmd)
 
         epoch_acc = running_corrects.double() / len(image_datasets[ds])
@@ -344,7 +445,7 @@ if __name__ == '__main__':
                 print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Always say Yes: {:.2f} - Uncertain. ratio: {:.2f}'.format(
                     ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100, uncertain_ratio * 100))
 
-        if CATEGORY_ANALYSIS is True:
-            for c in correctness:
-                print("{} - {:.2f}".format(c, category_record[c]['crt']*100/category_record[c]['total']))
         print(category_record)
+        if CATEGORY_ANALYSIS is True:
+            for c in correctness_bins:
+                print("{} - {:.2f}".format(c, category_record[c]['crt']*100/category_record[c]['total']))

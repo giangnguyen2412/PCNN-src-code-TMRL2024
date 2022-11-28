@@ -17,75 +17,11 @@ import shutil
 from tqdm import tqdm
 
 
-# Added for loading ImageNet classes
-def load_imagenet_label_map():
-    input_f = open("/home/giang/Downloads/kNN-classifiers/input_txt_files/imagenet_classes.txt")
-    label_map = {}
-    for line in input_f:
-        parts = line.strip().split(": ")
-        (num, label) = (int(parts[0]), parts[1].replace('"', ""))
-        label_map[num] = label
-
-    input_f.close()
-    return label_map
-
-
-# Added for loading ImageNet classes
-def load_imagenet_id_map():
-    input_f = open("/home/giang/Downloads/kNN-classifiers/input_txt_files/synset_words.txt")
-    label_map = {}
-    for line in input_f:
-        parts = line.strip().split(" ")
-        (num, label) = (parts[0], " ".join(parts[1:]))
-        label_map[num] = label
-
-    input_f.close()
-    return label_map
-
-
-def load_imagenet_validation_gt():
-    count = 0
-    input_f = open("/home/giang/Downloads/kNN-classifiers/input_txt_files/ILSVRC2012_validation_ground_truth.txt")
-    gt_dict = {}
-    while True:
-        count += 1
-
-        # Get the next line
-        line = input_f.readline()
-
-        # if line is empty, EOL is reached
-        if not line:
-            break
-        gt_dict[count] = int(line.strip())
-
-    input_f.close()
-    return gt_dict
-
-
-def convert_imagenet_label_to_id(label_map, key_list, val_list, prediction_class):
-    class_to_label = label_map[prediction_class]
-    prediction_id = key_list[val_list.index(class_to_label)]
-    return prediction_id
-
-
-gt_dict = load_imagenet_validation_gt()
-id_map = load_imagenet_id_map()
-label_map = load_imagenet_label_map()
-
-key_list = list(id_map.keys())
-val_list = list(id_map.values())
-
-
-def convert_imagenet_id_to_label(key_list, class_id):
-    return key_list.index(str(class_id))
-
-
 def check_and_mkdir(f):
     if not os.path.exists(f):
         os.mkdir(f)
     else:
         pass
-
 
 def check_and_rm(f):
     if os.path.exists(f):
@@ -119,12 +55,46 @@ val_dataset_transform = transforms.Compose(
 validation_folder = ImageFolderWithPaths(root='/home/giang/Downloads/datasets/CUB/combined/', transform=val_dataset_transform)
 val_loader        = DataLoader(validation_folder, batch_size=512, shuffle=True, num_workers=8, pin_memory=False)
 
-# inat_resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-import torchvision
-inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
-inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
-my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
-inat_resnet.load_state_dict(my_model_state_dict, strict=True)
+
+
+import glob
+test_path = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
+train_path = '/home/giang/Downloads/RN50_dataset_CUB_LP/train'
+check_and_rm(train_path)
+check_and_mkdir(train_path)
+
+
+# Sample test images
+check_and_rm(test_path)
+cmd = 'sh random_sample_dataset.sh -d /home/giang/Downloads/datasets/CUB/test0 -s 5 -o {}'.format(test_path)
+os.system(cmd)
+
+test_samples = []
+image_folders = glob.glob('{}/*'.format(test_path))
+for i, image_folder in enumerate(image_folders):
+    id = image_folder.split('val/')[1]
+    image_paths = glob.glob(image_folder + '/*.*')
+    for image in image_paths:
+        test_samples.append(os.path.basename(image))
+
+from params import RunningParams
+RunningParams = RunningParams()
+
+HIGHPERFORMANCE_MODEL1 = RunningParams.HIGHPERFORMANCE_MODEL1
+if HIGHPERFORMANCE_MODEL1 is True:
+    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+
+    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+    my_model_state_dict = torch.load(
+        'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+    resnet.load_state_dict(my_model_state_dict, strict=True)
+    inat_resnet = resnet
+else:
+    import torchvision
+    inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
+    inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
+    my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
+    inat_resnet.load_state_dict(my_model_state_dict, strict=True)
 
 # Freeze backbone (for training only)
 for param in list(inat_resnet.parameters())[:-2]:
@@ -134,27 +104,8 @@ for param in list(inat_resnet.parameters())[:-2]:
 inat_resnet.to(device)
 
 criterion = nn.CrossEntropyLoss()
-# optimizer = optim.Adam(inat_resnet.classifier.parameters())
 
-dataset_path = "/home/giang/Downloads/RN50_dataset_CUB"
-
-check_and_rm(dataset_path)
-check_and_mkdir(dataset_path)
 correct, wrong = 0, 0
-
-train_path = "{}/train".format(dataset_path)
-test_path = "{}/test".format(dataset_path)
-correct_train_path = "{}/train/Correct".format(dataset_path)
-wrong_train_path = "{}/train/Wrong".format(dataset_path)
-correct_test_path = "{}/test/Correct".format(dataset_path)
-wrong_test_path = "{}/test/Wrong".format(dataset_path)
-
-check_and_mkdir(train_path)
-check_and_mkdir(test_path)
-check_and_mkdir(correct_train_path)
-check_and_mkdir(wrong_train_path)
-check_and_mkdir(correct_test_path)
-check_and_mkdir(wrong_test_path)
 
 
 def test_cub(model):
@@ -186,22 +137,11 @@ def test_cub(model):
                 base_name = os.path.basename(pts[sample_idx])
                 wnid = val_loader.dataset.classes[target[sample_idx]]
 
-                if train_cnt < 10500:
-                    if preds[sample_idx] == target[sample_idx]:
-                        check_and_mkdir(os.path.join(correct_train_path, wnid))
-                        dst_dir = os.path.join(correct_train_path, wnid, base_name)
-                    else:
-                        check_and_mkdir(os.path.join(wrong_train_path, wnid))
-                        dst_dir = os.path.join(wrong_train_path, wnid, base_name)
-
-                    train_cnt += 1
+                if base_name not in test_samples:
+                    check_and_mkdir(os.path.join(train_path, wnid))
+                    dst_dir = os.path.join(train_path, wnid, base_name)
                 else:
-                    if preds[sample_idx] == target[sample_idx]:
-                        check_and_mkdir(os.path.join(correct_test_path, wnid))
-                        dst_dir = os.path.join(correct_test_path, wnid, base_name)
-                    else:
-                        check_and_mkdir(os.path.join(wrong_test_path, wnid))
-                        dst_dir = os.path.join(wrong_test_path, wnid, base_name)
+                    continue
                 shutil.copyfile(pts[sample_idx], dst_dir)
 
     epoch_loss = running_loss / len(validation_folder)

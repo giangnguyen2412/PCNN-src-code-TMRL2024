@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
 import torch.backends.cudnn as cudnn
-import numpy as np
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 import time
@@ -23,15 +22,33 @@ from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
 from explainers import ModelExplainer
 
+import random
+random.seed(0)
+
+import numpy as np
+np.random.seed(0)
+
+# def seed_worker(worker_id):
+#     worker_seed = torch.initial_seed() % 2**32
+#     np.random.seed(worker_seed)
+#     random.seed(worker_seed)
+
+# g = torch.Generator()
+# g.manual_seed(0)
+
 torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,4,5,6"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
 Explainer = ModelExplainer()
+
+if [RunningParams.IMAGENET_TRAINING, RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING].count(True) > 1:
+    print("There are more than one training datasets chosen, skipping training!!!")
+    exit(-1)
 
 import torchvision
 inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
@@ -50,8 +67,8 @@ data_dir = '/home/giang/tmp'
 virtual_train_dataset = '{}/train'.format(data_dir)
 virtual_val_dataset = '{}/val'.format(data_dir)
 
-train_dataset = '/home/giang/Downloads/RN50_dataset_CUB/train/combined'
-val_dataset = '/home/giang/Downloads/RN50_dataset_CUB/test/combined'
+train_dataset = '/home/giang/Downloads/RN50_dataset_CUB_LP/train'
+val_dataset = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
 
 if not HelperFunctions.is_program_running(os.path.basename(__file__)):
 # if True:
@@ -111,6 +128,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 shuffle=shuffle,  # turn shuffle to True
                 num_workers=16,
                 pin_memory=True,
+                # worker_init_fn=seed_worker,
+                # generator=g,
             )
 
             running_loss = 0.0

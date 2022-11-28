@@ -1099,11 +1099,13 @@ class ImageFolderWithPaths(ImageFolder):
                     pth = self.imgs[sample_idx][0]
                     base_name = os.path.basename(pth)
                     # Not ImageNet-val then we exit the function
-                    if base_name not in real_labels:
-                        return
-                    real_ids = real_labels[base_name]
-                    if len(real_ids) == 0:  # no label images
-                        continue
+                    # if base_name not in real_labels:
+                    #     return
+                    if RunningParams.IMAGENET_TRAINING:
+                        real_ids = real_labels[base_name]
+                        if len(real_ids) == 0:
+                            continue
+
                     else:
                         imgs.append(self.imgs[sample_idx])
                         samples.append(self.samples[sample_idx])
@@ -1157,18 +1159,31 @@ class ImageFolderForNNs(ImageFolder):
             if RunningParams.CUB_TRAINING is True:
                 if RunningParams.TOP1_NN is True:
                     if 'train' in root:
-                        self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_top1.npy', allow_pickle=True, ).item()
+                        # self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_top1.npy', allow_pickle=True, ).item()
+                        self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_top1_LP_MODEL1_HP_FE.npy', allow_pickle=True, ).item()
                     else:
-                        self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1.npy', allow_pickle=True, ).item()
+                        if RunningParams.HIGHPERFORMANCE_MODEL1 is True:
+                            # self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1_HP_INAT.npy', allow_pickle=True, ).item()
+                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy', allow_pickle=True, ).item()
+                        else:
+                            # self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1.npy', allow_pickle=True, ).item()
+                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1_LP_MODEL1_HP_FE.npy', allow_pickle=True, ).item()
                 else:
-                    pass
-                    # Not yet run faiss for topK
+                    if 'train' in root:
+                        self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_topk.npy', allow_pickle=True, ).item()
+                    else:
+                        if RunningParams.HIGHPERFORMANCE_MODEL1 is True:
+                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_topk_HP_INAT.npy',
+                                                         allow_pickle=True, ).item()
+                        else:
+                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_topk.npy', allow_pickle=True, ).item()
             else:
                 if RunningParams.TOP1_NN is True:
-                    if os.path.basename(root) == 'train':
-                        self.faiss_nn_dict = np.load('faiss/faiss_1M3_train_class_dict_simclr.npy', allow_pickle=True, ).item()
+                    # if os.path.basename(root) == 'train':
+                    if 'train' in root:
+                        self.faiss_nn_dict = np.load('faiss/faiss_SDogs_train_RN34_top1.npy', allow_pickle=True, ).item()
                     else:
-                        self.faiss_nn_dict = np.load('faiss/faiss_50K_val_class_dict_simclr.npy', allow_pickle=True, ).item()
+                        self.faiss_nn_dict = np.load('faiss/faiss_SDogs_val_RN34_top1.npy', allow_pickle=True, ).item()
                         # replace by simclr npy files here and run again
                 else:
                     if os.path.basename(root) == 'train':
@@ -1195,11 +1210,13 @@ class ImageFolderForNNs(ImageFolder):
                     pth = self.imgs[sample_idx][0]
                     base_name = os.path.basename(pth)
                     # Not ImageNet-val then we exit the function
-                    if base_name not in real_labels:
-                        return
-                    real_ids = real_labels[base_name]
-                    if len(real_ids) == 0:  # no label images
-                        continue
+                    # if base_name not in real_labels:
+                    #     return
+                    if RunningParams.IMAGENET_TRAINING:
+                        real_ids = real_labels[base_name]
+                        if len(real_ids) == 0:
+                            continue
+
                     else:
                         imgs.append(self.imgs[sample_idx])
                         samples.append(self.samples[sample_idx])

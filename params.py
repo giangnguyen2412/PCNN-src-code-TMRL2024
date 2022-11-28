@@ -4,23 +4,25 @@ from torchvision import transforms
 class RunningParams(object):
     def __init__(self):
         # General
-        self.SIMCLR_MODEL = True
+        self.SIMCLR_MODEL = False
         self.IMAGENET_REAL = True
         self.advising_network = True
-        self.conv_layer = 4  # ----------------------------------------- IMPORTANT PARAM --------
-        self.conv_layer_size = {4: 512, 3: 256, 2: 128, 1: 64}
-        if self.SIMCLR_MODEL is True:
-            self.conv_layer_size = {4: 2048, 3: 1024, 2: 512, 1: 256}
+        self.conv_layer = 4
+        # self.conv_layer_size = {4: 512, 3: 256, 2: 128, 1: 64}
+        # if self.SIMCLR_MODEL is True:
+        self.conv_layer_size = {4: 2048, 3: 1024, 2: 512, 1: 256}
         self.feat_map_size = {4: 49, 3: 196, 2: 784}
         self.CONTINUE_TRAINING = False
         self.TOP1_NN = True  # ----------------------------------------- IMPORTANT PARAM --------
-        self.CUB_TRAINING = True
+        self.CUB_TRAINING = True  # ----------------------------------------- IMPORTANT PARAM --------
+        self.DOGS_TRAINING = False
+        self.IMAGENET_TRAINING = False
 
         # XAI methods
         self.NO_XAI = 'No-XAI'
         self.GradCAM = 'GradCAM'
         self.NNs = 'NNs'
-        self.XAI_method = self.NNs  # ----------------------------------------- IMPORTANT PARAM --------
+        self.XAI_method = self.NNs
         # TODO: write script to run a set of basic experiments: No-XAI, NNs with conv2,3,4, k1,3,5
 
         self.USING_SOFTMAX = True  # ----------------------------------------- IMPORTANT PARAM --------
@@ -28,7 +30,12 @@ class RunningParams(object):
         # TODO: No need to use softmax anymore at this time bcz we balanced this feature already
 
         # Training
-        self.batch_size = 250  # ----------------------------------------- IMPORTANT PARAM --------
+        if self.CUB_TRAINING:
+            self.HIGHPERFORMANCE_MODEL1 = False
+            self.batch_size = 100  # ----------------------------------------- IMPORTANT PARAM --------
+        elif self.DOGS_TRAINING:
+            self.batch_size = 512  # ----------------------------------------- IMPORTANT PARAM --------
+
         self.learning_rate = 0.001
         self.epochs = 100
         self.query_frozen = True  # False = Trainable; True = Freeze? -------------------- IMPORTANT PARAM --------
@@ -51,11 +58,11 @@ class RunningParams(object):
         self.ALBUM = False
 
         # Infer
-        self.advising_steps = 1
+        self.advising_steps = 2
         self.MODEL2_ADVISING = False
 
         # Visualization
-        self.M2_VISUALIZATION = False
+        self.M2_VISUALIZATION = True
 
         # Unused
         self.BATCH_NORM = True

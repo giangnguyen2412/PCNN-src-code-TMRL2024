@@ -45,7 +45,7 @@ class Visualization(object):
                                       x_label: str,
                                       y_label: str,
                                       file_name: str):
-        sns.histplot(data=data, kde=True)
+        sns.histplot(data=data, kde=True, bins=20)
         plt.title(title)
         plt.xlabel(x_label)
         plt.ylabel(y_label)
@@ -72,4 +72,38 @@ class Visualization(object):
         cmd = 'convert {}/query.jpeg -resize 600x600\! -pointsize 14 -gravity North -background White -splice 0x40 -annotate +0+4 "{}" {}'.format(
             save_dir, annotation, save_path
         )
+        os.system(cmd)
+
+    @staticmethod
+    def visualize_model2_decision_with_prototypes(query: str,
+                                   gt_label: str,
+                                   pred_label: str,
+                                   model2_decision: str,
+                                   save_path: str,
+                                   save_dir: str,
+                                   confidence1: int,
+                                   confidence2: int,
+                                   prototypes: list,
+                                   ):
+        cmd = "convert '{}' -resize 256x256^ -gravity Center -extent 224x224 {}/query.jpeg".format(
+            query, save_dir
+        )
+        os.system(cmd)
+        for idx, prototype in enumerate(prototypes):
+            cmd = "convert '{}' -resize 256x256^ -gravity Center -extent 224x224 {}/{}.jpeg".format(
+                prototype, save_dir, idx)
+            os.system(cmd)
+
+        annotation = 'GT: {} - Model1 Pred: {} - Model1 Conf: {}% - Model2 Conf: {}% - Category: {}'.format(
+            gt_label, pred_label, confidence1, confidence2, model2_decision)
+
+        cmd = 'montage {}/[0-4].jpeg -tile 5x1 -geometry +0+0 {}/aggregate.jpeg'.format(save_dir, save_dir)
+        os.system(cmd)
+        cmd = 'montage {}/query.jpeg {}/aggregate.jpeg -tile 2x -geometry +10+0 {}'.format(save_dir, save_dir, save_path)
+        os.system(cmd)
+
+        cmd = 'convert {} -font aakar -pointsize 21 -gravity North -background White -splice 0x40 -annotate +0+4 "{}" {}'.format(
+            save_path, annotation, save_path
+        )
+        print(cmd)
         os.system(cmd)
