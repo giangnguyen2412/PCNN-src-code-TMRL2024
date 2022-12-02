@@ -1,9 +1,9 @@
 import numpy as np
 
-result_file = 'infer_results/best_model_cerulean-totem-1006.pt'
+result_file = 'infer_results/best_model_gentle-shadow-1025.pt'
 kbc = np.load('{}.npy'.format(result_file), allow_pickle=True, ).item()
 T_list = list(np.arange(0.0, 1.05, 0.05))
-
+very_confidence = 0
 acc_T_dict = []
 for T in T_list:
     T = int(T*100)
@@ -11,6 +11,8 @@ for T in T_list:
     T_correct_cnt = 0
     for key in kbc.keys():
         confidence1 = kbc[key]['confidence1']
+        if confidence1 >= 95:
+            very_confidence += 1
         if confidence1 >= T:
             continue
         T_sample_cnt += 1
@@ -34,6 +36,7 @@ for T in T_list:
         acc_dict['Accuracy'] = acc
         acc_T_dict.append(acc_dict)
 
+print(very_confidence)
 import csv
 
 field_names = ['Threshold', 'Accuracy']

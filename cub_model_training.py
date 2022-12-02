@@ -40,7 +40,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,4,5,6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3,4,5"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -50,25 +50,44 @@ if [RunningParams.IMAGENET_TRAINING, RunningParams.DOGS_TRAINING, RunningParams.
     print("There are more than one training datasets chosen, skipping training!!!")
     exit(-1)
 
-import torchvision
-inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
-inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
-my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
-inat_resnet.load_state_dict(my_model_state_dict, strict=True)
-MODEL1 = inat_resnet
-MODEL1.eval()
+if RunningParams.MODEL2_FINETUNING is True:
+    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
-fc = MODEL1.fc
-fc = fc.cuda()
+    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+    my_model_state_dict = torch.load(
+        'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+    resnet.load_state_dict(my_model_state_dict, strict=True)
+    MODEL1 = resnet.cuda()
+    MODEL1.eval()
+    fc = list(MODEL1.children())[-1].cuda()
+    fc = nn.DataParallel(fc)
+else:
+    import torchvision
+    inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
+    inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
+    my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
+    inat_resnet.load_state_dict(my_model_state_dict, strict=True)
+    MODEL1 = inat_resnet
+    MODEL1.eval()
 
-# data_dir = '/home/giang/Downloads/advising_network'
+    fc = MODEL1.fc
+    fc = fc.cuda()
+
+data_dir = '/home/giang/Downloads/advising_network'
 data_dir = '/home/giang/tmp'
 
 virtual_train_dataset = '{}/train'.format(data_dir)
 virtual_val_dataset = '{}/val'.format(data_dir)
 
-train_dataset = '/home/giang/Downloads/RN50_dataset_CUB_LP/train'
-val_dataset = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
+if RunningParams.MODEL2_FINETUNING is True:
+    train_dataset = '/home/giang/Downloads/RN50_dataset_CUB_HP_finetune_set/train'
+    val_dataset = '/home/giang/Downloads/RN50_dataset_CUB_HP_finetune_set/val'
+else:
+    train_dataset = '/home/giang/Downloads/RN50_dataset_CUB_LP/train'
+    val_dataset = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
+
+full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
+                                         Dataset.data_transforms['train'])
 
 if not HelperFunctions.is_program_running(os.path.basename(__file__)):
 # if True:
@@ -117,10 +136,15 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             if phase == 'train':
                 shuffle = True
                 model.train()  # Training mode
+
+                for param in MODEL2.parameters():
+                    param.requires_grad = False
+
+                for param in MODEL2.module.branch3.parameters():
+                    param.requires_grad_(True)
             else:
                 shuffle = False
                 model.eval()  # Evaluation mode
-
 
             data_loader = torch.utils.data.DataLoader(
                 image_datasets[phase],
@@ -128,8 +152,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 shuffle=shuffle,  # turn shuffle to True
                 num_workers=16,
                 pin_memory=True,
-                # worker_init_fn=seed_worker,
-                # generator=g,
             )
 
             running_loss = 0.0
@@ -146,6 +168,13 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     x = data[0].cuda()
                 else:
                     x = data.cuda()
+                if len(data_loader.dataset.classes) < 200:
+                    for sample_idx in range(x.shape[0]):
+                        tgt = gt[sample_idx].item()
+                        class_name = data_loader.dataset.classes[tgt]
+                        id = full_cub_dataset.class_to_idx[class_name]
+                        gt[sample_idx] = id
+
                 gts = gt.cuda()
 
                 embeddings = feature_extractor(x).flatten(start_dim=1)  # 512x1 for RN 18
@@ -264,9 +293,10 @@ MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
 if RunningParams.CONTINUE_TRAINING:
-    model_path = 'best_models/best_model_driven-energy-883.pt'
+    model_path = 'best_models/best_model_likely-bird-1000.pt'
     checkpoint = torch.load(model_path)
     MODEL2.load_state_dict(checkpoint['model_state_dict'])
+
     print('Continue training from ckpt {}'.format(model_path))
     print('Pretrained model accuracy: {:.2f}'.format(checkpoint['val_acc']))
 
@@ -275,16 +305,10 @@ criterion = nn.CrossEntropyLoss()
 # Observe all parameters that are being optimized
 optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)
 
-# Decay LR by a factor of 0.1 every 7 epochs
-# exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
-
 oneLR_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     optimizer_ft, max_lr=0.01,
     steps_per_epoch=dataset_sizes['train']//RunningParams.batch_size,
     epochs=RunningParams.epochs)
-
-# change to ReduceLROnPlateau scheduler, 'min': reduce LR if not decreasing
-# oneLR_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_ft, mode='min', patience=4)
 
 config = {"train": train_dataset,
           "val": val_dataset,
@@ -305,7 +329,6 @@ config = {"train": train_dataset,
           'continue_training': RunningParams.CONTINUE_TRAINING,
           'using_softmax': RunningParams.USING_SOFTMAX,
           'dropout_rate': RunningParams.dropout,
-          'CrossCorrelation': RunningParams.CrossCorrelation,
           'TOP1_NN': RunningParams.TOP1_NN,
           'SIMCLR_MODEL': RunningParams.SIMCLR_MODEL,
           'COSINE_ONLY': RunningParams.COSINE_ONLY,
@@ -321,11 +344,9 @@ wandb.init(
 wandb.save(os.path.basename(__file__), policy='now')
 wandb.save('params.py', policy='now')
 wandb.save('explainers.py', policy='now')
-wandb.save('models.py', policy='now')
 wandb.save('datasets.py', policy='now')
-wandb.save('avs_traing.py', policy='now')
+wandb.save('cub_model_training.py', policy='now')
 wandb.save('transformer.py', policy='now')
-wandb.save('cross_vit.py', policy='now')
 
 
 _, best_acc = train_model(

@@ -12,7 +12,7 @@ class RunningParams(object):
         # if self.SIMCLR_MODEL is True:
         self.conv_layer_size = {4: 2048, 3: 1024, 2: 512, 1: 256}
         self.feat_map_size = {4: 49, 3: 196, 2: 784}
-        self.CONTINUE_TRAINING = False
+        self.CONTINUE_TRAINING = True
         self.TOP1_NN = True  # ----------------------------------------- IMPORTANT PARAM --------
         self.CUB_TRAINING = True  # ----------------------------------------- IMPORTANT PARAM --------
         self.DOGS_TRAINING = False
@@ -31,7 +31,9 @@ class RunningParams(object):
 
         # Training
         if self.CUB_TRAINING:
-            self.HIGHPERFORMANCE_MODEL1 = False
+            self.MODEL2_FINETUNING = True
+            self.HIGHPERFORMANCE_FEATURE_EXTRACTOR = True
+            self.HIGHPERFORMANCE_MODEL1 = True
             self.batch_size = 100  # ----------------------------------------- IMPORTANT PARAM --------
         elif self.DOGS_TRAINING:
             self.batch_size = 512  # ----------------------------------------- IMPORTANT PARAM --------
@@ -48,7 +50,7 @@ class RunningParams(object):
 
         # Training NNs
         self.embedding_loss = False
-        self.k_value = 5  # ----------------------------------------- IMPORTANT PARAM --------
+        self.k_value = 3  # ----------------------------------------- IMPORTANT PARAM --------
         self.PRECOMPUTED_NN = True
         self.CrossCorrelation = True  # ----------------------------------------- IMPORTANT PARAM --------
 
@@ -58,15 +60,16 @@ class RunningParams(object):
         self.ALBUM = False
 
         # Infer
-        self.advising_steps = 2
-        self.MODEL2_ADVISING = False
+        self.advising_steps = 4
+        self.MODEL2_ADVISING = True
 
         # Visualization
-        self.M2_VISUALIZATION = True
+        self.M2_VISUALIZATION = False
 
         # Unused
         self.BATCH_NORM = True
 
         # Uncategorized
         self.COSINE_ONLY = False  # ----------------------------------------- IMPORTANT PARAM --------
+        self.HUMAN_AI_ANALYSIS = False
 

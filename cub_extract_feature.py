@@ -30,7 +30,8 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-HIGHPERFORMANCE_FEATURE_EXTRACTOR = False
+
+HIGHPERFORMANCE_FEATURE_EXTRACTOR = RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR
 if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
     from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 

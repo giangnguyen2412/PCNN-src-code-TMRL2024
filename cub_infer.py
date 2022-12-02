@@ -30,7 +30,7 @@ Visualization = Visualization()
 
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,4,5,6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3,4,5"
 
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
@@ -63,7 +63,7 @@ if RunningParams.MODEL2_ADVISING is True:
         pin_memory=True,
     )
 
-    HIGHPERFORMANCE_FEATURE_EXTRACTOR = True
+    HIGHPERFORMANCE_FEATURE_EXTRACTOR = RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR
     if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
         INDEX_FILE = 'faiss/faiss_CUB200_class_idx_dict_HP_extractor.npy'
     else:
@@ -80,10 +80,14 @@ if RunningParams.MODEL2_ADVISING is True:
             class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
             faiss_loader_dict[class_id] = class_id_loader
 
+full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
+                                         Dataset.data_transforms['train'])
+
+default_model = 'best_model_gentle-shadow-1025.pt'
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_flowing-morning-1004.pt',
+                        default='{}'.format(default_model),
                         help='Model check point')
     # parser.add_argument('--dataset', type=str,
     #                     default='balanced_val_dataset_6k',
@@ -206,6 +210,13 @@ if __name__ == '__main__':
                 x = data[0].cuda()
             else:
                 x = data.cuda()
+            if len(data_loader.dataset.classes) < 200:
+                for sample_idx in range(x.shape[0]):
+                    tgt = gt[sample_idx].item()
+                    class_name = data_loader.dataset.classes[tgt]
+                    id = full_cub_dataset.class_to_idx[class_name]
+                    gt[sample_idx] = id
+
             gts = gt.cuda()
 
             # Step 1: Forward pass input x through MODEL1 - Explainer
@@ -281,6 +292,7 @@ if __name__ == '__main__':
             advising_steps = RunningParams.advising_steps
             # When using advising & still disagree & examining only top $advising_steps + 1
             # while RunningParams.MODEL2_ADVISING is True and sum(preds) < x.shape[0]:
+            # TODO: Giang dang xem predicted_ids bi thay doi nhuw the nao ma ko lam tang top-1 accuracy
             if RunningParams.MODEL2_ADVISING is True:
                 embeddings = embeddings.cpu().detach().numpy()
                 tmp_predicted_ids = torch.clone(predicted_ids)
@@ -325,29 +337,33 @@ if __name__ == '__main__':
                     advising_p = torch.nn.functional.softmax(advising_output, dim=1)
                     advising_score, step_preds = torch.max(advising_p, 1)
 
-                    tmp_preds = step_preds
+                    # TODO: Do we really want to use torch.clone because it consumes memory
+                    tmp_preds = torch.clone(step_preds)
 
                     for sample_idx in range(x.shape[0]):
                         # Change the MODEL2 decision from No to Yes
                         if tmp_preds[sample_idx].item() != preds[sample_idx].item() and tmp_preds[sample_idx].item() == 1:
-                            predicted_ids[sample_idx] = model1_topk[sample_idx]
+                            tmp_predicted_ids[sample_idx] = model1_topk[sample_idx]
 
                     if k == RunningParams.advising_steps -1:
                         # If MODEL2 still disagrees, we revert the ids to top-1 predicted labels
                         model1_top1 = model1_ranks[:, 0]
                         for pred_idx in range(x.shape[0]):
-                            if tmp_preds[pred_idx] == 0:
+                            if tmp_preds[pred_idx].item() == 0:
                                 # Change the predicted id to top-k if MODEL2 disagrees
-                                predicted_ids[pred_idx] = model1_top1[pred_idx]
+                                tmp_predicted_ids[pred_idx] = model1_top1[pred_idx]
 
                 print(tmp_preds.sum())
 
             # statistics
             if RunningParams.MODEL2_ADVISING:
                 # Re-compute the accuracy of imagenet classification
+                predicted_ids = tmp_predicted_ids
                 advising_crt_cnt += torch.sum(predicted_ids == gts)
-                advising_labels = (predicted_ids == gts) * 1
-                running_corrects += torch.sum(preds == advising_labels.data)
+                new_mode1_gts = (predicted_ids == gts) * 1
+                new_model2_preds = tmp_preds
+                # running_corrects += torch.sum(tmp_preds == new_mode1_gts)
+                running_corrects += torch.sum(preds == labels.data)
             else:
                 running_corrects += torch.sum(preds == labels.data)
 
@@ -373,8 +389,12 @@ if __name__ == '__main__':
                     base_name = os.path.basename(query)
                     save_path = os.path.join(save_dir, model2_decision, base_name)
 
-                    gt_label = image_datasets['cub_test'].classes[gts[sample_idx].item()]
-                    pred_label = image_datasets['cub_test'].classes[predicted_ids[sample_idx].item()]
+                    # gt_label = image_datasets['cub_test'].classes[gts[sample_idx].item()]
+                    # pred_label = image_datasets['cub_test'].classes[predicted_ids[sample_idx].item()]
+                    gt_label = full_cub_dataset.classes[gts[sample_idx].item()]
+                    pred_label = full_cub_dataset.classes[predicted_ids[sample_idx].item()]
+
+
 
                     model1_confidence = int(model1_score[sample_idx].item()*100)
                     model2_confidence = int(model2_score[sample_idx].item()*100)
@@ -449,3 +469,57 @@ if __name__ == '__main__':
         if CATEGORY_ANALYSIS is True:
             for c in correctness_bins:
                 print("{} - {:.2f}".format(c, category_record[c]['crt']*100/category_record[c]['total']))
+
+    if RunningParams.HUMAN_AI_ANALYSIS is True:
+        import numpy as np
+
+        result_file = 'infer_results/{}'.format(args.ckpt)
+        kbc = np.load('{}.npy'.format(result_file), allow_pickle=True, ).item()
+        T_list = list(np.arange(0.0, 1.05, 0.05))
+
+        acc_T_dict = []
+        for T in T_list:
+            T = int(T * 100)
+            T_sample_cnt = 0
+            T_correct_cnt = 0
+            for key in kbc.keys():
+                confidence1 = kbc[key]['confidence1']
+                if confidence1 >= T:
+                    continue
+                T_sample_cnt += 1
+                result = kbc[key]['result']
+                if result is True:
+                    T_correct_cnt += 1
+            if T_sample_cnt == 0:
+                print("Acc is N/A at T: {}".format(T))
+                # acc_T_dict[T] = 'N/A'
+                acc_dict = dict()
+                acc_dict['Threshold'] = T
+                acc_dict['Accuracy'] = 'N/A'
+                acc_T_dict.append(acc_dict)
+            else:
+                acc = (T_correct_cnt / T_sample_cnt)
+                # acc = '{:.2f}'.format(acc)
+                print("Accuracy at T: {} is {}%".format(T, acc))
+                print(T_correct_cnt, T_sample_cnt)
+                acc_dict = dict()
+                acc_dict['Threshold'] = T
+                acc_dict['Accuracy'] = acc
+                acc_T_dict.append(acc_dict)
+
+        import csv
+
+        field_names = ['Threshold', 'Accuracy']
+        with open('{}.csv'.format(result_file), 'w') as csvfile:
+            writer = csv.DictWriter(csvfile, fieldnames=field_names)
+            writer.writeheader()
+            writer.writerows(acc_T_dict)
+            print("Writing human accuracy to {} successfully".format(result_file))
+
+
+
+
+
+
+
+

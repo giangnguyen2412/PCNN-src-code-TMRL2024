@@ -1159,18 +1159,39 @@ class ImageFolderForNNs(ImageFolder):
             if RunningParams.CUB_TRAINING is True:
                 if RunningParams.TOP1_NN is True:
                     if 'train' in root:
-                        # self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_top1.npy', allow_pickle=True, ).item()
-                        self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_top1_LP_MODEL1_HP_FE.npy', allow_pickle=True, ).item()
-                    else:
-                        if RunningParams.HIGHPERFORMANCE_MODEL1 is True:
-                            # self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1_HP_INAT.npy', allow_pickle=True, ).item()
-                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy', allow_pickle=True, ).item()
+                        if RunningParams.MODEL2_FINETUNING is True:
+                            print("Running into this")
+                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_top1_HP_MODEL1_HP_FE_finetune_set.npy',
+                                                         allow_pickle=True, ).item()
                         else:
-                            # self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1.npy', allow_pickle=True, ).item()
-                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1_LP_MODEL1_HP_FE.npy', allow_pickle=True, ).item()
+                            if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
+                                self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_top1_LP_MODEL1_HP_FE.npy', allow_pickle=True, ).item()
+                            else:
+                                self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_top1.npy',
+                                                             allow_pickle=True, ).item()
+                    else:
+                        if RunningParams.MODEL2_FINETUNING is True:
+                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1_HP_MODEL1_HP_FE_finetune_set.npy',
+                                                         allow_pickle=True, ).item()
+                        else:
+                            if RunningParams.HIGHPERFORMANCE_MODEL1 is True:
+                                if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
+                                    self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy', allow_pickle=True, ).item()
+                                else:
+                                    self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1_HP_INAT.npy',
+                                                                 allow_pickle=True, ).item()
+                            else:
+                                if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
+                                    self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1_LP_MODEL1_HP_FE.npy', allow_pickle=True, ).item()
+                                else:
+                                    self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1.npy', allow_pickle=True, ).item()
                 else:
                     if 'train' in root:
-                        self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_topk.npy', allow_pickle=True, ).item()
+                        if RunningParams.MODEL2_FINETUNING is True:
+                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_topk_HP_MODEL1_HP_FE_finetune_set.npy',
+                                                         allow_pickle=True, ).item()
+                        else:
+                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_topk.npy', allow_pickle=True, ).item()
                     else:
                         if RunningParams.HIGHPERFORMANCE_MODEL1 is True:
                             self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_topk_HP_INAT.npy',
