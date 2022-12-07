@@ -40,7 +40,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3,4,5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,5,6"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -85,6 +85,10 @@ if RunningParams.MODEL2_FINETUNING is True:
 else:
     train_dataset = '/home/giang/Downloads/RN50_dataset_CUB_LP/train'
     val_dataset = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
+
+if RunningParams.CUB_200WAY is True:
+    train_dataset = '/home/giang/Downloads/datasets/CUB/train1/'
+    val_dataset = '/home/giang/Downloads/datasets/CUB/test0/'
 
 full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
                                          Dataset.data_transforms['train'])
@@ -185,7 +189,11 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 predicted_ids = index.squeeze()
 
                 model2_gt = (predicted_ids == gts) * 1  # 0 and 1
-                labels = model2_gt
+
+                if RunningParams.CUB_200WAY is True:
+                    labels = gts
+                else:
+                    labels = model2_gt
 
                 if RunningParams.XAI_method == RunningParams.GradCAM:
                     explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
@@ -247,7 +255,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             true_ratio = true_cnt.double() / len(image_datasets[phase])
 
             if phase == 'train':
-                scheduler.step()
+                if RunningParams.CUB_200WAY is False:
+                    scheduler.step()
                 # scheduler.step(epoch_acc)
 
             wandb.log({'{}_accuracy'.format(phase): epoch_acc, '{}_loss'.format(phase): epoch_loss})
@@ -304,6 +313,9 @@ criterion = nn.CrossEntropyLoss()
 
 # Observe all parameters that are being optimized
 optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)
+
+if RunningParams.CUB_200WAY is True:
+    optimizer_ft = optim.Adam(MODEL2.parameters())
 
 oneLR_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     optimizer_ft, max_lr=0.01,

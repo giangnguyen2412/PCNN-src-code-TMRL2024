@@ -166,7 +166,7 @@ for param in list(inat_resnet.parameters())[:-2]:
     param.requires_grad = False
 
 # to CUDA
-inat_resnet.to(device)
+inat_resnet.cuda()
 
 criterion = nn.CrossEntropyLoss()
 # optimizer = optim.Adam(inat_resnet.classifier.parameters())
@@ -206,8 +206,8 @@ def test_cub(model):
 
     with torch.inference_mode():
         for batch_idx, (data, target, pts) in enumerate(val_loader):
-            data = data.to(device)
-            target = target.to(device)
+            data = data.cuda()
+            target = target.cuda()
             outputs = model(data)
             loss = criterion(outputs, target)
             _, preds = torch.max(outputs, 1)

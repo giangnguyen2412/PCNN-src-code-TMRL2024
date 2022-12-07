@@ -27,6 +27,21 @@ class BinaryMLP(nn.Module):
         return self.net(x)
 
 
+class CUB200MLP(nn.Module):
+    def __init__(self, input_dim, hidden_dim, dropout = 0.):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, 200),  # 2 for binary classification
+            nn.Dropout(dropout)
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
 class Transformer_AdvisingNetwork(nn.Module):
     def __init__(self):
         super(Transformer_AdvisingNetwork, self).__init__()
@@ -87,8 +102,12 @@ class Transformer_AdvisingNetwork(nn.Module):
         # Branch 1 takes softmax scores and cosine similarity
         self.branch1 = BinaryMLP(200, 2)
         # Branch 3 takes transformer features and sep_token*2
-        self.branch3 = BinaryMLP(RunningParams.k_value*RunningParams.conv_layer_size[RunningParams.conv_layer]*2 +
-                                 RunningParams.k_value*2, 32)
+        if RunningParams.CUB_200WAY is True:
+            self.branch3 = CUB200MLP(RunningParams.k_value*RunningParams.conv_layer_size[RunningParams.conv_layer]*2 +
+                                 RunningParams.k_value*2, 512)
+        else:
+            self.branch3 = BinaryMLP(RunningParams.k_value*RunningParams.conv_layer_size[RunningParams.conv_layer]*2 +
+                                     RunningParams.k_value*2, 32)
 
         self.output_layer = BinaryMLP(2 * 2 + 2, 2)
 

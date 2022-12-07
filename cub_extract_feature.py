@@ -24,7 +24,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 Dataset = Dataset()
@@ -65,11 +65,13 @@ feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feat
 feature_extractor.cuda()
 feature_extractor = nn.DataParallel(feature_extractor)
 
-RETRIEVE_TOP1_NEAREST = True
+RETRIEVE_TOP1_NEAREST = False
 
 in_features = 2048
 print("Building FAISS index...! Training set is the knowledge base.")
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB_LP/train', transform=Dataset.data_transforms['train'])
+# faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB_LP/train', transform=Dataset.data_transforms['train'])
+
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB/train1/', transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
@@ -127,13 +129,14 @@ if RETRIEVE_TOP1_NEAREST is True:
             faiss_loader_dict[class_id] = class_id_loader
         np.save(INDEX_FILE, faiss_nns_class_dict)
 else:
-    INDEX_FILE = 'faiss/faiss_CUB200_topk_dict_LP_extractor.index'
+    INDEX_FILE = 'faiss/faiss_CUB_200way.index'
     if os.path.exists(INDEX_FILE):
         print("FAISS index exists!")
         faiss_cpu_index = faiss.read_index(INDEX_FILE)
-        faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
-            faiss_cpu_index
-        )
+        faiss_gpu_index = faiss_cpu_index
+        # faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
+        #     faiss_cpu_index
+        # )
     else:
         print("FAISS index NOT exists! Creating FAISS index then save to disk...")
         stack_embeddings = []
@@ -154,17 +157,22 @@ else:
 
         descriptors = np.vstack(stack_embeddings)
         cpu_index = faiss.IndexFlatL2(in_features)
-        faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
-            cpu_index
-        )
-        print(faiss_gpu_index.ntotal)
 
-        faiss_gpu_index.add(descriptors)
+        cpu_index.add(descriptors)
+        faiss.write_index(cpu_index, INDEX_FILE)
+        faiss_gpu_index = cpu_index
 
-        faiss_cpu_index = faiss.index_gpu_to_cpu(  # build the index
-            faiss_gpu_index
-        )
-        faiss.write_index(faiss_cpu_index, INDEX_FILE)
+        # faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
+        #     cpu_index
+        # )
+        # print(faiss_gpu_index.ntotal)
+        #
+        # faiss_gpu_index.add(descriptors)
+        #
+        # faiss_cpu_index = faiss.index_gpu_to_cpu(  # build the index
+        #     faiss_gpu_index
+        # )
+        # faiss.write_index(faiss_cpu_index, INDEX_FILE)
 
 HIGHPERFORMANCE_MODEL1 = RunningParams.HIGHPERFORMANCE_MODEL1
 if HIGHPERFORMANCE_MODEL1 is True:
@@ -198,7 +206,9 @@ else:
 
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-data_dir = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
+# data_dir = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
+
+data_dir = '/home/giang/Downloads/datasets/CUB/test0/'
 image_datasets = dict()
 image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
 train_loader = torch.utils.data.DataLoader(
@@ -234,7 +244,6 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                 nn_list.append(loader.dataset.dataset.imgs[id][0])
             faiss_nn_dict[base_name] = nn_list
     else:
-        embeddings = embeddings.cpu().detach().numpy()
         _, indices = faiss_gpu_index.search(embeddings, 6)  # Retrieve 6 NNs bcz we need to exclude the first one
 
         for sample_idx in range(data.shape[0]):
@@ -258,6 +267,6 @@ if RETRIEVE_TOP1_NEAREST:
             np.save('faiss/faiss_CUB_val_top1.npy', faiss_nn_dict)
 else:
     if HIGHPERFORMANCE_MODEL1 is True:
-        np.save('faiss/faiss_CUB_val_topk_HP_INAT.npy', faiss_nn_dict)
+        np.save('faiss/faiss_CUB_200way_val_topk_HP_INAT.npy', faiss_nn_dict)
     else:
         np.save('faiss/faiss_CUB_val_topk.npy', faiss_nn_dict)
