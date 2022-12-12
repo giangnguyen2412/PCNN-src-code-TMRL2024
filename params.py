@@ -30,13 +30,16 @@ class RunningParams(object):
         # TODO: No need to use softmax anymore at this time bcz we balanced this feature already
 
         # Training
-        if self.CUB_TRAINING:
+        if self.CUB_TRAINING is True:
             self.MODEL2_FINETUNING = False
-            self.HIGHPERFORMANCE_FEATURE_EXTRACTOR = True
-            self.HIGHPERFORMANCE_MODEL1 = True
-            self.batch_size = 100  # ----------------------------------------- IMPORTANT PARAM --------
+            self.HIGHPERFORMANCE_FEATURE_EXTRACTOR = False
+            self.HIGHPERFORMANCE_MODEL1 = False
+            self.batch_size = 64  # ----------------------------------------- IMPORTANT PARAM --------
 
-            self.CUB_200WAY = True
+            self.CUB_200WAY = False
+
+            if self.CUB_200WAY is False:
+                self.batch_size = 100
         elif self.DOGS_TRAINING:
             self.batch_size = 512  # ----------------------------------------- IMPORTANT PARAM --------
 
@@ -52,7 +55,7 @@ class RunningParams(object):
 
         # Training NNs
         self.embedding_loss = False
-        self.k_value = 1  # ----------------------------------------- IMPORTANT PARAM --------
+        self.k_value = 3  # ----------------------------------------- IMPORTANT PARAM --------
         self.PRECOMPUTED_NN = True
         self.CrossCorrelation = True  # ----------------------------------------- IMPORTANT PARAM --------
 

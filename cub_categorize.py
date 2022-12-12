@@ -171,7 +171,7 @@ inat_resnet.cuda()
 criterion = nn.CrossEntropyLoss()
 # optimizer = optim.Adam(inat_resnet.classifier.parameters())
 
-dataset_path = "/home/giang/Downloads/RN50_dataset_CUB_HP_finetune_set/"
+dataset_path = "/home/giang/Downloads/RN50_dataset_CUB_HP/"
 
 check_and_rm(dataset_path)
 check_and_mkdir(dataset_path)

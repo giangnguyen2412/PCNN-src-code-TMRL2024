@@ -1,8 +1,8 @@
 import os
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
-os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_LAUNCH_BLOCKING"] = "0"
 
 import argparse
 import os
@@ -72,7 +72,7 @@ val_loader = DataLoader(
     validation_folder, batch_size=512, shuffle=False, num_workers=8, pin_memory=False
 )
 
-PRETRAINED_CUB = True
+PRETRAINED_CUB = False
 if PRETRAINED_CUB is True:
     from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
@@ -95,15 +95,24 @@ for param in model.parameters():
 
 # TODO: a) Dont need to use nn.Sequential and b) construct again the model because we may have two Linear layer in the model.
 # Fortunately, we are doing feature_extractor then fc so we did not have error
-model.fc = nn.Sequential(nn.Linear(2048*(RunningParams.k_value+1), 200)).cuda()
+fc = nn.Sequential(nn.Linear(2048*(RunningParams.k_value+1) + RunningParams.k_value + 2, 2048),
+                   nn.ReLU(),
+                   nn.Dropout(0.0),
+                   nn.Linear(2048, 200),
+                   nn.Dropout(0.0)
+                   )
+
+fc = fc.cuda()
+model.fc = fc
+
 
 if PRETRAINED_CUB is True:
     feature_extractor = nn.Sequential(*list(model.children())[:-2]).cuda()
 else:
     feature_extractor = nn.Sequential(*list(model.children())[:-1]).cuda()
-# feature_extractor = nn.DataParallel(feature_extractor)
+feature_extractor = nn.DataParallel(feature_extractor)
 fc = model.fc
-# fc = nn.DataParallel(fc)
+fc = nn.DataParallel(fc)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.fc.parameters())
@@ -117,21 +126,22 @@ def test_model(model):
 
     for _, (data, target, pths) in enumerate(val_loader):
         target = target.cuda()
-
         input_feat = feature_extractor(data[0].cuda()).squeeze()
 
         explanations = data[1][:, 0:RunningParams.k_value, :, :, :].cuda()  # ignore 1st NN = query
         explanations_l = []
+        sep_token = torch.zeros([RunningParams.k_value, 1, 1, 1], requires_grad=False).cuda()
         for sample_idx in range(explanations.shape[0]):
             explanation = explanations[sample_idx]
             explanation_feat = feature_extractor(explanation)
+            explanation_feat = torch.cat([explanation_feat, sep_token], dim=1)
             squeezed_explanation_feat = explanation_feat.squeeze()
             squeezed_explanation_feat = squeezed_explanation_feat.flatten()
             explanations_l.append(squeezed_explanation_feat)
 
         explanation_feat = torch.stack(explanations_l)
-
-        features = torch.cat((input_feat, explanation_feat), dim=1)
+        sep_token = torch.zeros([data[0].shape[0], 1], requires_grad=False).cuda()
+        features = torch.cat((sep_token, input_feat, sep_token, explanation_feat), dim=1)
         outputs = fc(features)
 
         loss = criterion(outputs, target)
@@ -165,16 +175,18 @@ def train_model(model, criterion, optimizer, num_epochs=3):
 
         explanations = data[1][:, 1:RunningParams.k_value + 1, :, :, :].cuda()  # ignore 1st NN = query
         explanations_l = []
+        sep_token = torch.zeros([RunningParams.k_value, 1, 1, 1], requires_grad=False).cuda()
         for sample_idx in range(explanations.shape[0]):
             explanation = explanations[sample_idx]
             explanation_feat = feature_extractor(explanation)
+            explanation_feat = torch.cat([explanation_feat, sep_token], dim=1)
             squeezed_explanation_feat = explanation_feat.squeeze()
             squeezed_explanation_feat = squeezed_explanation_feat.flatten()
             explanations_l.append(squeezed_explanation_feat)
 
         explanation_feat = torch.stack(explanations_l)
-
-        features = torch.cat((input_feat, explanation_feat), dim=1)
+        sep_token = torch.zeros([data[0].shape[0], 1], requires_grad=False).cuda()
+        features = torch.cat((sep_token, input_feat, sep_token, explanation_feat), dim=1)
         outputs = fc(features)
 
         loss = criterion(outputs, target)
