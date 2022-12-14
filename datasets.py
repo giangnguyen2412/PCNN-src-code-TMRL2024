@@ -1167,6 +1167,7 @@ class ImageFolderForNNs(ImageFolder):
                             if RunningParams.CUB_TRAINING is True and RunningParams.CUB_200WAY is True:
                                 self.faiss_nn_dict = np.load('faiss/faiss_CUB_200way_train_topk_HP_INAT.npy',
                                                              allow_pickle=True, ).item()
+                                print("Using faiss_CUB_200way_train_topk_HP_INAT")
                             else:
                                 if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
                                     self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_top1_LP_MODEL1_HP_FE.npy', allow_pickle=True, ).item()
@@ -1181,6 +1182,7 @@ class ImageFolderForNNs(ImageFolder):
                             if RunningParams.CUB_TRAINING is True and RunningParams.CUB_200WAY is True:
                                 self.faiss_nn_dict = np.load('faiss/faiss_CUB_200way_val_topk_HP_INAT.npy',
                                                              allow_pickle=True, ).item()
+                                print("Using faiss_CUB_200way_val_topk_HP_INAT")
                             else:
                                 if RunningParams.HIGHPERFORMANCE_MODEL1 is True:
                                     if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:

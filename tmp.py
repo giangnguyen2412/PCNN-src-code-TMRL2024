@@ -1,28 +1,18 @@
-import glob
-import os
-test_path = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
-test_samples1 = []
-image_folders = glob.glob('{}/*'.format(test_path))
-for i, image_folder in enumerate(image_folders):
-    id = image_folder.split('val/')[1]
-    image_paths = glob.glob(image_folder + '/*.*')
-    for image in image_paths:
-        test_samples1.append(os.path.basename(image))
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
-test_path = '/home/giang/Downloads/RN50_dataset_CUB_HP_finetune_set/val'
-test_samples2 = []
-image_folders = glob.glob('{}/*'.format(test_path))
-for i, image_folder in enumerate(image_folders):
-    id = image_folder.split('val/')[1]
-    image_paths = glob.glob(image_folder + '/*.*')
-    for image in image_paths:
-        test_samples2.append(os.path.basename(image))
+from transformer import Transformer_AdvisingNetwork
+import torch
+import torch.nn as nn
 
-print(len(set(test_samples1) & set(test_samples2)))
 
-temp3 = []
-for element in test_samples2:
-    if element not in test_samples1:
-        temp3.append(element)
-print(len(temp3))
-print(temp3)
+model = Transformer_AdvisingNetwork()
+model = model.cuda()
+model = nn.DataParallel(model)
+
+
+model_path = 'best_models/best_model_classic-wind-1138.pt'
+checkpoint = torch.load(model_path)
+model.load_state_dict(checkpoint['model_state_dict'])
+
+print(count_parameters(model))

@@ -30,7 +30,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -112,6 +112,8 @@ feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feat
 feature_extractor.cuda()
 feature_extractor = nn.DataParallel(feature_extractor)
 
+def count_parameters(model):
+    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     since = time.time()
@@ -219,6 +221,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
+                        print(count_parameters(model))
 
                 # statistics
                 running_loss += loss.item() * x.size(0)

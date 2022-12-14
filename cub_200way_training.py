@@ -1,8 +1,8 @@
 import os
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
-os.environ["CUDA_LAUNCH_BLOCKING"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "5,1,2,3,4,0,6,7"
+# os.environ["CUDA_LAUNCH_BLOCKING"] = "0"
 
 import argparse
 import os
@@ -38,7 +38,6 @@ for i in range(2000):
 concat = lambda x: np.concatenate(x, axis=0)
 to_np = lambda x: x.data.to("cpu").numpy()
 
-
 train_dataset_transform = transforms.Compose(
     [
         transforms.Resize(256),
@@ -72,47 +71,53 @@ val_loader = DataLoader(
     validation_folder, batch_size=512, shuffle=False, num_workers=8, pin_memory=False
 )
 
-PRETRAINED_CUB = False
-if PRETRAINED_CUB is True:
-    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
-
-    model = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-    model_dict = torch.load(
-        'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
-    model.load_state_dict(model_dict, strict=True)
-
+PROTOTYPES_IS_QUERY = True
+TRAINING_FROM_SCRATCH = True
+if TRAINING_FROM_SCRATCH is True:
+    model = torchvision.models.resnet18(pretrained=True).cuda()
 else:
+    PRETRAINED_CUB = False
+    if PRETRAINED_CUB is True:
+        from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
-    model = torchvision.models.resnet50(pretrained=True).cuda()
-    model_dict = torch.load("/home/giang/Downloads/Cub-ResNet-iNat/resnet50_inat_pretrained_0.841.pth")
-    model_dict = OrderedDict(
-        {name.replace("layers.", ""): value for name, value in model_dict.items()}
-    )
-    model.load_state_dict(model_dict, strict=False)
+        model = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+        model_dict = torch.load(
+            'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+        model.load_state_dict(model_dict, strict=True)
 
-for param in model.parameters():
-    param.requires_grad = False
+    else:
+
+        model = torchvision.models.resnet50(pretrained=True).cuda()
+        model_dict = torch.load("/home/giang/Downloads/Cub-ResNet-iNat/resnet50_inat_pretrained_0.841.pth")
+        model_dict = OrderedDict(
+            {name.replace("layers.", ""): value for name, value in model_dict.items()}
+        )
+        model.load_state_dict(model_dict, strict=False)
+
+    for param in model.parameters():
+        param.requires_grad = False
+
 
 # TODO: a) Dont need to use nn.Sequential and b) construct again the model because we may have two Linear layer in the model.
 # Fortunately, we are doing feature_extractor then fc so we did not have error
-fc = nn.Sequential(nn.Linear(2048*(RunningParams.k_value+1) + RunningParams.k_value + 2, 2048),
+fc = nn.Sequential(nn.Linear(512*(RunningParams.k_value+1) + RunningParams.k_value + 2, 512),
                    nn.ReLU(),
                    nn.Dropout(0.0),
-                   nn.Linear(2048, 200),
+                   nn.Linear(512, 200),
                    nn.Dropout(0.0)
-                   )
-
-fc = fc.cuda()
-model.fc = fc
-
-
-if PRETRAINED_CUB is True:
-    feature_extractor = nn.Sequential(*list(model.children())[:-2]).cuda()
-else:
-    feature_extractor = nn.Sequential(*list(model.children())[:-1]).cuda()
-feature_extractor = nn.DataParallel(feature_extractor)
-fc = model.fc
+                   ).cuda()
 fc = nn.DataParallel(fc)
+
+
+if TRAINING_FROM_SCRATCH is True:
+    feature_extractor = nn.Sequential(*list(model.children())[:-1]).cuda()
+else:
+    if PRETRAINED_CUB is True:
+        feature_extractor = nn.Sequential(*list(model.children())[:-2]).cuda()
+    else:
+        feature_extractor = nn.Sequential(*list(model.children())[:-1]).cuda()
+
+feature_extractor = nn.DataParallel(feature_extractor)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.fc.parameters())
@@ -127,6 +132,9 @@ def test_model(model):
     for _, (data, target, pths) in enumerate(val_loader):
         target = target.cuda()
         input_feat = feature_extractor(data[0].cuda()).squeeze()
+
+        if PROTOTYPES_IS_QUERY is True:
+            data[1] = torch.stack([data[0]]*6, dim=1).cuda()
 
         explanations = data[1][:, 0:RunningParams.k_value, :, :, :].cuda()  # ignore 1st NN = query
         explanations_l = []
@@ -150,7 +158,7 @@ def test_model(model):
         running_corrects += torch.sum(preds == target.data)
 
     epoch_loss = running_loss / len(validation_folder)
-    epoch_acc = running_corrects.double() / len(validation_folder)
+    epoch_acc = running_corrects.double()*100 / len(validation_folder)
 
     phase = "val"
     wandb.log({'{}_accuracy'.format(phase): epoch_acc, '{}_loss'.format(phase): epoch_loss})
@@ -172,6 +180,9 @@ def train_model(model, criterion, optimizer, num_epochs=3):
     for _, (data, target, pths) in enumerate(train_loader):
         target = target.cuda()
         input_feat = feature_extractor(data[0].cuda()).squeeze()
+
+        if PROTOTYPES_IS_QUERY is True:
+            data[1] = torch.stack([data[0]] * 6, dim=1).cuda()
 
         explanations = data[1][:, 1:RunningParams.k_value + 1, :, :, :].cuda()  # ignore 1st NN = query
         explanations_l = []
@@ -199,7 +210,7 @@ def train_model(model, criterion, optimizer, num_epochs=3):
         running_corrects += torch.sum(preds == target.data)
 
     epoch_loss = running_loss / len(train_loader)
-    epoch_acc = running_corrects.double() / len(training_folder)
+    epoch_acc = running_corrects.double()*100 / len(training_folder)
     phase = "training"
     wandb.log({'{}_accuracy'.format(phase): epoch_acc, '{}_loss'.format(phase): epoch_loss})
 
@@ -207,7 +218,7 @@ def train_model(model, criterion, optimizer, num_epochs=3):
     if True:
         # print("Epoch {}/{}".format(epoch + 1, num_epochs))
         print("-" * 10)
-        print("Training: loss: {:.4f}, acc: {:.4f}".format(epoch_loss, epoch_acc))
+        print("Training: loss: {:.4f}, acc: {:.4f}".format(epoch_loss, epoch_acc*100))
 
     return model
 
@@ -232,6 +243,7 @@ for epoch in range(num_epochs):
     if val_acc > best_acc:
         best_acc = val_acc
         torch.save(model_trained.state_dict(), "./CUB_200way_best_model.pth")
-    print("Best accuracy: {:.4f}".format(best_acc))
+    print("{} - Best accuracy: {:.4f}".format(wandb.run.name, best_acc*100))
 
 wandb.finish()
+

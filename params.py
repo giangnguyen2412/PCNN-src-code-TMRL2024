@@ -30,21 +30,22 @@ class RunningParams(object):
         # TODO: No need to use softmax anymore at this time bcz we balanced this feature already
 
         # Training
-        if self.CUB_TRAINING is True:
+        if self.CUB_TRAINING:
             self.MODEL2_FINETUNING = False
             self.HIGHPERFORMANCE_FEATURE_EXTRACTOR = False
             self.HIGHPERFORMANCE_MODEL1 = False
-            self.batch_size = 64  # ----------------------------------------- IMPORTANT PARAM --------
 
-            self.CUB_200WAY = False
+            self.CUB_200WAY = True
 
-            if self.CUB_200WAY is False:
+            if self.CUB_200WAY is True:
+                self.batch_size = 64  # ----------------------------------------- IMPORTANT PARAM --------
+            else:
                 self.batch_size = 100
         elif self.DOGS_TRAINING:
             self.batch_size = 512  # ----------------------------------------- IMPORTANT PARAM --------
 
         self.learning_rate = 0.001
-        self.epochs = 100
+        self.epochs = 300
         self.query_frozen = True  # False = Trainable; True = Freeze? -------------------- IMPORTANT PARAM --------
         self.heatmap_frozen = False  # freeze?
         self.nns_frozen = False  # freeze?
@@ -55,7 +56,7 @@ class RunningParams(object):
 
         # Training NNs
         self.embedding_loss = False
-        self.k_value = 3  # ----------------------------------------- IMPORTANT PARAM --------
+        self.k_value = 1  # ----------------------------------------- IMPORTANT PARAM --------
         self.PRECOMPUTED_NN = True
         self.CrossCorrelation = True  # ----------------------------------------- IMPORTANT PARAM --------
 
@@ -77,4 +78,3 @@ class RunningParams(object):
         # Uncategorized
         self.COSINE_ONLY = False  # ----------------------------------------- IMPORTANT PARAM --------
         self.HUMAN_AI_ANALYSIS = False
-
