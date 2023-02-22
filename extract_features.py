@@ -40,7 +40,7 @@ fc = MODEL1.fc
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-RETRIEVE_TOP1_NEAREST = True
+RETRIEVE_TOP1_NEAREST = False
 
 in_features = MODEL1.fc.in_features
 print("Building FAISS index...")
@@ -51,7 +51,7 @@ if TRAIN_DOG == True:
     if RETRIEVE_TOP1_NEAREST:
         faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/Dogs_train', transform=Dataset.data_transforms['train'])
     else:
-        pass
+        faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/Dogs_train', transform=Dataset.data_transforms['train'])
 
     imagenet_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/imagenet1k-val',
                                          Dataset.data_transforms['train'])
@@ -241,7 +241,6 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                 predicted_idx = dog_idx
 
                 gt_idx = label[sample_idx].item()
-
 
             # Dataloader and knowledge base
             loader = faiss_loader_dict[predicted_idx]

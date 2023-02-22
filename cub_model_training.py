@@ -14,6 +14,8 @@ import pdb
 
 
 from tqdm import tqdm
+from torchvision import datasets, models, transforms
+from models import AdvisingNetwork, TransformerAdvisingNetwork
 from transformer import Transformer_AdvisingNetwork
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
@@ -26,11 +28,19 @@ random.seed(0)
 import numpy as np
 np.random.seed(0)
 
+# def seed_worker(worker_id):
+#     worker_seed = torch.initial_seed() % 2**32
+#     np.random.seed(worker_seed)
+#     random.seed(worker_seed)
+
+# g = torch.Generator()
+# g.manual_seed(0)
+
 torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3,4,5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -71,14 +81,11 @@ virtual_val_dataset = '{}/val'.format(data_dir)
 
 if RunningParams.MODEL2_FINETUNING is True:
     train_dataset = '/home/giang/Downloads/RN50_dataset_CUB_HP_finetune_set/train'
-    val_dataset = '/home/giang/Downloads/RN50_dataset_CUB_HP_finetune_set/val'
+    # val_dataset = '/home/giang/Downloads/RN50_dataset_CUB_HP_finetune_set/val'
+    val_dataset = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
 else:
     train_dataset = '/home/giang/Downloads/RN50_dataset_CUB_LP/train'
     val_dataset = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
-
-if RunningParams.CUB_200WAY is True:
-    train_dataset = '/home/giang/Downloads/datasets/CUB/train1/'
-    val_dataset = '/home/giang/Downloads/datasets/CUB/test0/'
 
 full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
                                          Dataset.data_transforms['train'])
@@ -103,6 +110,7 @@ if RunningParams.XAI_method == RunningParams.NNs:
     image_datasets['val'] = ImageFolderForNNs(val_dataset, Dataset.data_transforms['val'])
 else:
     pass
+    # Not implemented
 
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 class_names = image_datasets['train'].classes
@@ -112,8 +120,6 @@ feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feat
 feature_extractor.cuda()
 feature_extractor = nn.DataParallel(feature_extractor)
 
-def count_parameters(model):
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     since = time.time()
@@ -180,11 +186,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 predicted_ids = index.squeeze()
 
                 model2_gt = (predicted_ids == gts) * 1  # 0 and 1
-
-                if RunningParams.CUB_200WAY is True:
-                    labels = gts
-                else:
-                    labels = model2_gt
+                labels = model2_gt
 
                 if RunningParams.XAI_method == RunningParams.GradCAM:
                     explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
@@ -193,6 +195,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                         explanation = data[1]
                         if phase == 'train':
                             explanation = explanation[:, 1:RunningParams.k_value + 1, :, :, :]  # ignore 1st NN = query
+                            # explanation = explanation[:, 2:, :, :, :]  # ignore 1st NN = query
                         else:
                             explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
@@ -201,9 +204,9 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                 with torch.set_grad_enabled(phase == 'train'):
                     if RunningParams.XAI_method == RunningParams.NO_XAI:
-                        output, query = model(images=x, explanations=None, scores=model1_p)
+                        output, _, _ = model(images=x, explanations=None, scores=model1_p)
                     else:
-                        output, query = model(images=x, explanations=explanation, scores=model1_p)
+                        output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=model1_p)
 
                     p = torch.nn.functional.softmax(output, dim=1)
                     confs, preds = torch.max(p, 1)
@@ -221,30 +224,40 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
-                        print(count_parameters(model))
 
                 # statistics
                 running_loss += loss.item() * x.size(0)
                 running_label_loss += label_loss.item() * x.size(0)
+                # if RunningParams.XAI_method == RunningParams.NNs:
+                #     running_embedding_loss += embedding_loss.item() * x.size(0)
+
                 running_corrects += torch.sum(preds == labels.data)
 
                 yes_cnt += sum(preds)
                 true_cnt += sum(labels)
 
+            import statistics
+            # print("k: {} | Mean for True: {:.2f} and Mean for False: {:.2f}".format(RunningParams.k_value, statistics.mean(sim_1s), statistics.mean(sim_0s)))
             epoch_loss = running_loss / len(image_datasets[phase])
+            epoch_label_loss = running_label_loss / len(image_datasets[phase])
+            if RunningParams.XAI_method == RunningParams.NNs:
+                epoch_embedding_loss = running_embedding_loss / len(image_datasets[phase])
 
             epoch_acc = running_corrects.double() / len(image_datasets[phase])
             yes_ratio = yes_cnt.double() / len(image_datasets[phase])
             true_ratio = true_cnt.double() / len(image_datasets[phase])
 
             if phase == 'train':
-                if RunningParams.CUB_200WAY is False:
-                    scheduler.step()
+                scheduler.step()
+                # scheduler.step(epoch_acc)
 
-            wandb.log({'{}_accuracy'.format(phase): epoch_acc, '{}_loss'.format(phase): epoch_loss})
+            wandb.log({'{}_accuracy'.format(phase): epoch_acc*100, '{}_loss'.format(phase): epoch_loss})
 
             print('{} - {} - Loss: {:.4f} - Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
                 wandb.run.name, phase, epoch_loss, epoch_acc*100, yes_ratio * 100, true_ratio*100))
+            # if RunningParams.XAI_method == RunningParams.NNs:
+            #     print('{} - Label Loss: {:.4f} - Embedding Loss: {:.4f} '.format(
+            #         phase, epoch_label_loss, epoch_embedding_loss))
 
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
@@ -274,9 +287,11 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     model.load_state_dict(best_model_wts)
     return model, best_acc
 
+model2_name = 'Transformer_AdvisingNetwork'
 MODEL2 = Transformer_AdvisingNetwork()
 
 MODEL2 = MODEL2.cuda()
+MODEL2 = nn.DataParallel(MODEL2)
 
 if RunningParams.CONTINUE_TRAINING:
     model_path = 'best_models/best_model_likely-bird-1000.pt'
@@ -291,12 +306,6 @@ criterion = nn.CrossEntropyLoss()
 # Observe all parameters that are being optimized
 optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)
 
-if RunningParams.CUB_200WAY is True:
-    optimizer_ft = optim.Adam(MODEL2.branch3.parameters())
-
-MODEL2 = nn.DataParallel(MODEL2)
-
-
 oneLR_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     optimizer_ft, max_lr=0.01,
     steps_per_epoch=dataset_sizes['train']//RunningParams.batch_size,
@@ -306,6 +315,7 @@ config = {"train": train_dataset,
           "val": val_dataset,
           "train_size": dataset_sizes['train'],
           "val_size": dataset_sizes['val'],
+          "model2": model2_name,
           "num_epochs": RunningParams.epochs,
           "batch_size": RunningParams.batch_size,
           "learning_rate": RunningParams.learning_rate,

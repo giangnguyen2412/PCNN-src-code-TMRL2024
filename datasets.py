@@ -1213,14 +1213,17 @@ class ImageFolderForNNs(ImageFolder):
                     # if os.path.basename(root) == 'train':
                     if 'train' in root:
                         self.faiss_nn_dict = np.load('faiss/faiss_SDogs_train_RN34_top1.npy', allow_pickle=True, ).item()
+                        print('faiss_SDogs_train_RN34_top1')
                     else:
                         self.faiss_nn_dict = np.load('faiss/faiss_SDogs_val_RN34_top1.npy', allow_pickle=True, ).item()
-                        # replace by simclr npy files here and run again
+                        print('faiss_SDogs_val_RN34_top1')
                 else:
                     if os.path.basename(root) == 'train':
-                        self.faiss_nn_dict = np.load('faiss/faiss_balanced_train_dataset_60k_topk.npy', allow_pickle=True, ).item()
+                        self.faiss_nn_dict = np.load('faiss/faiss_SDogs_train_RN34_topk.npy', allow_pickle=True, ).item()
+                        print('faiss_SDogs_train_RN34_topk')
                     else:
-                        self.faiss_nn_dict = np.load('faiss/faiss_balanced_val_dataset_6k_topk.npy', allow_pickle=True, ).item()
+                        self.faiss_nn_dict = np.load('faiss/faiss_SDogs_val_RN34_topk.npy', allow_pickle=True, ).item()
+                        print('faiss_SDogs_val_RN34_topk')
 
             print(len(self.faiss_nn_dict))
             if os.path.basename(root) == 'train':

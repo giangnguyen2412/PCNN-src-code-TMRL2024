@@ -12,6 +12,7 @@ import copy
 import wandb
 import statistics
 import pdb
+import random
 
 
 from tqdm import tqdm
@@ -27,25 +28,48 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3,4,5,6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "7,6,5,4"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
 Explainer = ModelExplainer()
 
+action = RunningParams.action
+if RunningParams.USING_CLASS_EMBEDDING is True:
+    learnable = RunningParams.optim
+
+commit = "Run k={} Dogs advising network with pretrained model RN50 bs{}. {} class embeddings.".format(
+    RunningParams.k_value, RunningParams.batch_size, action
+)
+
+print(commit)
+if len(commit) == 0:
+    print("Please commit before running!")
+    exit(-1)
+
+
 if [RunningParams.IMAGENET_TRAINING, RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING].count(True) > 1:
     print("There are more than one training datasets chosen, skipping training!!!")
     exit(-1)
+
+assert (RunningParams.CUB_TRAINING is False)
+
+torch.backends.cudnn.deterministic = True
+random.seed(1)
+torch.manual_seed(1)
+torch.cuda.manual_seed(1)
+np.random.seed(1)
 
 if RunningParams.DOGS_TRAINING is True:
     MODEL1 = models.resnet34(pretrained=True).eval().cuda()
 else:
     MODEL1 = models.resnet18(pretrained=True).eval().cuda()
+
 fc = MODEL1.fc
 fc = fc.cuda()
 
-# data_dir = '/home/giang/Downloads/advising_network'
-data_dir = '/home/giang/tmp'
+data_dir = '/home/giang/Downloads/advising_network'
+# data_dir = '/home/giang/tmp'
 
 virtual_train_dataset = '{}/train'.format(data_dir)
 virtual_val_dataset = '{}/val'.format(data_dir)
@@ -59,7 +83,7 @@ if TRAIN_DOG is True:
     train_dataset = '/home/giang/Downloads/datasets/Dogs_train'
     val_dataset = '/home/giang/Downloads/datasets/Dogs_val'
 
-    category_val_dataset = '/home/giang/Downloads/RN18_dataset_Dog_val'
+    category_val_dataset = '???'
     CATEGORY_ANALYSIS = False
     if CATEGORY_ANALYSIS is True:
         import glob
@@ -123,18 +147,23 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
 
+            if phase == 'train':
+                shuffle = True
+                model.train()  # Training mode
+                torch.set_grad_enabled(True)  # Using torch.no_grad without context manager
+            else:
+                shuffle = False
+                model.eval()  # Evaluation mode
+                torch.set_grad_enabled(False)
+
             data_loader = torch.utils.data.DataLoader(
                 image_datasets[phase],
                 batch_size=RunningParams.batch_size,
-                shuffle=True,  # turn shuffle to True
+                shuffle=shuffle,  # turn shuffle to True
                 num_workers=16,
                 pin_memory=True,
+                # drop_last=True
             )
-
-            if phase == 'train':
-                model.train()  # Training mode
-            else:
-                model.eval()  # Evaluation mode
 
             running_loss = 0.0
             running_corrects = 0
@@ -186,6 +215,20 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     model2_gt = (predicted_ids == gts) * 1  # 0 and 1
                 labels = model2_gt
 
+                if RunningParams.USING_CLASS_EMBEDDING:
+                    prototype_class_id_list = []
+                    for sample_idx in range(x.shape[0]):
+                        query_base_name = os.path.basename(pths[sample_idx])
+                        prototype_list = data_loader.dataset.faiss_nn_dict[query_base_name]
+                        if phase == 'train':
+                            prototype_classes = [prototype_list[i].split('/')[-2] for i in
+                                                 range(1, RunningParams.k_value + 1)]
+
+                        else:
+                            prototype_classes = [prototype_list[i].split('/')[-2] for i in range(0, RunningParams.k_value)]
+                        prototype_class_ids = [imagenet_dataset.class_to_idx[c] for c in prototype_classes]
+                        prototype_class_id_list.append(prototype_class_ids)
+
                 if RunningParams.XAI_method == RunningParams.GradCAM:
                     explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
                 elif RunningParams.XAI_method == RunningParams.NNs:
@@ -196,25 +239,23 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                             # explanation = explanation[:, 2:, :, :, :]  # ignore 1st NN = query
                         else:
                             explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
+                            # black out the explanations
+                            # explanation = torch.zeros_like(explanation)
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
                 with torch.set_grad_enabled(phase == 'train'):
                     if RunningParams.XAI_method == RunningParams.NO_XAI:
-                        output, _, _ = model(images=x, explanations=None, scores=model1_p)
+                        output, _, _ = model(images=x, explanations=None, scores=model1_p, prototype_class_id_list=prototype_class_id_list)
                     else:
-                        output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=model1_p)
+                        output, query, _, _ = model(images=x, explanations=explanation, scores=model1_p, prototype_class_id_list=prototype_class_id_list)
 
                     p = torch.nn.functional.softmax(output, dim=1)
                     confs, preds = torch.max(p, 1)
                     label_loss = loss_func(p, labels)
 
-                    if RunningParams.XAI_method == RunningParams.NNs and RunningParams.embedding_loss is True:
-                        loss = label_loss + embedding_loss
-                        # loss = embedding_loss
-                    else:
-                        loss = label_loss
+                    loss = label_loss
 
                     # CONFIDENCE_LOSS = RunningParams.CONFIDENCE_LOSS
                     CONFIDENCE_LOSS = False
@@ -368,7 +409,8 @@ print(config)
 wandb.init(
     project="advising-network",
     entity="luulinh90s",
-    config=config
+    config=config,
+    notes=commit,
 )
 
 wandb.save(os.path.basename(__file__), policy='now')

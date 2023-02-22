@@ -1,18 +1,28 @@
-def count_parameters(model):
-    return sum(p.numel() for p in model.parameters() if p.requires_grad)
+import numpy as np
+from datasets import ImageFolderForNNs
 
-from transformer import Transformer_AdvisingNetwork
-import torch
-import torch.nn as nn
+filename = 'faiss/faiss_SDogs_val_RN34_topk.npy'
+kbc = np.load(filename, allow_pickle=True, ).item()
+
+cnt = 0
+for query, nns in kbc.items():
+    if 'train' in filename:
+        nn_label = nns[1].split('/')[-2]
+    else:
+        nn_label = nns[0].split('/')[-2]
+
+    nn_label = nn_label.split('.')[1]
+    nn_label = nn_label.upper()
+    query = query.upper()
+    if nn_label in query:
+        cnt += 1
+    else:
+        print(nn_label, query)
 
 
-model = Transformer_AdvisingNetwork()
-model = model.cuda()
-model = nn.DataParallel(model)
+print(cnt*100/len(kbc))
+print(cnt)
+print(len(kbc))
 
 
-model_path = 'best_models/best_model_classic-wind-1138.pt'
-checkpoint = torch.load(model_path)
-model.load_state_dict(checkpoint['model_state_dict'])
 
-print(count_parameters(model))

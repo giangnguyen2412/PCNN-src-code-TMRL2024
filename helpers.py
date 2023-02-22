@@ -6,6 +6,7 @@ from shutil import *
 import numpy as np
 import torch
 from PIL import Image
+import glob
 
 
 class HelperFunctions(object):
@@ -122,6 +123,24 @@ class HelperFunctions(object):
         """
         return key_list.index(str(class_id))
 
+    def load_imagenet_validation_gt(self):
+        count = 0
+        input_f = open("/home/giang/Downloads/kNN-classifiers/input_txt_files/ILSVRC2012_validation_ground_truth.txt")
+        gt_dict = {}
+        while True:
+            count += 1
+
+            # Get the next line
+            line = input_f.readline()
+
+            # if line is empty, EOL is reached
+            if not line:
+                break
+            gt_dict[count] = int(line.strip())
+
+        input_f.close()
+        return gt_dict
+
     @staticmethod
     def is_program_running(script):
         """
@@ -136,3 +155,21 @@ class HelperFunctions(object):
                     return True
 
         return False
+
+    @staticmethod
+    def count_two_lists_overlap(a, b):
+        return len(set(a) & set(b))
+
+    @staticmethod
+    def count_overlaps_by_two_paths(path1, path2):
+        samples = {path1: [], path2: []}
+        for path in [path1, path2]:
+            image_folders = glob.glob('{}/*'.format(path))
+            for i, image_folder in enumerate(image_folders):
+                image_paths = glob.glob(image_folder + '/*.*')
+                for image in image_paths:
+                    samples[path].append(os.path.basename(image))
+
+        return HelperFunctions.count_two_lists_overlap(samples[path1], samples[path2])
+
+

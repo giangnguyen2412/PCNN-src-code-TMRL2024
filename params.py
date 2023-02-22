@@ -39,13 +39,14 @@ class RunningParams(object):
 
             if self.CUB_200WAY is True:
                 self.batch_size = 64  # ----------------------------------------- IMPORTANT PARAM --------
+                self.epochs = 50
             else:
                 self.batch_size = 100
         elif self.DOGS_TRAINING:
             self.batch_size = 512  # ----------------------------------------- IMPORTANT PARAM --------
+            self.epochs = 100
 
-        self.learning_rate = 0.001
-        self.epochs = 300
+        self.learning_rate = 0.01
         self.query_frozen = True  # False = Trainable; True = Freeze? -------------------- IMPORTANT PARAM --------
         self.heatmap_frozen = False  # freeze?
         self.nns_frozen = False  # freeze?
@@ -56,7 +57,7 @@ class RunningParams(object):
 
         # Training NNs
         self.embedding_loss = False
-        self.k_value = 1  # ----------------------------------------- IMPORTANT PARAM --------
+        self.k_value = 0  # ----------------------------------------- IMPORTANT PARAM --------
         self.PRECOMPUTED_NN = True
         self.CrossCorrelation = True  # ----------------------------------------- IMPORTANT PARAM --------
 
@@ -67,7 +68,7 @@ class RunningParams(object):
 
         # Infer
         self.advising_steps = 4
-        self.MODEL2_ADVISING = True
+        self.MODEL2_ADVISING = False
 
         # Visualization
         self.M2_VISUALIZATION = False
@@ -78,3 +79,17 @@ class RunningParams(object):
         # Uncategorized
         self.COSINE_ONLY = False  # ----------------------------------------- IMPORTANT PARAM --------
         self.HUMAN_AI_ANALYSIS = False
+
+        # Class embeddings
+        self.USING_CLASS_EMBEDDING = False
+        if self.USING_CLASS_EMBEDDING is True:
+            self.action = 'Using'
+            self.FIXED = False
+            self.LEARNABLE = True
+
+            if self.FIXED is True:
+                self.optim = 'fixed'
+            elif self.LEARNABLE is True:
+                self.optim = 'learnable'
+        else:
+            self.action = 'NOT Using'

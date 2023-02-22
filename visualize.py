@@ -107,3 +107,102 @@ class Visualization(object):
         )
         print(cmd)
         os.system(cmd)
+
+    @staticmethod
+    def visualize_cub200_prototypes(
+            query: str,
+            gt_label: str,
+            prototypes: list,
+            save_dir: str):
+        cmd = "convert '{}' -resize 256x256^ -gravity Center -extent 224x224 {}/query.jpeg".format(
+            query, save_dir
+        )
+        os.system(cmd)
+        annotation = gt_label
+        cmd = 'convert {}/query.jpeg -font aakar -pointsize 10 -gravity North -background ' \
+              'White -splice 0x40 -annotate +0+4 "{}" {}/query.jpeg'.format(
+            save_dir, annotation, save_dir
+        )
+        os.system(cmd)
+        for idx, prototype in enumerate(prototypes):
+            cmd = "convert '{}' -resize 256x256^ -gravity Center -extent 224x224 {}/{}.jpeg".format(
+                prototype, save_dir, idx)
+            os.system(cmd)
+            annotation = prototype.split('/')[-2]
+            cmd = 'convert {}/{}.jpeg -font aakar -pointsize 10 -gravity North -background ' \
+                  'White -splice 0x40 -annotate +0+4 "{}" {}/{}.jpeg'.format(
+                save_dir, idx, annotation, save_dir, idx
+            )
+            os.system(cmd)
+
+        cmd = 'montage {}/[0-5].jpeg -tile 6x1 -geometry +0+0 {}/aggregate.jpeg'.format(save_dir, save_dir)
+        os.system(cmd)
+        cmd = 'montage {}/query.jpeg {}/aggregate.jpeg -tile 2x -geometry +10+0 {}/{}.JPEG'.format(save_dir, save_dir,
+                                                                                                   save_dir, gt_label)
+        os.system(cmd)
+
+    @staticmethod
+    # filename = 'faiss/faiss_SDogs_val_RN34_top1.npy'
+    # kbc = np.load(filename, allow_pickle=True, ).item()
+    #
+    # HelperFunctions = HelperFunctions()
+    def visualize_dog_prototypes(
+            query: str,
+            gt_label: str,
+            prototypes: list,
+            save_dir: str):
+        cmd = "convert '{}' -resize 256x256^ -gravity Center -extent 224x224 {}/query.jpeg".format(
+            query, save_dir
+        )
+        os.system(cmd)
+        annotation = gt_label
+        cmd = 'convert {}/query.jpeg -font aakar -pointsize 10 -gravity North -background ' \
+              'White -splice 0x40 -annotate +0+4 "{}" {}/query.jpeg'.format(
+            save_dir, annotation, save_dir
+        )
+        os.system(cmd)
+        for idx, prototype in enumerate(prototypes):
+            cmd = "convert '{}' -resize 256x256^ -gravity Center -extent 224x224 {}/{}.jpeg".format(
+                prototype, save_dir, idx)
+            os.system(cmd)
+            annotation = prototype.split('/')[-2]
+
+            annotation = HelperFunctions.convert_imagenet_id_to_label(HelperFunctions.key_list, annotation)
+            annotation = HelperFunctions.label_map[annotation]
+
+            cmd = 'convert {}/{}.jpeg -font aakar -pointsize 10 -gravity North -background ' \
+                  'White -splice 0x40 -annotate +0+4 "{}" {}/{}.jpeg'.format(
+                save_dir, idx, annotation, save_dir, idx
+            )
+            os.system(cmd)
+
+        cmd = 'montage {}/[0-5].jpeg -tile 6x1 -geometry +0+0 {}/aggregate.jpeg'.format(save_dir, save_dir)
+        os.system(cmd)
+
+        file_name = os.path.basename(query)
+        cmd = 'montage {}/query.jpeg {}/aggregate.jpeg -tile 2x -geometry +10+0 {}/{}.JPEG'.format(save_dir, save_dir,
+                                                                                                   save_dir, file_name)
+        os.system(cmd)
+
+    # id = HelperFunctions.load_imagenet_validation_gt()
+    # cnt = 0
+    #
+    # for query, nn in kbc.items():
+    #     cnt += 1
+    #     if cnt == 10:
+    #         break
+    #
+    #     if 'train' in filename:
+    #         wnid = query.split('_')[0]
+    #         query = os.path.join('/home/giang/Downloads/datasets/Dogs_train', wnid, query)
+    #     else:
+    #         path = glob.glob('/home/giang/Downloads/datasets/imagenet1k-val/**/{}'.format(query))
+    #         wnid = path[0].split('/')[-2]
+    #         query = os.path.join('/home/giang/Downloads/datasets/Dogs_val', wnid, query)
+    #
+    #     gt_label = HelperFunctions.convert_imagenet_id_to_label(HelperFunctions.key_list, wnid)
+    #     gt_label = HelperFunctions.label_map[gt_label]
+    #     visualize_dog_prototypes(query, gt_label, nn, 'tmp')
+
+
+
