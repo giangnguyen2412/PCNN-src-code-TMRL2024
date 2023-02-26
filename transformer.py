@@ -27,35 +27,14 @@ class BinaryMLP(nn.Module):
         return self.net(x)
 
 
-# class CUB200MLP(nn.Module):
-#     def __init__(self, input_dim, hidden_dim, dropout = 0.):
-#         super().__init__()
-#         self.net = nn.Sequential(
-#             nn.Linear(input_dim, hidden_dim),
-#             nn.GELU(),
-#             nn.Dropout(dropout),
-#             nn.Linear(hidden_dim, 200),  # 2 for binary classification
-#             nn.Dropout(dropout)
-#         )
-#
-#     def forward(self, x):
-#         return self.net(x)
-
-class CUB200MLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, dropout = 0.):
-        super().__init__()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, 200),
-        )
-
-    def forward(self, x):
-        return self.net(x)
-
-
 class Transformer_AdvisingNetwork(nn.Module):
     def __init__(self):
         super(Transformer_AdvisingNetwork, self).__init__()
 
+        # resnet = torchvision.models.resnet50(pretrained=True).cuda()
+        # resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
+        # my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
+        # resnet.load_state_dict(my_model_state_dict, strict=True)
         if RunningParams.CUB_TRAINING is True:
             from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
             resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
@@ -63,40 +42,20 @@ class Transformer_AdvisingNetwork(nn.Module):
                 'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
             resnet.load_state_dict(my_model_state_dict, strict=True)
         elif RunningParams.DOGS_TRAINING is True:
-            resnet = torchvision.models.resnet50(pretrained=True)
-            if RunningParams.USING_CLASS_EMBEDDING is True:
-                # self.class_emd_matrix = resnet.fc.weight  # 1000x2048
-                self.class_emd_matrix = resnet.fc.weight.detach().clone()
+            resnet = torchvision.models.resnet50(pretrained=True).cuda()
 
             if RunningParams.SIMCLR_MODEL is True:
                 from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
                 resnet = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
 
-            # resnet = torchvision.models.resnet50(pretrained=True).cuda()
-            # resnet.fc = nn.Linear(2048, 133, bias=True)
-            # my_model_state_dict = torch.load('model_transfer.pt')
-            # resnet.load_state_dict(my_model_state_dict, strict=True)
-
-        if RunningParams.CUB_TRAINING is True:
-            if RunningParams.CUB_200WAY is True:
-                from collections import OrderedDict
-
-                resnet = torchvision.models.resnet50(pretrained=True).cuda()
-                my_model_state_dict = torch.load("/home/giang/Downloads/Cub-ResNet-iNat/resnet50_inat_pretrained_0.841.pth")
-                my_model_state_dict = OrderedDict(
-                    {name.replace("layers.", ""): value for name, value in my_model_state_dict.items()}
-                )
-                resnet.load_state_dict(my_model_state_dict, strict=False)
-
         if RunningParams.query_frozen is True:
             for param in resnet.parameters():
                 param.requires_grad = False
-
         conv_features = list(resnet.children())[:RunningParams.conv_layer-6]  # delete the last fc layer
         self.conv_layers = nn.Sequential(*conv_features)
         self.pooling_layer = nn.AdaptiveAvgPool2d(output_size=(1, 1))
 
-        class TransformerFeatureEmbedder(nn.Module):
+        class transformer_feat_embedder(nn.Module):
             def __init__(self, num_patches, dim):
                 super().__init__()
                 self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
@@ -117,63 +76,55 @@ class Transformer_AdvisingNetwork(nn.Module):
 
                 return x
 
-        self.TransformerFeatureEmbedder = TransformerFeatureEmbedder(RunningParams.feat_map_size[RunningParams.conv_layer],
+        self.transformer_feat_embedder = transformer_feat_embedder(RunningParams.feat_map_size[RunningParams.conv_layer],
                                                                    RunningParams.conv_layer_size[RunningParams.conv_layer])
 
         self.transformer = Transformer(dim=2048, depth=2, heads=8, dim_head=64, mlp_dim=512, dropout=0.0)
         self.cross_transformer = CrossTransformer(sm_dim=2048, lg_dim=2048, depth=2, heads=8,
                                                   dim_head=64, dropout=0.0)
 
+        # TODO: What is dim_head, mlp_dim? How these affect the performance?
+        # Branch 1 takes softmax scores and cosine similarity
+        self.branch1 = BinaryMLP(200, 2)
         # Branch 3 takes transformer features and sep_token*2
-        if RunningParams.CUB_TRAINING is True:
-            if RunningParams.CUB_200WAY is True:
-                # self.branch3 = CUB200MLP(
-                # RunningParams.k_value*RunningParams.conv_layer_size[RunningParams.conv_layer]*2 +
-                #                      RunningParams.k_value*2, 512)
-                self.branch3 = CUB200MLP(
-                    (RunningParams.k_value+1) * RunningParams.conv_layer_size[RunningParams.conv_layer], None)
-        else:
-            self.branch3 = BinaryMLP(RunningParams.k_value*RunningParams.conv_layer_size[RunningParams.conv_layer]*2 +
-                                     RunningParams.k_value*2, 32)
+        self.branch3 = BinaryMLP(RunningParams.k_value*RunningParams.conv_layer_size[RunningParams.conv_layer]*2 +
+                                 RunningParams.k_value*2, 32)
+
+        self.output_layer = BinaryMLP(2 * 2 + 2, 2)
+
+        self.dropout = nn.Dropout(p=RunningParams.dropout)
 
         # initialize all fc layers to xavier
         for m in self.modules():
             if isinstance(m, nn.Linear):
                 torch.nn.init.xavier_normal_(m.weight, gain=1)
 
-    def forward(self, images, explanations, scores, prototype_class_id_list):
+    def forward(self, images, explanations, scores):
+        # Process the input images
         input_spatial_feats = self.conv_layers(images)
         input_feat = self.pooling_layer(input_spatial_feats).squeeze()
         input_spatial_feats = input_spatial_feats.flatten(start_dim=2)  # bsxcx49
 
-        if RunningParams.USING_CLASS_EMBEDDING is True:
-            class_embedding_list = []
-            for sample_idx in range(images.shape[0]):
-                prototype_class_ids = prototype_class_id_list[sample_idx]
-                class_embeddings = [self.class_emd_matrix[i] for i in prototype_class_ids]
-                class_embeddings = torch.stack(class_embeddings)
-                class_embedding_list.append(class_embeddings)
-            class_embedding_list = torch.stack(class_embedding_list)
-            class_embedding_list = class_embedding_list.squeeze()
+        # Process the nearest neighbors
+        if RunningParams.XAI_method == RunningParams.NNs:
+            if RunningParams.k_value == 1:
+                explanations = explanations.squeeze()
+                explanation_spatial_feats = self.conv_layers(explanations)
+                explanation_feat = self.pooling_layer(explanation_spatial_feats).squeeze()
+                explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
+            else:  # K > 1
+                explanation_spatial_feats = []
+                for sample_idx in range(RunningParams.k_value):
+                    data = explanations[:, 0, :]
+                    explanation_spatial_feat = self.conv_layers(data)
+                    explanation_spatial_feat = explanation_spatial_feat.flatten(start_dim=2)  #
+                    explanation_spatial_feats.append(explanation_spatial_feat)
 
-        if RunningParams.k_value == 1:
-            explanations = explanations.squeeze()
-            explanation_spatial_feats = self.conv_layers(explanations)
-            explanation_feat = self.pooling_layer(explanation_spatial_feats).squeeze()
-            explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
-        else:  # K > 1
-            explanation_spatial_feats = []
-            # Loop over k values to reduce the iteration numbers
-            for sample_idx in range(RunningParams.k_value):
-                data = explanations[:, sample_idx, :, :, :]
-                explanation_spatial_feat = self.conv_layers(data)
-                explanation_spatial_feat = explanation_spatial_feat.flatten(start_dim=2)  #
-                explanation_spatial_feats.append(explanation_spatial_feat)
-
-            # Expect to have kx2048x49
-            explanation_spatial_feats = torch.stack(explanation_spatial_feats, dim=1)
+                # Expect to have kx2048x49
+                explanation_spatial_feats = torch.stack(explanation_spatial_feats, dim=1)
 
         # change from 2048x49 -> 49x2048
+        # 49 tokens for an image
         input_spatial_feats = torch.transpose(input_spatial_feats, 1, 2)
         if RunningParams.k_value == 1:
             explanation_spatial_feats = torch.transpose(explanation_spatial_feats, 1, 2)
@@ -182,48 +133,81 @@ class Transformer_AdvisingNetwork(nn.Module):
 
         sep_token = torch.zeros([explanations.shape[0], 1], requires_grad=False).cuda()
 
+        transformer_encoder_depth = 2
+
         if RunningParams.k_value == 1:
-            input_spatial_feats = self.TransformerFeatureEmbedder(input_spatial_feats, 1)
-            explanation_spatial_feats = self.TransformerFeatureEmbedder(explanation_spatial_feats, 1)
+            # Add the cls token and positional embedding --> 50x2048
+            input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, 1)
+            explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats, 1)
 
-            input_spatial_feats = self.transformer(input_spatial_feats)
-            explanation_spatial_feats = self.transformer(explanation_spatial_feats)
+            # TODO: as the output of the first layer does not propagate to the second layer, then transformer_encoder_depth should be 1
+            for _ in range(transformer_encoder_depth):
+                # Self-attention --> 50x2048
+                input_spt_feats = self.transformer(input_spatial_feats)
+                exp_spt_feats = self.transformer(explanation_spatial_feats)
 
-            input_spatial_feats, explanation_spatial_feats = self.cross_transformer(input_spatial_feats, explanation_spatial_feats)
+                # Cross-attention --> 50x2048
+                input_spatial_feats, explanation_spatial_feats = self.cross_transformer(input_spt_feats, exp_spt_feats)
 
-            input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
-            input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
+                input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
+                input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
 
-            # Extracting the cls token
+            # Extracting the cls token --> 1x2048
             input_cls, exp_cls = map(lambda t: t[:, 0], (input_emb, exp_emb))
-            if RunningParams.USING_CLASS_EMBEDDING is True:
-                class_embedding_list = class_embedding_list.to(exp_cls.device)
-                exp_cls = exp_cls + class_embedding_list
             transformer_emb = torch.cat([sep_token, input_cls, sep_token, exp_cls], dim=1)
 
         else:
-            input_spatial_feats = self.TransformerFeatureEmbedder(input_spatial_feats, 1)
-            explanation_spatial_feats = self.TransformerFeatureEmbedder(explanation_spatial_feats, 3)
+            input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, 1)
+            explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats, 3)
 
-            input_spatial_feats = self.transformer(input_spatial_feats)
             transformer_embs = []
-            # We need to loop over prototypes because we need CA b/w query vs. each NN
-            for expl_idx in range(RunningParams.k_value):
-                explanation = explanation_spatial_feats[:, expl_idx, :, :]
-                explanation = self.transformer(explanation)
-                # TODO: uncomment the two lines below to enable CA
-                input, explanation = self.cross_transformer(input_spatial_feats, explanation)
-                input_emb, exp_emb = input, explanation
-                # TODO: uncomment the 1 line below to disable CA
-                # input_emb, exp_emb = input_spatial_feats, explanation
-                input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
+
+            i2e_attns = []
+            e2i_attns = []
+            for sample_idx in range(RunningParams.k_value):
+                explanation = explanation_spatial_feats[:, sample_idx, :]
+                for depth_idx in range(transformer_encoder_depth):
+                    # input_spt_feats = self.transformer(input_spatial_feats)
+                    # explanation = self.transformer(explanation)
+
+                    # TODO: Thử remove self-attention
+                    # TODO: với VIT hiện tại ko có model về patch (local) mà chỉ có global info
+                    input_spt_feats = input_spatial_feats
+                    explanation = explanation
+
+                    input_spatial_feats, explanation, i2e_attn, e2i_attn = self.cross_transformer(input_spt_feats, explanation)
+
+                    # Extract attention from the last layer (i.e. closest to classification head)
+                    if depth_idx == transformer_encoder_depth - 1:
+                        i2e_attns.append(i2e_attn)
+                        e2i_attns.append(e2i_attn)
+
+                    input_emb, exp_emb = input_spatial_feats, explanation
+                    input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
 
                 input_cls, exp_cls = map(lambda t: t[:, 0], (input_emb, exp_emb))
                 transformer_emb = torch.cat([sep_token, input_cls, sep_token, exp_cls], dim=1)
                 transformer_embs.append(transformer_emb)
 
-            transformer_emb = torch.cat(transformer_embs, dim=1)
+                transformer_emb = torch.cat(transformer_embs, dim=1)
 
-        output = self.branch3(transformer_emb)
+            i2e_attns = torch.cat(i2e_attns, dim=2)
+            e2i_attns = torch.cat(e2i_attns, dim=2)
 
-        return output, input_feat, None, None
+        output3 = self.branch3(transformer_emb)
+        # output1 = self.branch1(torch.cat([scores], dim=1))
+        #
+        # output1_p = torch.nn.functional.softmax(output1, dim=1)
+        # output3_p = torch.nn.functional.softmax(output3, dim=1)
+        #
+        # output = torch.cat([sep_token, output1_p, sep_token, output3_p], dim=1)
+        # output = self.output_layer(output)
+        output = output3
+
+        if RunningParams.XAI_method == RunningParams.NO_XAI:
+            return output, None, None
+        elif RunningParams.XAI_method == RunningParams.NNs:
+            if RunningParams.k_value == 1:
+                return output, input_feat, None, None
+            else:
+                return output, input_feat, i2e_attns, e2i_attns

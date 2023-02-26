@@ -7,24 +7,27 @@ from einops.layers.torch import Rearrange
 
 # helpers
 
+
 def exists(val):
     return val is not None
+
 
 def default(val, d):
     return val if exists(val) else d
 
-# pre-layernorm
 
+# pre-layernorm
 class PreNorm(nn.Module):
     def __init__(self, dim, fn):
         super().__init__()
         self.norm = nn.LayerNorm(dim)
         self.fn = fn
+
     def forward(self, x, **kwargs):
         return self.fn(self.norm(x), **kwargs)
 
-# feedforward
 
+# feedforward
 class FeedForward(nn.Module):
     def __init__(self, dim, hidden_dim, dropout = 0.):
         super().__init__()
@@ -35,11 +38,12 @@ class FeedForward(nn.Module):
             nn.Linear(hidden_dim, dim),
             nn.Dropout(dropout)
         )
+
     def forward(self, x):
         return self.net(x)
 
-# attention
 
+# attention
 class Attention(nn.Module):
     def __init__(self, dim, heads = 8, dim_head = 64, dropout = 0.):
         super().__init__()
@@ -63,7 +67,7 @@ class Attention(nn.Module):
         context = default(context, x)
 
         if kv_include_self:
-            context = torch.cat((x, context), dim = 1) # cross attention requires CLS token includes itself as key / value
+            context = torch.cat((x, context), dim = 1)  # cross attention requires CLS token includes itself as key / value
 
         qkv = (self.to_q(x), *self.to_kv(context).chunk(2, dim = -1))
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = h), qkv)
@@ -75,10 +79,19 @@ class Attention(nn.Module):
 
         out = einsum('b h i j, b h j d -> b h i d', attn, v)
         out = rearrange(out, 'b h n d -> b n (h d)')
-        return self.to_out(out)
+
+        if kv_include_self is True:
+            # return attention matrix for cross-attention
+            return self.to_out(out), attn
+        else:
+            return self.to_out(out)
+
+        # đang ko hiểu tại sao cross thì lại là 1x50 mà self lại là 50x50
+        # ngoài ra phải tìm cách lấy attn từ cross nữa do cái ModuleList có depth là 2
+        # thứ nữa là kiểm tra xem cột nào hàng nào trong matrix cần lấy ra để visualize
+
 
 # transformer encoder, for small and large patches
-
 class Transformer(nn.Module):
     def __init__(self, dim, depth, heads, dim_head, mlp_dim, dropout = 0.):
         super().__init__()
@@ -96,8 +109,8 @@ class Transformer(nn.Module):
             x = ff(x) + x
         return self.norm(x)
 
-# projecting CLS tokens, in the case that small and large patch tokens have different dimensions
 
+# projecting CLS tokens, in the case that small and large patch tokens have different dimensions
 class ProjectInOut(nn.Module):
     def __init__(self, dim_in, dim_out, fn):
         super().__init__()
@@ -113,8 +126,8 @@ class ProjectInOut(nn.Module):
         x = self.project_out(x)
         return x
 
-# cross attention transformer
 
+# cross attention transformer
 class CrossTransformer(nn.Module):
     def __init__(self, sm_dim, lg_dim, depth, heads, dim_head, dropout):
         super().__init__()
@@ -126,18 +139,33 @@ class CrossTransformer(nn.Module):
             ]))
 
     def forward(self, sm_tokens, lg_tokens):
+        # Here we separate the cls token and image tokens
         (sm_cls, sm_patch_tokens), (lg_cls, lg_patch_tokens) = map(lambda t: (t[:, :1], t[:, 1:]), (sm_tokens, lg_tokens))
 
+        attns = []
         for sm_attend_lg, lg_attend_sm in self.layers:
-            sm_cls = sm_attend_lg(sm_cls, context = lg_patch_tokens, kv_include_self = True) + sm_cls
-            lg_cls = lg_attend_sm(lg_cls, context = sm_patch_tokens, kv_include_self = True) + lg_cls
+            # img1 attends to img2
+            # when using cross attention, only cls token of sm attends to all image tokens of lg
+            attn1 = sm_attend_lg(sm_cls, context = lg_patch_tokens, kv_include_self = True)
+            sm_cls = attn1[0] + sm_cls
+
+            attns.append(attn1[1])
+
+            # when using cross attention, only cls token of lg attends to all image tokens of sm
+            # img2 attends to img1
+            attn2 = lg_attend_sm(lg_cls, context = sm_patch_tokens, kv_include_self = True)
+            lg_cls = attn2[0] + lg_cls
+
+            attns.append(attn2[1])
 
         sm_tokens = torch.cat((sm_cls, sm_patch_tokens), dim = 1)
         lg_tokens = torch.cat((lg_cls, lg_patch_tokens), dim = 1)
-        return sm_tokens, lg_tokens
+        # return sm_tokens, lg_tokens, attn1[1], attn2[1]
+
+        return sm_tokens, lg_tokens, attns[2], attns[3]
+
 
 # multi-scale encoder
-
 class MultiScaleEncoder(nn.Module):
     def __init__(
         self,
@@ -168,8 +196,8 @@ class MultiScaleEncoder(nn.Module):
 
         return sm_tokens, lg_tokens
 
-# patch-based image to token embedder
 
+# patch-based image to token embedder
 class ImageEmbedder(nn.Module):
     def __init__(
         self,
@@ -203,8 +231,8 @@ class ImageEmbedder(nn.Module):
 
         return self.dropout(x)
 
-# cross ViT class
 
+# cross ViT class
 class CrossViT(nn.Module):
     def __init__(
         self,

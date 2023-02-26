@@ -107,7 +107,7 @@ transform = torchvision.transforms.Compose(
 )
 
 # import glob
-# test_path = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
+# test_path = '/home/giang/Downloads/RN50_dataset_CUB_Pretraining/val'
 # test_samples = []
 # image_folders = glob.glob('{}/*'.format(test_path))
 # for i, image_folder in enumerate(image_folders):

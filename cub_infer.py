@@ -30,7 +30,7 @@ Visualization = Visualization()
 
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3,4,5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
@@ -51,7 +51,7 @@ CATEGORY_ANALYSIS = True
 if RunningParams.MODEL2_ADVISING is True:
     in_features = 2048
     print("Building FAISS index...! Training set is the knowledge base.")
-    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB_LP/train',
+    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB_Pretraining/train',
                                          transform=Dataset.data_transforms['train'])
 
     faiss_data_loader = torch.utils.data.DataLoader(
@@ -63,7 +63,7 @@ if RunningParams.MODEL2_ADVISING is True:
         pin_memory=True,
     )
 
-    HIGHPERFORMANCE_FEATURE_EXTRACTOR = RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR
+    HIGHPERFORMANCE_FEATURE_EXTRACTOR = True
     if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
         INDEX_FILE = 'faiss/faiss_CUB200_class_idx_dict_HP_extractor.npy'
     else:
@@ -83,11 +83,10 @@ if RunningParams.MODEL2_ADVISING is True:
 full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
                                          Dataset.data_transforms['train'])
 
-default_model = 'best_model_gentle-shadow-1025.pt'
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='{}'.format(default_model),
+                        default='best_model_tough-capybara-1414.pt',
                         help='Model check point')
     # parser.add_argument('--dataset', type=str,
     #                     default='balanced_val_dataset_6k',
@@ -149,7 +148,7 @@ if __name__ == '__main__':
         fc = MODEL1.fc.cuda()
         fc = nn.DataParallel(fc)
 
-        categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_backup'
+        categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_LOW/combined'
 
     feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
     feature_extractor.cuda()
@@ -179,9 +178,10 @@ if __name__ == '__main__':
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
             batch_size=50,
-            shuffle=True,  # turn shuffle to False
+            shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
+            drop_last=True
         )
 
         running_corrects = 0
@@ -210,6 +210,7 @@ if __name__ == '__main__':
                 x = data[0].cuda()
             else:
                 x = data.cuda()
+
             if len(data_loader.dataset.classes) < 200:
                 for sample_idx in range(x.shape[0]):
                     tgt = gt[sample_idx].item()
@@ -264,10 +265,42 @@ if __name__ == '__main__':
                 if RunningParams.XAI_method == RunningParams.NO_XAI:
                     output, _, _ = model(images=x, explanations=None, scores=model1_p)
                 else:
-                    output, query, nns, _ = model(images=x, explanations=explanation, scores=model1_p)
+                    output, query, i2e_attn, e2i_attn = model(images=x, explanations=explanation, scores=model1_p)
 
                 p = torch.nn.functional.softmax(output, dim=1)
                 model2_score, preds = torch.max(p, 1)
+
+                VISUALIZE_TRANSFORMER_ATTN = True
+                if VISUALIZE_TRANSFORMER_ATTN is True:
+                    i2e_attn = i2e_attn.mean(dim=1)
+                    i2e_attn = i2e_attn[:, :, 1:]  # remove cls token
+
+                    e2i_attn = e2i_attn.mean(dim=1)
+                    e2i_attn = e2i_attn[:, :, 1:]  # remove cls token
+
+                    results = (preds == labels)
+                    for sample_idx in range(x.shape[0]):
+                        result = results[sample_idx].item()
+                        if result is True:
+                            correctness = 'Correctly'
+                        else:
+                            correctness = 'Incorrectly'
+
+                        pred = preds[sample_idx].item()
+                        if pred == 1:
+                            action = 'Accept'
+                        else:
+                            action = 'Reject'
+                        model2_decision = correctness + action
+
+                        bef_weights = i2e_attn[sample_idx][0:1]
+                        aft_weights = e2i_attn[sample_idx][0:1]
+                        query = pths[sample_idx]
+                        base_name = os.path.basename(query)
+                        # as the test images are from validation, then we do not need to exclude the fist prototype
+                        # Visualize the attention b/w query vs the 1ST prototype
+                        prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
+                        Visualization.visualize_transformer_attn(bef_weights, aft_weights, prototypes[0], pths[sample_idx], title=model2_decision)
 
                 REMOVE_UNCERT = False
                 for sample_idx in range(x.shape[0]):
@@ -287,84 +320,6 @@ if __name__ == '__main__':
                         if preds[sample_idx].item() == labels[sample_idx].item():
                             category_record[key]['crt'] += 1
 
-            # Running ADVISING process
-            # TODO: Reduce compute overhead by only running on disagreed samples
-            advising_steps = RunningParams.advising_steps
-            # When using advising & still disagree & examining only top $advising_steps + 1
-            # while RunningParams.MODEL2_ADVISING is True and sum(preds) < x.shape[0]:
-            # TODO: Giang dang xem predicted_ids bi thay doi nhuw the nao ma ko lam tang top-1 accuracy
-            if RunningParams.MODEL2_ADVISING is True:
-                embeddings = embeddings.cpu().detach().numpy()
-                tmp_predicted_ids = torch.clone(predicted_ids)
-                tmp_preds = torch.clone(preds)
-                print(tmp_preds.sum())
-                for k in range(1, RunningParams.advising_steps):
-                    # top-k predicted labels
-                    model1_topk = model1_ranks[:, k]
-                    for pred_idx in range(x.shape[0]):
-                        # if MODEL2 disagrees, change the predicted id to top-k
-                        if tmp_preds[pred_idx].item() == 0:
-                            tmp_predicted_ids[pred_idx] = model1_topk[pred_idx]
-
-                    post_explanaton = []
-                    for sample_idx, pred_id in enumerate(tmp_predicted_ids):
-                        if tmp_preds[sample_idx].item() == 1 and k == 1:  # First step
-                            advising_explanation = explanation[sample_idx]
-                        elif tmp_preds[sample_idx].item() == 1 and k > 1:
-                            advising_explanation = adv_post_explanation[sample_idx]
-                        else:
-                            pred_id = pred_id.item()
-                            loader = faiss_loader_dict[pred_id]
-                            faiss_index = faiss_nns_class_dict[pred_id]
-                            ###############################
-                            ### x is query and retrieve 5 samples as we are in test mode
-                            _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), RunningParams.k_value)
-                            nn_list = list()
-                            for id in range(indices.shape[1]):
-                                id = loader.dataset.indices[indices[0, id]]
-                                nn_list.append(cv2.imread(loader.dataset.dataset.imgs[id][0]))
-                            if RunningParams.k_value == 3:
-                                advising_explanation = abm_transform(image=nn_list[0], image0=nn_list[1], image1=nn_list[2])
-                            elif RunningParams.k_value == 5:
-                                advising_explanation = abm_transform(image=nn_list[0], image0=nn_list[1], image1=nn_list[2],
-                                                                     image2=nn_list[3], image3=nn_list[4])
-                            advising_explanation = torch.stack(list(advising_explanation.values()))
-
-                        post_explanaton.append(advising_explanation)
-
-                    adv_post_explanation = torch.stack(post_explanaton)
-                    advising_output, _, _, _ = model(images=x, explanations=adv_post_explanation, scores=None)
-                    advising_p = torch.nn.functional.softmax(advising_output, dim=1)
-                    advising_score, step_preds = torch.max(advising_p, 1)
-
-                    # TODO: Do we really want to use torch.clone because it consumes memory
-                    tmp_preds = torch.clone(step_preds)
-
-                    for sample_idx in range(x.shape[0]):
-                        # Change the MODEL2 decision from No to Yes
-                        if tmp_preds[sample_idx].item() != preds[sample_idx].item() and tmp_preds[sample_idx].item() == 1:
-                            tmp_predicted_ids[sample_idx] = model1_topk[sample_idx]
-
-                    if k == RunningParams.advising_steps -1:
-                        # If MODEL2 still disagrees, we revert the ids to top-1 predicted labels
-                        model1_top1 = model1_ranks[:, 0]
-                        for pred_idx in range(x.shape[0]):
-                            if tmp_preds[pred_idx].item() == 0:
-                                # Change the predicted id to top-k if MODEL2 disagrees
-                                tmp_predicted_ids[pred_idx] = model1_top1[pred_idx]
-
-                print(tmp_preds.sum())
-
-            # statistics
-            if RunningParams.MODEL2_ADVISING:
-                # Re-compute the accuracy of imagenet classification
-                predicted_ids = tmp_predicted_ids
-                advising_crt_cnt += torch.sum(predicted_ids == gts)
-                new_mode1_gts = (predicted_ids == gts) * 1
-                new_model2_preds = tmp_preds
-                # running_corrects += torch.sum(tmp_preds == new_mode1_gts)
-                running_corrects += torch.sum(preds == labels.data)
-            else:
                 running_corrects += torch.sum(preds == labels.data)
 
             if RunningParams.M2_VISUALIZATION is True:
@@ -389,12 +344,8 @@ if __name__ == '__main__':
                     base_name = os.path.basename(query)
                     save_path = os.path.join(save_dir, model2_decision, base_name)
 
-                    # gt_label = image_datasets['cub_test'].classes[gts[sample_idx].item()]
-                    # pred_label = image_datasets['cub_test'].classes[predicted_ids[sample_idx].item()]
-                    gt_label = full_cub_dataset.classes[gts[sample_idx].item()]
-                    pred_label = full_cub_dataset.classes[predicted_ids[sample_idx].item()]
-
-
+                    gt_label = image_datasets['cub_test'].classes[gts[sample_idx].item()]
+                    pred_label = image_datasets['cub_test'].classes[predicted_ids[sample_idx].item()]
 
                     model1_confidence = int(model1_score[sample_idx].item()*100)
                     model2_confidence = int(model2_score[sample_idx].item()*100)
@@ -469,57 +420,3 @@ if __name__ == '__main__':
         if CATEGORY_ANALYSIS is True:
             for c in correctness_bins:
                 print("{} - {:.2f}".format(c, category_record[c]['crt']*100/category_record[c]['total']))
-
-    if RunningParams.HUMAN_AI_ANALYSIS is True:
-        import numpy as np
-
-        result_file = 'infer_results/{}'.format(args.ckpt)
-        kbc = np.load('{}.npy'.format(result_file), allow_pickle=True, ).item()
-        T_list = list(np.arange(0.0, 1.05, 0.05))
-
-        acc_T_dict = []
-        for T in T_list:
-            T = int(T * 100)
-            T_sample_cnt = 0
-            T_correct_cnt = 0
-            for key in kbc.keys():
-                confidence1 = kbc[key]['confidence1']
-                if confidence1 >= T:
-                    continue
-                T_sample_cnt += 1
-                result = kbc[key]['result']
-                if result is True:
-                    T_correct_cnt += 1
-            if T_sample_cnt == 0:
-                print("Acc is N/A at T: {}".format(T))
-                # acc_T_dict[T] = 'N/A'
-                acc_dict = dict()
-                acc_dict['Threshold'] = T
-                acc_dict['Accuracy'] = 'N/A'
-                acc_T_dict.append(acc_dict)
-            else:
-                acc = (T_correct_cnt / T_sample_cnt)
-                # acc = '{:.2f}'.format(acc)
-                print("Accuracy at T: {} is {}%".format(T, acc))
-                print(T_correct_cnt, T_sample_cnt)
-                acc_dict = dict()
-                acc_dict['Threshold'] = T
-                acc_dict['Accuracy'] = acc
-                acc_T_dict.append(acc_dict)
-
-        import csv
-
-        field_names = ['Threshold', 'Accuracy']
-        with open('{}.csv'.format(result_file), 'w') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=field_names)
-            writer.writeheader()
-            writer.writerows(acc_T_dict)
-            print("Writing human accuracy to {} successfully".format(result_file))
-
-
-
-
-
-
-
-

@@ -12,7 +12,7 @@ class RunningParams(object):
         # if self.SIMCLR_MODEL is True:
         self.conv_layer_size = {4: 2048, 3: 1024, 2: 512, 1: 256}
         self.feat_map_size = {4: 49, 3: 196, 2: 784}
-        self.CONTINUE_TRAINING = False
+        self.CONTINUE_TRAINING = True
         self.TOP1_NN = True  # ----------------------------------------- IMPORTANT PARAM --------
         self.CUB_TRAINING = True  # ----------------------------------------- IMPORTANT PARAM --------
         self.DOGS_TRAINING = False
@@ -35,18 +35,19 @@ class RunningParams(object):
             self.HIGHPERFORMANCE_FEATURE_EXTRACTOR = False
             self.HIGHPERFORMANCE_MODEL1 = False
 
-            self.CUB_200WAY = True
+            self.CUB_200WAY = False
 
             if self.CUB_200WAY is True:
                 self.batch_size = 64  # ----------------------------------------- IMPORTANT PARAM --------
                 self.epochs = 50
             else:
                 self.batch_size = 100
+                self.epochs = 100
         elif self.DOGS_TRAINING:
             self.batch_size = 512  # ----------------------------------------- IMPORTANT PARAM --------
             self.epochs = 100
 
-        self.learning_rate = 0.01
+        self.learning_rate = 0.001
         self.query_frozen = True  # False = Trainable; True = Freeze? -------------------- IMPORTANT PARAM --------
         self.heatmap_frozen = False  # freeze?
         self.nns_frozen = False  # freeze?
@@ -57,7 +58,7 @@ class RunningParams(object):
 
         # Training NNs
         self.embedding_loss = False
-        self.k_value = 0  # ----------------------------------------- IMPORTANT PARAM --------
+        self.k_value = 3  # ----------------------------------------- IMPORTANT PARAM --------
         self.PRECOMPUTED_NN = True
         self.CrossCorrelation = True  # ----------------------------------------- IMPORTANT PARAM --------
 

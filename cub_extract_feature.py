@@ -69,7 +69,7 @@ RETRIEVE_TOP1_NEAREST = False
 
 in_features = 2048
 print("Building FAISS index...! Training set is the knowledge base.")
-# faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB_LP/train', transform=Dataset.data_transforms['train'])
+# faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB_Pretraining/train', transform=Dataset.data_transforms['train'])
 
 faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB/train1/', transform=Dataset.data_transforms['train'])
 
@@ -206,7 +206,7 @@ else:
 
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-# data_dir = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
+# data_dir = '/home/giang/Downloads/RN50_dataset_CUB_Pretraining/val'
 
 data_dir = '/home/giang/Downloads/datasets/CUB/test0/'
 image_datasets = dict()

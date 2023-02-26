@@ -205,4 +205,65 @@ class Visualization(object):
     #     visualize_dog_prototypes(query, gt_label, nn, 'tmp')
 
 
+    @staticmethod
+    def visualize_transformer_attn(bef_weights, aft_weights, bef_image_paths, aft_image_paths, title):
+
+        input_label = os.path.dirname(aft_image_paths).split('/')[-1]
+        prototype_label = os.path.dirname(bef_image_paths).split('/')[-1]
+        basename = os.path.basename(aft_image_paths)
+
+        from skimage import exposure
+        from PIL import Image
+        def load_image(path):
+            image = Image.open(path)
+            image = image.resize((224, 224), Image.ANTIALIAS)
+            image = np.array(image)
+            return image
+
+        bef_image_path = bef_image_paths
+        aft_image_path = aft_image_paths
+
+        bef_image = load_image(bef_image_path)
+        aft_image = load_image(aft_image_path)
+
+        bef_weights = bef_weights.data.cpu().numpy().reshape(7, 7)
+        aft_weights = aft_weights.data.cpu().numpy().reshape(7, 7)
+
+        cam_bef_weights = exposure.rescale_intensity(bef_weights, out_range=(0, 255))
+        cam_bef_weights = cv2.resize(cam_bef_weights.astype(np.uint8), (224, 224), interpolation=cv2.INTER_CUBIC)
+
+        cam_aft_weights = exposure.rescale_intensity(aft_weights, out_range=(0, 255))
+        cam_aft_weights = cv2.resize(cam_aft_weights.astype(np.uint8), (224, 224), interpolation=cv2.INTER_CUBIC)
+
+        fig = plt.figure()
+        ax1 = fig.add_subplot(2, 2, 1)
+        ax3 = fig.add_subplot(2, 2, 2)
+        ax2 = fig.add_subplot(2, 2, 3)
+        ax4 = fig.add_subplot(2, 2, 4)
+
+        ax1.imshow(bef_image)
+        ax1.axis("off")
+        ax1.set_title(prototype_label)
+
+        ax2.imshow(aft_image)
+        ax2.axis("off")
+        ax2.set_title(input_label)
+
+        ax3.imshow(bef_image)
+        ax3.imshow(cam_bef_weights, alpha=0.6, cmap="jet")
+        ax3.axis("off")
+
+        ax4.imshow(aft_image)
+        ax4.imshow(cam_aft_weights, alpha=0.6, cmap="jet")
+        ax4.axis("off")
+
+        plt.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95, wspace=0.02, hspace=0.2)
+        plt.suptitle(title, fontsize=16, y=0.02)
+
+        # HelperFunctions.check_and_mkdir('tmp/{}'.format(title))
+        # plt.savefig('tmp/{}/{}.png'.format(title, basename), bbox_inches='tight')
+        plt.savefig('my_plot.png', bbox_inches='tight')
+        return
+
+
 
