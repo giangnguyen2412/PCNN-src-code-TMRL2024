@@ -64,12 +64,14 @@ class Transformer_AdvisingNetwork(nn.Module):
             def forward(self, feat, k_value):
                 if k_value == 1:
                     b, n, _ = feat.shape
+                    # TODO: Need to modify to assign cls as the avg value of feat
                     cls_tokens = repeat(self.cls_token, '() n d -> b n d', b=b)
                     x = torch.cat((cls_tokens, feat), dim=1)
                 else:
                     b, k, n, _ = feat.shape
                     # cls_tokens = repeat(self.cls_token, '() () n d -> b k n d', b=b, k=k)
-                    cls_tokens = repeat(self.cls_token, '() n d -> b k n d', b=b, k=k)
+                    # cls_tokens = repeat(self.cls_token, '() n d -> b k n d', b=b, k=k)
+                    cls_tokens = torch.mean(feat, dim=2, keepdim=True)
                     x = torch.cat((cls_tokens, feat), dim=2)
 
                 x += self.pos_embedding[:, :(n + 1)]
@@ -115,12 +117,12 @@ class Transformer_AdvisingNetwork(nn.Module):
             else:  # K > 1
                 explanation_spatial_feats = []
                 for sample_idx in range(RunningParams.k_value):
-                    data = explanations[:, 0, :]
+                    data = explanations[:, sample_idx, :]  # TODO: I traced to be at least correct here
                     explanation_spatial_feat = self.conv_layers(data)
                     explanation_spatial_feat = explanation_spatial_feat.flatten(start_dim=2)  #
                     explanation_spatial_feats.append(explanation_spatial_feat)
 
-                # Expect to have kx2048x49
+                # bsxKx2048x49
                 explanation_spatial_feats = torch.stack(explanation_spatial_feats, dim=1)
 
         # change from 2048x49 -> 49x2048
@@ -149,47 +151,62 @@ class Transformer_AdvisingNetwork(nn.Module):
                 # Cross-attention --> 50x2048
                 input_spatial_feats, explanation_spatial_feats = self.cross_transformer(input_spt_feats, exp_spt_feats)
 
-                input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
-                input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
+            input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
+            input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
 
             # Extracting the cls token --> 1x2048
             input_cls, exp_cls = map(lambda t: t[:, 0], (input_emb, exp_emb))
             transformer_emb = torch.cat([sep_token, input_cls, sep_token, exp_cls], dim=1)
 
         else:
-            input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, 1)
-            explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats, 3)
-
-            transformer_embs = []
+            input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, 1)  # bsx50x2048
+            # Clone the input tensor K times along the second dimension
+            input_spatial_feats = input_spatial_feats.unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1).\
+                view(input_spatial_feats.shape[0], RunningParams.k_value, 50, 2048)
+            explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats, 3)  # bsxKx50x2048
 
             i2e_attns = []
             e2i_attns = []
-            for sample_idx in range(RunningParams.k_value):
-                explanation = explanation_spatial_feats[:, sample_idx, :]
-                for depth_idx in range(transformer_encoder_depth):
-                    # input_spt_feats = self.transformer(input_spatial_feats)
+            for depth_idx in range(transformer_encoder_depth):
+                input_list = []
+                explanation_list = []
+                for prototype_idx in range(RunningParams.k_value):
+                    input = input_spatial_feats[:, prototype_idx, :]
+                    explanation = explanation_spatial_feats[:, prototype_idx, :]
+
+                    # TODO: We may need SA to convert the cls_token. If we don't have SA, the cls inputted to
+                    # CA will be random as defined
+                    # input = self.transformer(input)
                     # explanation = self.transformer(explanation)
 
                     # TODO: Thử remove self-attention
                     # TODO: với VIT hiện tại ko có model về patch (local) mà chỉ có global info
-                    input_spt_feats = input_spatial_feats
-                    explanation = explanation
+                    # input = input_spatial_feats
+                    # explanation = explanation
 
-                    input_spatial_feats, explanation, i2e_attn, e2i_attn = self.cross_transformer(input_spt_feats, explanation)
+                    # bsx50x2048
+                    inp, exp, i2e_attn, e2i_attn = self.cross_transformer(input, explanation)
 
                     # Extract attention from the last layer (i.e. closest to classification head)
                     if depth_idx == transformer_encoder_depth - 1:
                         i2e_attns.append(i2e_attn)
                         e2i_attns.append(e2i_attn)
 
-                    input_emb, exp_emb = input_spatial_feats, explanation
-                    input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
+                    input_list.append(inp)
+                    explanation_list.append(exp)
 
-                input_cls, exp_cls = map(lambda t: t[:, 0], (input_emb, exp_emb))
-                transformer_emb = torch.cat([sep_token, input_cls, sep_token, exp_cls], dim=1)
-                transformer_embs.append(transformer_emb)
+                input_spatial_feats = torch.stack(input_list, dim=1)
+                explanation_spatial_feats = torch.stack(explanation_list, dim=1)
 
-                transformer_emb = torch.cat(transformer_embs, dim=1)
+            input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
+            input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
+
+            input_cls = input_emb[:, :, 0]
+            exp_cls = exp_emb[:, :, 0]
+
+            transformer_emb = torch.cat([sep_token, input_cls[:, 0, :], sep_token, exp_cls[:, 0, :]], dim=1)
+            for prototype_idx in range(1, RunningParams.k_value):
+                transformer_emb = torch.cat([transformer_emb, sep_token, input_cls[:, prototype_idx], sep_token, exp_cls[:, prototype_idx]], dim=1)
 
             i2e_attns = torch.cat(i2e_attns, dim=2)
             e2i_attns = torch.cat(e2i_attns, dim=2)
