@@ -12,7 +12,7 @@ class RunningParams(object):
         # if self.SIMCLR_MODEL is True:
         self.conv_layer_size = {4: 2048, 3: 1024, 2: 512, 1: 256}
         self.feat_map_size = {4: 49, 3: 196, 2: 784}
-        self.CONTINUE_TRAINING = True
+        self.CONTINUE_TRAINING = False
         self.TOP1_NN = True  # ----------------------------------------- IMPORTANT PARAM --------
         self.CUB_TRAINING = True  # ----------------------------------------- IMPORTANT PARAM --------
         self.DOGS_TRAINING = False
@@ -52,6 +52,15 @@ class RunningParams(object):
         self.heatmap_frozen = False  # freeze?
         self.nns_frozen = False  # freeze?
         self.dropout = 0.0
+
+        if self.MODEL2_FINETUNING is True:
+            self.HIGHPERFORMANCE_FEATURE_EXTRACTOR = True
+            self.HIGHPERFORMANCE_MODEL1 = True
+            self.CONTINUE_TRAINING = True
+
+            self.batch_size = 50
+            self.epochs = 100
+            self.learning_rate = 0.001
 
         # Training heatmap
         self.GradCAM_RNlayer = 'layer4'

@@ -12,7 +12,7 @@ from image_slicer import join
 from IPython.display import Image
 from matplotlib import cm
 import matplotlib.pyplot as plt
-from matplotlib.patches import ConnectionPatch
+from matplotlib.colors import ListedColormap
 from params import *
 from datasets import Dataset, ImageFolderWithPaths
 
@@ -204,9 +204,8 @@ class Visualization(object):
     #     gt_label = HelperFunctions.label_map[gt_label]
     #     visualize_dog_prototypes(query, gt_label, nn, 'tmp')
 
-
     @staticmethod
-    def visualize_transformer_attn(bef_weights, aft_weights, bef_image_paths, aft_image_paths, title):
+    def visualize_transformer_attn(bef_weights, aft_weights, bef_image_paths, aft_image_paths, title, proto_idx):
 
         input_label = os.path.dirname(aft_image_paths).split('/')[-1]
         prototype_label = os.path.dirname(bef_image_paths).split('/')[-1]
@@ -229,7 +228,7 @@ class Visualization(object):
         bef_weights = bef_weights.data.cpu().numpy().reshape(7, 7)
         aft_weights = aft_weights.data.cpu().numpy().reshape(7, 7)
 
-        cam_bef_weights = exposure.rescale_intensity(bef_weights, out_range=(0, 255))
+        cam_bef_weights = exposure.rescale_intensity(bef_weights, oudt_range=(0, 255))
         cam_bef_weights = cv2.resize(cam_bef_weights.astype(np.uint8), (224, 224), interpolation=cv2.INTER_CUBIC)
 
         cam_aft_weights = exposure.rescale_intensity(aft_weights, out_range=(0, 255))
@@ -258,12 +257,89 @@ class Visualization(object):
         ax4.axis("off")
 
         plt.subplots_adjust(left=0.05, bottom=0.05, right=0.95, top=0.95, wspace=0.02, hspace=0.2)
+        if proto_idx != 1:
+            plt.suptitle('', fontsize=16, y=0.02)
+        else:
+            plt.suptitle(title, fontsize=16, y=0.02)
+
+        HelperFunctions.check_and_mkdir('tmp/{}'.format(title))
+        plt.savefig('tmp/{}/{}_{}.png'.format(title, basename, proto_idx), bbox_inches='tight')
+
+    @staticmethod
+    def visualize_transformer_attn_v2(bef_weights, aft_weights, bef_image_paths, aft_image_paths, title, proto_idx):
+
+        input_label = os.path.dirname(aft_image_paths).split('/')[-1]
+        prototype_label = os.path.dirname(bef_image_paths).split('/')[-1]
+        basename = os.path.basename(aft_image_paths)
+
+        from skimage import exposure
+        from PIL import Image
+        def load_image(path):
+            image = Image.open(path)
+            image = image.resize((224, 224), Image.ANTIALIAS)
+            image = np.array(image)
+            return image
+
+        bef_image_path = bef_image_paths
+        aft_image_path = aft_image_paths
+
+        bef_image = load_image(bef_image_path)
+        aft_image = load_image(aft_image_path)
+
+        bef_weights = bef_weights.data.cpu().numpy().reshape(7, 7)
+        aft_weights = aft_weights.data.cpu().numpy().reshape(7, 7)
+
+        cam_bef_weights = bef_weights
+        # Normalize the array to a range of 0 and 1
+        cam_bef_weights = (cam_bef_weights - cam_bef_weights.min()) / (cam_bef_weights.max() - cam_bef_weights.min())
+        cam_bef_weights = cv2.resize(cam_bef_weights.astype(np.float32), (224, 224), interpolation=cv2.INTER_CUBIC)
+
+        cam_aft_weights = aft_weights
+        cam_aft_weights = (cam_aft_weights - cam_aft_weights.min()) / (cam_aft_weights.max() - cam_aft_weights.min())
+        cam_aft_weights = cv2.resize(cam_aft_weights.astype(np.float32), (224, 224), interpolation=cv2.INTER_CUBIC)
+
+        uP = cm.get_cmap('Reds', 129)
+        dowN = cm.get_cmap('Blues_r', 128)
+
+        newcolors = np.vstack((
+            dowN(np.linspace(0, 1, 128)),
+            uP(np.linspace(0, 1, 129))
+        ))
+        cMap = ListedColormap(newcolors, name='RedBlues')
+
+        cMap.colors[257 // 2, :] = [1, 1, 1, 1]
+
+        fig = plt.figure()
+        ax1 = fig.add_subplot(2, 2, 1)
+        ax3 = fig.add_subplot(2, 2, 2)
+        ax2 = fig.add_subplot(2, 2, 3)
+        ax4 = fig.add_subplot(2, 2, 4)
+
+        ax1.imshow(bef_image)
+        ax1.axis("off")
+        ax1.set_title(prototype_label)
+
+        ax2.imshow(aft_image)
+        ax2.axis("off")
+        ax2.set_title(input_label)
+
+        ax3.imshow(bef_image)
+        im1 = ax3.imshow(cam_bef_weights, alpha=0.5, cmap='Reds', interpolation ='none', vmin=0, vmax=1)
+        ax3.axis("off")
+
+        ax4.imshow(aft_image)
+        im2 = ax4.imshow(cam_aft_weights, alpha=0.5, cmap='Reds', interpolation ='none', vmin=0, vmax=1)
+        ax4.axis("off")
+
+        fig.subplots_adjust(right=0.8)
+        # if proto_idx != 1:
+        #     plt.suptitle('', fontsize=16, y=0.02)
+        # else:
         plt.suptitle(title, fontsize=16, y=0.02)
+        fig.colorbar(im2, ax=ax4)
+        fig.colorbar(im1, ax=ax3)
 
-        # HelperFunctions.check_and_mkdir('tmp/{}'.format(title))
-        # plt.savefig('tmp/{}/{}.png'.format(title, basename), bbox_inches='tight')
-        plt.savefig('my_plot.png', bbox_inches='tight')
-        return
-
+        HelperFunctions.check_and_mkdir('tmp/{}'.format(title))
+        plt.savefig('tmp/{}/{}_{}.png'.format(title, basename, proto_idx), bbox_inches='tight')
 
 

@@ -65,13 +65,13 @@ feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feat
 feature_extractor.cuda()
 feature_extractor = nn.DataParallel(feature_extractor)
 
-RETRIEVE_TOP1_NEAREST = False
+RETRIEVE_TOP1_NEAREST = True
 
 in_features = 2048
 print("Building FAISS index...! Training set is the knowledge base.")
 # faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB_Pretraining/train', transform=Dataset.data_transforms['train'])
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB/train1/', transform=Dataset.data_transforms['train'])
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB_LP/train/', transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
@@ -174,6 +174,7 @@ else:
         # )
         # faiss.write_index(faiss_cpu_index, INDEX_FILE)
 
+
 HIGHPERFORMANCE_MODEL1 = RunningParams.HIGHPERFORMANCE_MODEL1
 if HIGHPERFORMANCE_MODEL1 is True:
     from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
@@ -206,9 +207,7 @@ else:
 
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-# data_dir = '/home/giang/Downloads/RN50_dataset_CUB_Pretraining/val'
-
-data_dir = '/home/giang/Downloads/datasets/CUB/test0/'
+data_dir = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
 image_datasets = dict()
 image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
 train_loader = torch.utils.data.DataLoader(
@@ -233,7 +232,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             base_name = os.path.basename(paths[sample_idx])
             predicted_idx = index[sample_idx].item()
 
-            # Dataloader and knowledge base
+            # Dataloader and knowledge base upon the predicted class
             loader = faiss_loader_dict[predicted_idx]
             faiss_index = faiss_nns_class_dict[predicted_idx]
             ###############################
@@ -257,13 +256,14 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
 if RETRIEVE_TOP1_NEAREST:
     if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
         if HIGHPERFORMANCE_MODEL1 is True:
-            np.save('faiss/faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy', faiss_nn_dict)
+            np.save('faiss/faiss_CUB_train_top1_HP_MODEL1_HP_FE.npy', faiss_nn_dict)
         else:
-            np.save('faiss/faiss_CUB_val_top1_LP_MODEL1_HP_FE.npy', faiss_nn_dict)
+            np.save('faiss/faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy', faiss_nn_dict)
     else:
         if HIGHPERFORMANCE_MODEL1 is True:
             np.save('faiss/faiss_CUB_val_top1_HP_INAT.npy', faiss_nn_dict)
         else:
+            print("Here")
             np.save('faiss/faiss_CUB_val_top1.npy', faiss_nn_dict)
 else:
     if HIGHPERFORMANCE_MODEL1 is True:

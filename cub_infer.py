@@ -30,7 +30,7 @@ Visualization = Visualization()
 
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "5,4,6,7"
 
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
@@ -86,7 +86,7 @@ full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combine
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_tough-capybara-1414.pt',
+                        default='best_model_super-mountain-1434.pt',
                         help='Model check point')
     # parser.add_argument('--dataset', type=str,
     #                     default='balanced_val_dataset_6k',
@@ -265,6 +265,10 @@ if __name__ == '__main__':
                 if RunningParams.XAI_method == RunningParams.NO_XAI:
                     output, _, _ = model(images=x, explanations=None, scores=model1_p)
                 else:
+                    TEST = False
+                    if TEST is True:
+                        explanation = x.unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1, 1). \
+                            view(x.shape[0], RunningParams.k_value, 3, 224, 224)
                     output, query, i2e_attn, e2i_attn = model(images=x, explanations=explanation, scores=model1_p)
 
                 p = torch.nn.functional.softmax(output, dim=1)
@@ -272,8 +276,8 @@ if __name__ == '__main__':
 
                 VISUALIZE_TRANSFORMER_ATTN = True
                 if VISUALIZE_TRANSFORMER_ATTN is True:
-                    i2e_attn = i2e_attn.mean(dim=1)
-                    i2e_attn = i2e_attn[:, :, 1:]  # remove cls token
+                    i2e_attn = i2e_attn.mean(dim=1)  # bsx8x3x50
+                    i2e_attn = i2e_attn[:, :, 1:]  # remove cls token --> bsx3x49
 
                     e2i_attn = e2i_attn.mean(dim=1)
                     e2i_attn = e2i_attn[:, :, 1:]  # remove cls token
@@ -293,14 +297,28 @@ if __name__ == '__main__':
                             action = 'Reject'
                         model2_decision = correctness + action
 
-                        bef_weights = i2e_attn[sample_idx][0:1]
-                        aft_weights = e2i_attn[sample_idx][0:1]
                         query = pths[sample_idx]
                         base_name = os.path.basename(query)
-                        # as the test images are from validation, then we do not need to exclude the fist prototype
-                        # Visualize the attention b/w query vs the 1ST prototype
                         prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
-                        Visualization.visualize_transformer_attn(bef_weights, aft_weights, prototypes[0], pths[sample_idx], title=model2_decision)
+                        for prototype_idx in range(RunningParams.k_value):
+                            bef_weights = i2e_attn[sample_idx, prototype_idx:prototype_idx+1, :]
+                            aft_weights = e2i_attn[sample_idx, prototype_idx:prototype_idx+1, :]
+
+                            # as the test images are from validation, then we do not need to exclude the fist prototype
+                            prototype = prototypes[prototype_idx]
+                            Visualization.visualize_transformer_attn_v2(bef_weights, aft_weights, prototype, query, model2_decision, prototype_idx)
+
+                        # Combine visualizations
+                        # cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 tmp/{}/{}.jpeg'.format(
+                        #     model2_decision, base_name, RunningParams.k_value-1, model2_decision, base_name)
+                        cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 my_plot.png'.format(
+                            model2_decision, base_name, RunningParams.k_value - 1)
+                        os.system(cmd)
+                        # Remove unused images
+                        cmd = 'rm -rf tmp/{}/{}_[0-{}].png'.format(
+                            model2_decision, base_name, RunningParams.k_value-1)
+                        os.system(cmd)
+
 
                 REMOVE_UNCERT = False
                 for sample_idx in range(x.shape[0]):

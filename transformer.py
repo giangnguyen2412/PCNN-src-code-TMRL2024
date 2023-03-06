@@ -69,9 +69,10 @@ class Transformer_AdvisingNetwork(nn.Module):
                     x = torch.cat((cls_tokens, feat), dim=1)
                 else:
                     b, k, n, _ = feat.shape
-                    # cls_tokens = repeat(self.cls_token, '() () n d -> b k n d', b=b, k=k)
-                    # cls_tokens = repeat(self.cls_token, '() n d -> b k n d', b=b, k=k)
-                    cls_tokens = torch.mean(feat, dim=2, keepdim=True)
+                    cls_tokens = repeat(self.cls_token, '() n d -> b k n d', b=b, k=k)
+                    # TODO: I revert back to the original to train again.
+                    # TODO: Later I will inspect the model to see if the attention makes sense. If it does not, then I will use the mean
+                    # cls_tokens = torch.mean(feat, dim=2, keepdim=True)
                     x = torch.cat((cls_tokens, feat), dim=2)
 
                 x += self.pos_embedding[:, :(n + 1)]
@@ -87,12 +88,12 @@ class Transformer_AdvisingNetwork(nn.Module):
 
         # TODO: What is dim_head, mlp_dim? How these affect the performance?
         # Branch 1 takes softmax scores and cosine similarity
-        self.branch1 = BinaryMLP(200, 2)
+        # self.branch1 = BinaryMLP(200, 2)
         # Branch 3 takes transformer features and sep_token*2
         self.branch3 = BinaryMLP(RunningParams.k_value*RunningParams.conv_layer_size[RunningParams.conv_layer]*2 +
                                  RunningParams.k_value*2, 32)
 
-        self.output_layer = BinaryMLP(2 * 2 + 2, 2)
+        # self.output_layer = BinaryMLP(2 * 2 + 2, 2)
 
         self.dropout = nn.Dropout(p=RunningParams.dropout)
 
@@ -144,11 +145,11 @@ class Transformer_AdvisingNetwork(nn.Module):
 
             # TODO: as the output of the first layer does not propagate to the second layer, then transformer_encoder_depth should be 1
             for _ in range(transformer_encoder_depth):
-                # Self-attention --> 50x2048
+                # Self-attention --> 50x2048; both cls and image tokens are transformed.
                 input_spt_feats = self.transformer(input_spatial_feats)
                 exp_spt_feats = self.transformer(explanation_spatial_feats)
 
-                # Cross-attention --> 50x2048
+                # Cross-attention --> 50x2048; only the cls tokens are transformed. Image tokens are kept the same.
                 input_spatial_feats, explanation_spatial_feats = self.cross_transformer(input_spt_feats, exp_spt_feats)
 
             input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
@@ -174,17 +175,15 @@ class Transformer_AdvisingNetwork(nn.Module):
                     input = input_spatial_feats[:, prototype_idx, :]
                     explanation = explanation_spatial_feats[:, prototype_idx, :]
 
-                    # TODO: We may need SA to convert the cls_token. If we don't have SA, the cls inputted to
-                    # CA will be random as defined
-                    # input = self.transformer(input)
-                    # explanation = self.transformer(explanation)
+                    input = self.transformer(input)
+                    explanation = self.transformer(explanation)
 
                     # TODO: Thử remove self-attention
                     # TODO: với VIT hiện tại ko có model về patch (local) mà chỉ có global info
                     # input = input_spatial_feats
                     # explanation = explanation
 
-                    # bsx50x2048
+                    # Cross-attention --> bsx50x2048; only the cls tokens are transformed. Image tokens are kept the same.
                     inp, exp, i2e_attn, e2i_attn = self.cross_transformer(input, explanation)
 
                     # Extract attention from the last layer (i.e. closest to classification head)

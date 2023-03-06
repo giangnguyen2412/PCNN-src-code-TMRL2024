@@ -86,10 +86,6 @@ class Attention(nn.Module):
         else:
             return self.to_out(out)
 
-        # đang ko hiểu tại sao cross thì lại là 1x50 mà self lại là 50x50
-        # ngoài ra phải tìm cách lấy attn từ cross nữa do cái ModuleList có depth là 2
-        # thứ nữa là kiểm tra xem cột nào hàng nào trong matrix cần lấy ra để visualize
-
 
 # transformer encoder, for small and large patches
 class Transformer(nn.Module):
@@ -160,8 +156,8 @@ class CrossTransformer(nn.Module):
 
         sm_tokens = torch.cat((sm_cls, sm_patch_tokens), dim = 1)
         lg_tokens = torch.cat((lg_cls, lg_patch_tokens), dim = 1)
-        # return sm_tokens, lg_tokens, attn1[1], attn2[1]
 
+        # Return the maps at the second layer of attention
         return sm_tokens, lg_tokens, attns[2], attns[3]
 
 

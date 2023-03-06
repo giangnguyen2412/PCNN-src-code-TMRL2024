@@ -1160,70 +1160,60 @@ class ImageFolderForNNs(ImageFolder):
                 if RunningParams.TOP1_NN is True:
                     if 'train' in root:
                         if RunningParams.MODEL2_FINETUNING is True:
-                            print("Running into this")
-                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_top1_HP_MODEL1_HP_FE_finetune_set.npy',
-                                                         allow_pickle=True, ).item()
+                            file_name = 'faiss/faiss_CUB_train_top1_HP_MODEL1_HP_FE.npy'
                         else:
                             if RunningParams.CUB_TRAINING is True and RunningParams.CUB_200WAY is True:
-                                self.faiss_nn_dict = np.load('faiss/faiss_CUB_200way_train_topk_HP_INAT.npy',
-                                                             allow_pickle=True, ).item()
-                                print("Using faiss_CUB_200way_train_topk_HP_INAT")
+                                file_name = 'faiss/faiss_CUB_200way_train_topk_HP_INAT.npy'
+
                             else:
                                 if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-                                    self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_top1_LP_MODEL1_HP_FE.npy', allow_pickle=True, ).item()
+                                    file_name = 'faiss/???.npy'
                                 else:
-                                    self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_top1.npy',
-                                                                 allow_pickle=True, ).item()
+                                    file_name = 'faiss/faiss_CUB_train_top1.npy'
+
                     else:
                         if RunningParams.MODEL2_FINETUNING is True:
-                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1_HP_MODEL1_HP_FE_finetune_set.npy',
-                                                         allow_pickle=True, ).item()
+                            file_name = 'faiss/faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy'
                         else:
                             if RunningParams.CUB_TRAINING is True and RunningParams.CUB_200WAY is True:
-                                self.faiss_nn_dict = np.load('faiss/faiss_CUB_200way_val_topk_HP_INAT.npy',
-                                                             allow_pickle=True, ).item()
-                                print("Using faiss_CUB_200way_val_topk_HP_INAT")
+                                file_name = 'faiss/faiss_CUB_200way_val_topk_HP_INAT.npy'
                             else:
                                 if RunningParams.HIGHPERFORMANCE_MODEL1 is True:
                                     if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-                                        self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy', allow_pickle=True, ).item()
+                                        file_name = 'faiss/???.npy'
                                     else:
-                                        self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1_HP_INAT.npy',
-                                                                     allow_pickle=True, ).item()
+                                        file_name = 'faiss/faiss_CUB_val_top1_HP_INAT.npy'
                                 else:
                                     if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-                                        self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1_LP_MODEL1_HP_FE.npy', allow_pickle=True, ).item()
+                                        file_name = 'faiss/faiss_CUB_val_top1_LP_MODEL1_HP_FE.npy'
                                     else:
-                                        self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_top1.npy', allow_pickle=True, ).item()
-                else:
+                                        file_name = 'faiss/faiss_CUB_val_top1.npy'
+                else: # TOPK_NN
                     if 'train' in root:
                         if RunningParams.MODEL2_FINETUNING is True:
-                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_topk_HP_MODEL1_HP_FE_finetune_set.npy',
-                                                         allow_pickle=True, ).item()
+                            file_name = 'faiss/faiss_CUB_val_topk_HP_MODEL1_HP_FE_finetune_set.npy'
                         else:
-                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_train_topk.npy', allow_pickle=True, ).item()
+                            file_name = 'faiss/faiss_CUB_train_topk.npy'
                     else:
                         if RunningParams.HIGHPERFORMANCE_MODEL1 is True:
-                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_topk_HP_INAT.npy',
-                                                         allow_pickle=True, ).item()
+                            file_name = 'faiss/faiss_CUB_val_topk_HP_INAT.npy'
                         else:
-                            self.faiss_nn_dict = np.load('faiss/faiss_CUB_val_topk.npy', allow_pickle=True, ).item()
+                            file_name = 'faiss/faiss_CUB_val_topk.npy'
             else:
                 if RunningParams.TOP1_NN is True:
                     # if os.path.basename(root) == 'train':
                     if 'train' in root:
-                        self.faiss_nn_dict = np.load('faiss/faiss_SDogs_train_RN34_top1.npy', allow_pickle=True, ).item()
-                        print('faiss_SDogs_train_RN34_top1')
+                        file_name = 'faiss/faiss_SDogs_train_RN34_top1.npy'
                     else:
-                        self.faiss_nn_dict = np.load('faiss/faiss_SDogs_val_RN34_top1.npy', allow_pickle=True, ).item()
-                        print('faiss_SDogs_val_RN34_top1')
+                        file_name = 'faiss/faiss_SDogs_val_RN34_top1.npy'
                 else:
                     if os.path.basename(root) == 'train':
-                        self.faiss_nn_dict = np.load('faiss/faiss_SDogs_train_RN34_topk.npy', allow_pickle=True, ).item()
-                        print('faiss_SDogs_train_RN34_topk')
+                        file_name = 'faiss/faiss_SDogs_train_RN34_topk.npy'
                     else:
-                        self.faiss_nn_dict = np.load('faiss/faiss_SDogs_val_RN34_topk.npy', allow_pickle=True, ).item()
-                        print('faiss_SDogs_val_RN34_topk')
+                        file_name = 'faiss/faiss_SDogs_val_RN34_topk.npy'
+
+            print(file_name)
+            self.faiss_nn_dict = np.load(file_name, allow_pickle=True, ).item()
 
             print(len(self.faiss_nn_dict))
             if os.path.basename(root) == 'train':

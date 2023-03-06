@@ -1,12 +1,13 @@
-# import numpy as np
-# from datasets import ImageFolderForNNs
-# from helpers import HelperFunctions
-# import os
-# import glob
-#
-# filename = 'faiss/faiss_CUB_val_top1.npy'
-# kbc = np.load(filename, allow_pickle=True, ).item()
-#
+import numpy as np
+from datasets import ImageFolderForNNs
+from helpers import HelperFunctions
+import os
+import glob
+
+filename = 'faiss/faiss_CUB_val_top1_LP_MODEL1_HP_FE.npy'
+kbc = np.load(filename, allow_pickle=True, ).item()
+
+pass
 # import glob
 # images = glob.glob('/home/giang/Downloads/datasets/CUB/combined_2/*/*.*')
 #
@@ -51,41 +52,41 @@
 #     shutil.move(file_path, dest_file_path)
 
 
-import os
-import random
-import shutil
-
-source_folder = "/home/giang/Downloads/RN50_dataset_CUB_HIGH/val/Correct"
-destination_folder = "/home/giang/Downloads/RN50_dataset_CUB_Finetuning/val"
-num_files = 145
-
-# Create destination folder if it doesn't exist
-if not os.path.exists(destination_folder):
-    os.makedirs(destination_folder)
-
-# Loop through subfolders in the source folder
-for dirpath, dirnames, filenames in os.walk(source_folder):
-    # Determine the corresponding subfolder in the destination folder
-    relative_path = os.path.relpath(dirpath, source_folder)
-    dest_dir = os.path.join(destination_folder, relative_path)
-    if not os.path.exists(dest_dir):
-        os.makedirs(dest_dir)
-
-    # Randomly choose up to num_files files to copy from this subfolder
-    files_to_copy = random.sample(filenames, min(num_files, len(filenames)))
-
-    # Copy the selected files to the corresponding subfolder in the destination folder
-    for filename in files_to_copy:
-        source_file = os.path.join(dirpath, filename)
-        dest_file = os.path.join(dest_dir, filename)
-        shutil.copy2(source_file, dest_file)
-
-        num_files -= 1
-        if num_files == 0:
-            break
-
-    if num_files == 0:
-        break
-
-print("Random files copied to: ", destination_folder)
+# import os
+# import random
+# import shutil
+#
+# source_folder = "/home/giang/Downloads/RN50_dataset_CUB_HIGH/val/Correct"
+# destination_folder = "/home/giang/Downloads/RN50_dataset_CUB_Finetuning/val"
+# num_files = 145
+#
+# # Create destination folder if it doesn't exist
+# if not os.path.exists(destination_folder):
+#     os.makedirs(destination_folder)
+#
+# # Loop through subfolders in the source folder
+# for dirpath, dirnames, filenames in os.walk(source_folder):
+#     # Determine the corresponding subfolder in the destination folder
+#     relative_path = os.path.relpath(dirpath, source_folder)
+#     dest_dir = os.path.join(destination_folder, relative_path)
+#     if not os.path.exists(dest_dir):
+#         os.makedirs(dest_dir)
+#
+#     # Randomly choose up to num_files files to copy from this subfolder
+#     files_to_copy = random.sample(filenames, min(num_files, len(filenames)))
+#
+#     # Copy the selected files to the corresponding subfolder in the destination folder
+#     for filename in files_to_copy:
+#         source_file = os.path.join(dirpath, filename)
+#         dest_file = os.path.join(dest_dir, filename)
+#         shutil.copy2(source_file, dest_file)
+#
+#         num_files -= 1
+#         if num_files == 0:
+#             break
+#
+#     if num_files == 0:
+#         break
+#
+# print("Random files copied to: ", destination_folder)
 

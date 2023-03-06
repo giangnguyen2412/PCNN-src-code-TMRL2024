@@ -80,9 +80,8 @@ virtual_train_dataset = '{}/train'.format(data_dir)
 virtual_val_dataset = '{}/val'.format(data_dir)
 
 if RunningParams.MODEL2_FINETUNING is True:
-    train_dataset = '/home/giang/Downloads/RN50_dataset_CUB_HP_finetune_set/train'
-    # val_dataset = '/home/giang/Downloads/RN50_dataset_CUB_HP_finetune_set/val'
-    val_dataset = '/home/giang/Downloads/??/val'
+    train_dataset = '/home/giang/Downloads/RN50_dataset_CUB_HP/train'
+    val_dataset = '/home/giang/Downloads/RN50_dataset_CUB_HP/val'
 else:
     train_dataset = '/home/giang/Downloads/RN50_dataset_CUB_LP/train'
     val_dataset = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
@@ -140,6 +139,16 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                 for param in MODEL2.parameters():
                     param.requires_grad = False
+
+                if RunningParams.MODEL2_FINETUNING is False:
+                    for param in MODEL2.module.transformer_feat_embedder.parameters():
+                        param.requires_grad_(True)
+
+                    for param in MODEL2.module.transformer.parameters():
+                        param.requires_grad_(True)
+
+                    for param in MODEL2.module.cross_transformer.parameters():
+                        param.requires_grad_(True)
 
                 for param in MODEL2.module.branch3.parameters():
                     param.requires_grad_(True)
@@ -294,7 +303,7 @@ MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
 if RunningParams.CONTINUE_TRAINING:
-    model_path = 'best_models/best_model_magic-shape-1412.pt'
+    model_path = 'best_models/best_model_exalted-haze-1422.pt'
     checkpoint = torch.load(model_path)
     MODEL2.load_state_dict(checkpoint['model_state_dict'])
 
