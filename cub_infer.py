@@ -86,7 +86,7 @@ full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combine
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_super-mountain-1434.pt',
+                        default='best_model_stilted-yogurt-1442.pt',
                         help='Model check point')
     # parser.add_argument('--dataset', type=str,
     #                     default='balanced_val_dataset_6k',
@@ -267,8 +267,8 @@ if __name__ == '__main__':
                 else:
                     TEST = False
                     if TEST is True:
-                        explanation = x.unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1, 1). \
-                            view(x.shape[0], RunningParams.k_value, 3, 224, 224)
+                        # Use the random permutation to shuffle the first dimension of the explanation tensor
+                        explanation = explanation[torch.randperm(explanation.size(0))]
                     output, query, i2e_attn, e2i_attn = model(images=x, explanations=explanation, scores=model1_p)
 
                 p = torch.nn.functional.softmax(output, dim=1)
@@ -284,6 +284,8 @@ if __name__ == '__main__':
 
                     results = (preds == labels)
                     for sample_idx in range(x.shape[0]):
+                        if sample_idx == 1:
+                            break
                         result = results[sample_idx].item()
                         if result is True:
                             correctness = 'Correctly'
@@ -309,10 +311,10 @@ if __name__ == '__main__':
                             Visualization.visualize_transformer_attn_v2(bef_weights, aft_weights, prototype, query, model2_decision, prototype_idx)
 
                         # Combine visualizations
-                        # cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 tmp/{}/{}.jpeg'.format(
-                        #     model2_decision, base_name, RunningParams.k_value-1, model2_decision, base_name)
-                        cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 my_plot.png'.format(
-                            model2_decision, base_name, RunningParams.k_value - 1)
+                        cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 tmp/{}/{}.jpeg'.format(
+                            model2_decision, base_name, RunningParams.k_value-1, model2_decision, base_name)
+                        # cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 my_plot.png'.format(
+                        #     model2_decision, base_name, RunningParams.k_value - 1)
                         os.system(cmd)
                         # Remove unused images
                         cmd = 'rm -rf tmp/{}/{}_[0-{}].png'.format(

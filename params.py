@@ -31,7 +31,7 @@ class RunningParams(object):
 
         # Training
         if self.CUB_TRAINING:
-            self.MODEL2_FINETUNING = False
+            self.MODEL2_FINETUNING = True
             self.HIGHPERFORMANCE_FEATURE_EXTRACTOR = False
             self.HIGHPERFORMANCE_MODEL1 = False
 

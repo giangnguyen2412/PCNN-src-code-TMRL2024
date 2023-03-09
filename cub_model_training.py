@@ -40,7 +40,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -303,9 +303,14 @@ MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
 if RunningParams.CONTINUE_TRAINING:
-    model_path = 'best_models/best_model_exalted-haze-1422.pt'
+    model_path = 'best_models/best_model_feasible-plasma-1440.pt'
     checkpoint = torch.load(model_path)
     MODEL2.load_state_dict(checkpoint['model_state_dict'])
+    if RunningParams.USING_SOFTMAX is True:
+        orig_weight = MODEL2.module.branch3.net[0].weight
+        new_weight = torch.zeros((32, 12495)).cuda()
+        new_weight[:, :12294] = orig_weight
+        MODEL2.module.branch3.net[0].weight = torch.nn.Parameter(new_weight)
 
     print('Continue training from ckpt {}'.format(model_path))
     print('Pretrained model accuracy: {:.2f}'.format(checkpoint['val_acc']))

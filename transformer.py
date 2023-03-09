@@ -83,15 +83,20 @@ class Transformer_AdvisingNetwork(nn.Module):
                                                                    RunningParams.conv_layer_size[RunningParams.conv_layer])
 
         self.transformer = Transformer(dim=2048, depth=2, heads=8, dim_head=64, mlp_dim=512, dropout=0.0)
-        self.cross_transformer = CrossTransformer(sm_dim=2048, lg_dim=2048, depth=2, heads=8,
+        self.cross_transformer = CrossTransformer(sm_dim=2048, lg_dim=2048, depth=2, heads=1,
                                                   dim_head=64, dropout=0.0)
 
         # TODO: What is dim_head, mlp_dim? How these affect the performance?
         # Branch 1 takes softmax scores and cosine similarity
         # self.branch1 = BinaryMLP(200, 2)
         # Branch 3 takes transformer features and sep_token*2
-        self.branch3 = BinaryMLP(RunningParams.k_value*RunningParams.conv_layer_size[RunningParams.conv_layer]*2 +
-                                 RunningParams.k_value*2, 32)
+        # if RunningParams.USING_SOFTMAX is True:
+        #     self.branch3 = BinaryMLP(RunningParams.k_value*RunningParams.conv_layer_size[RunningParams.conv_layer]*2 +
+        #                              RunningParams.k_value*2 + 201, 32)
+        # else:
+        self.branch3 = BinaryMLP(
+            RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] * 2 +
+            RunningParams.k_value * 2, 32)
 
         # self.output_layer = BinaryMLP(2 * 2 + 2, 2)
 
@@ -206,6 +211,9 @@ class Transformer_AdvisingNetwork(nn.Module):
             transformer_emb = torch.cat([sep_token, input_cls[:, 0, :], sep_token, exp_cls[:, 0, :]], dim=1)
             for prototype_idx in range(1, RunningParams.k_value):
                 transformer_emb = torch.cat([transformer_emb, sep_token, input_cls[:, prototype_idx], sep_token, exp_cls[:, prototype_idx]], dim=1)
+
+            if RunningParams.USING_SOFTMAX is True:
+                transformer_emb = torch.cat([transformer_emb, sep_token, scores], dim=1)
 
             i2e_attns = torch.cat(i2e_attns, dim=2)
             e2i_attns = torch.cat(e2i_attns, dim=2)
