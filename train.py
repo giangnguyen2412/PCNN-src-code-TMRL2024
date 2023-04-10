@@ -1,338 +1,476 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim import lr_scheduler
-import torch.backends.cudnn as cudnn
 import numpy as np
-import matplotlib.pyplot as plt
-import torch.nn.functional as F
-import time
 import os
-import copy
-import wandb
-import random
-import pdb
-# import faiss
-
+import argparse
+import faiss
+import matplotlib.pyplot as plt
+import cv2
 
 from tqdm import tqdm
-# from torchray.attribution.grad_cam import grad_cam
+from torchray.attribution.grad_cam import grad_cam
 from torchvision import datasets, models, transforms
-from models import AdvisingNetwork, TransformerAdvisingNetwork
+from models import AdvisingNetwork
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
+from torchvision.datasets import ImageFolder
+# from visualize import Visualization
 from helpers import HelperFunctions
 from explainers import ModelExplainer
-
-import torchvision as tv
-
-torch.backends.cudnn.benchmark = True
-plt.ion()   # interactive mode
-
-os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+from transformer import Transformer_AdvisingNetwork
+from visualize import Visualization
 
 RunningParams = RunningParams()
 Dataset = Dataset()
-Explainer = ModelExplainer()
+HelperFunctions = HelperFunctions()
+ModelExplainer = ModelExplainer()
+Visualization = Visualization()
 
-model1_name = 'resnet18'
-MODEL1 = models.resnet18(pretrained=True).eval()
-fc = MODEL1.fc
-fc = fc.cuda()
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
-data_dir = '/home/giang/Downloads/advising_network'
-# data_dir = '/home/giang/tmp/'
+import albumentations as A
+from albumentations.pytorch.transforms import ToTensorV2
+from albumentations.augmentations.transforms import Normalize
 
-virtual_train_dataset = '{}/train'.format(data_dir)
+abm_transform = A.Compose(
+    [A.Resize(height=256, width=256),
+     A.CenterCrop(height=224, width=224),
+     Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+     ToTensorV2(),
+     ],
 
-train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_60k'
-# train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_60k'
-val_dataset = '/home/giang/Downloads/datasets/balanced_val_dataset_6k'
+    additional_targets={'image0': 'image', 'image1': 'image',
+                        'image2': 'image', 'image3': 'image', 'image4': 'image'}
+)
 
-if not HelperFunctions.is_program_running(os.path.basename(__file__)):
-# if True:
-    print('Creating symlink datasets...')
-    if os.path.islink(virtual_train_dataset) is True:
-        os.unlink(virtual_train_dataset)
-    os.symlink(train_dataset, virtual_train_dataset)
+CATEGORY_ANALYSIS = True
 
-    virtual_val_dataset = '{}/val'.format(data_dir)
-    if os.path.islink(virtual_val_dataset) is True:
-        os.unlink(virtual_val_dataset)
-    os.symlink(val_dataset, virtual_val_dataset)
-else:
-    print('Script is running! No creating symlink datasets!')
-if RunningParams.XAI_method == RunningParams.NNs:
-    image_datasets = {x: ImageFolderForNNs(os.path.join(data_dir, x), Dataset.data_transforms[x]) for x in ['train', 'val']}
-else:
-    image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x), Dataset.data_transforms[x]) for x in ['train', 'val']}
-dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
-class_names = image_datasets['train'].classes
-l1_dist = nn.PairwiseDistance(p=1)
+if RunningParams.MODEL2_ADVISING is True:
+    in_features = 2048
+    print("Building FAISS index...! Training set is the knowledge base.")
+    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB_Pretraining/train',
+                                         transform=Dataset.data_transforms['train'])
 
-IMAGENET_MEAN = np.array([0.485, 0.456, 0.406]) * 255
-IMAGENET_STD = np.array([0.229, 0.224, 0.225]) * 255
+    faiss_data_loader = torch.utils.data.DataLoader(
+        faiss_dataset,
+        batch_size=RunningParams.batch_size,
+        shuffle=False,  # turn shuffle to True
+        num_workers=16,  # Set to 0 as suggested by
+        # https://stackoverflow.com/questions/54773106/simple-way-to-load-specific-sample-using-pytorch-dataloader
+        pin_memory=True,
+    )
 
-feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
-feature_extractor.cuda()
-feature_extractor = nn.DataParallel(feature_extractor)
+    HIGHPERFORMANCE_FEATURE_EXTRACTOR = True
+    if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
+        INDEX_FILE = 'faiss/faiss_CUB200_class_idx_dict_HP_extractor.npy'
+    else:
+        INDEX_FILE = 'faiss/faiss_CUB200_class_idx_dict_LP_extractor.npy'
+    if os.path.exists(INDEX_FILE):
+        print("FAISS class index exists!")
+        faiss_nns_class_dict = np.load(INDEX_FILE, allow_pickle="False", ).item()
+        targets = faiss_data_loader.dataset.targets
+        faiss_data_loader_ids_dict = dict()
+        faiss_loader_dict = dict()
+        for class_id in tqdm(range(len(faiss_data_loader.dataset.class_to_idx))):
+            faiss_data_loader_ids_dict[class_id] = [x for x in range(len(targets)) if
+                                                    targets[x] == class_id]  # check this value
+            class_id_subset = torch.utils.data.Subset(faiss_dataset, faiss_data_loader_ids_dict[class_id])
+            class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
+            faiss_loader_dict[class_id] = class_id_loader
 
+full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
+                                     Dataset.data_transforms['train'])
 
-def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
-    since = time.time()
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ckpt', type=str,
+                        default='best_model_dazzling-snowball-1662.pt',
+                        help='Model check point')
+    # parser.add_argument('--dataset', type=str,
+    #                     default='balanced_val_dataset_6k',
+    #                     help='Evaluation dataset')
 
-    best_model_wts = copy.deepcopy(model.state_dict())
-    best_acc = 0.0
+    args = parser.parse_args()
+    model_path = os.path.join('best_models', args.ckpt)
+    print(args)
 
-    for epoch in range(num_epochs):
-        print(f'Epoch {epoch+1}/{num_epochs}')
-        print('-' * 10)
+    model = Transformer_AdvisingNetwork()
+    model = nn.DataParallel(model).cuda()
 
-        # Each epoch has a training and validation phase
-        for phase in ['train', 'val']:
+    checkpoint = torch.load(model_path)
+    running_params = checkpoint['running_params']
+    RunningParams.XAI_method = running_params.XAI_method
 
-            data_loader = torch.utils.data.DataLoader(
-                image_datasets[phase],
-                batch_size=RunningParams.batch_size,
-                shuffle=True,  # turn shuffle to True
-                num_workers=16,
-                pin_memory=True,
-            )
+    model.load_state_dict(checkpoint['model_state_dict'])
+    epoch = checkpoint['epoch']
+    loss = checkpoint['val_loss']
+    acc = checkpoint['val_acc']
 
-            if phase == 'train':
-                model.train()  # Training mode
+    print('Validation accuracy: {:.2f}'.format(acc))
+    print(RunningParams.__dict__)
+
+    model.eval()
+
+    test_dir = '/home/giang/Downloads/RN50_dataset_CUB_HP/tmp_val'
+    image_datasets = dict()
+    image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'])
+    dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
+
+    HIGHPERFORMANCE_MODEL1 = RunningParams.HIGHPERFORMANCE_MODEL1
+    if HIGHPERFORMANCE_MODEL1 is True:
+        from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+
+        resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+        my_model_state_dict = torch.load(
+            'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+        resnet.load_state_dict(my_model_state_dict, strict=True)
+        MODEL1 = resnet.cuda()
+        MODEL1.eval()
+        fc = list(MODEL1.children())[-1].cuda()
+        fc = nn.DataParallel(fc)
+
+        if RunningParams.MODEL2_FINETUNING:
+            categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_HIGH/combined'
+        else:
+            categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_LOW/combined'
+
+    else:
+        import torchvision
+
+        inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
+        inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
+        my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
+        inat_resnet.load_state_dict(my_model_state_dict, strict=True)
+        MODEL1 = inat_resnet
+        MODEL1.eval()
+
+        fc = MODEL1.fc.cuda()
+        fc = nn.DataParallel(fc)
+
+        if RunningParams.MODEL2_FINETUNING:
+            categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_HIGH/combined'
+        else:
+            categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_LOW/combined'
+
+    feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
+    feature_extractor.cuda()
+    feature_extractor = nn.DataParallel(feature_extractor)
+
+    if CATEGORY_ANALYSIS is True:
+        import glob
+
+        correctness_bins = ['Correct', 'Wrong']
+        category_dict = {}
+        category_record = {}
+
+        for c in correctness_bins:
+            dir = os.path.join(categorized_path, c)
+            files = glob.glob(os.path.join(dir, '*', '*.*'))
+            key = c
+            for file in files:
+                base_name = os.path.basename(file)
+                category_dict[base_name] = key
+
+            category_record[key] = {}
+            category_record[key]['total'] = 0
+            category_record[key]['crt'] = 0
+
+    for ds in ['cub_test']:
+        data_loader = torch.utils.data.DataLoader(
+            image_datasets[ds],
+            batch_size=50,
+            shuffle=False,  # turn shuffle to False
+            num_workers=16,
+            pin_memory=True,
+            drop_last=False  # Do not remove drop last because it affects performance
+        )
+
+        running_corrects = 0
+        advising_crt_cnt = 0
+        yes_cnt = 0
+        true_cnt = 0
+        uncertain_pred_cnt = 0
+        confidence_dict = dict()
+
+        categories = ['CorrectlyAccept', 'IncorrectlyAccept', 'CorrectlyReject', 'IncorrectlyReject']
+        save_dir = '/home/giang/Downloads/advising_network/vis'
+        HelperFunctions.check_and_rm(save_dir)
+        HelperFunctions.check_and_mkdir(save_dir)
+        model1_confidence_dist = dict()
+        model2_confidence_dist = dict()
+        for cat in categories:
+            model1_confidence_dist[cat] = list()
+            model2_confidence_dist[cat] = list()
+            HelperFunctions.check_and_mkdir(os.path.join(save_dir, cat))
+
+        infer_result_dict = dict()
+
+        for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
+            # if batch_idx == 5:
+            #     break
+            if RunningParams.XAI_method == RunningParams.NNs:
+                x = data[0].cuda()
             else:
-                model.eval()  # Evaluation mode
+                x = data.cuda()
 
-            running_loss = 0.0
-            running_corrects = 0
+            if len(data_loader.dataset.classes) < 200:
+                for sample_idx in range(x.shape[0]):
+                    tgt = gt[sample_idx].item()
+                    class_name = data_loader.dataset.classes[tgt]
+                    id = full_cub_dataset.class_to_idx[class_name]
+                    gt[sample_idx] = id
 
-            running_label_loss = 0.0
-            running_embedding_loss = 0.0
+            gts = gt.cuda()
 
-            yes_cnt = 0
-            true_cnt = 0
+            # Step 1: Forward pass input x through MODEL1 - Explainer
+            embeddings = feature_extractor(x).flatten(start_dim=1)  # 512x1 for RN 18
+            out = fc(embeddings)
+            out = MODEL1(x)
+            model1_p = torch.nn.functional.softmax(out, dim=1)
+            model1_score, index = torch.topk(model1_p, 1, dim=1)
+            _, model1_ranks = torch.topk(model1_p, 200, dim=1)
+            predicted_ids = index.squeeze()
 
-            sim_0s = []
-            sim_1s = []
-            for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
-                if RunningParams.XAI_method == RunningParams.NNs:
-                    x = data[0].cuda()
+            # MODEL1 Y/N label for input x
+            for sample_idx in range(x.shape[0]):
+                query = pths[sample_idx]
+                base_name = os.path.basename(query)
+
+                if CATEGORY_ANALYSIS is True:
+                    key = category_dict[base_name]
+                    category_record[key]['total'] += 1
+
+            model2_gt = (predicted_ids == gts) * 1  # 0 and 1
+
+            labels = model2_gt
+            # Get the idx of wrong predictions
+            idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
+
+            # Generate explanations
+            if RunningParams.XAI_method == RunningParams.GradCAM:
+                explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
+            elif RunningParams.XAI_method == RunningParams.NNs:
+                if RunningParams.PRECOMPUTED_NN is True:
+                    explanation = data[1]
+                    # TODO: In test, I do not need to skip the 1st NN
+                    # TODO: However, in validation, I must skip the 1st NN
+                    explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
+
+                    # Make the random explanations
+                    # Pseudo-code --> Need to debug here to see
+                    # random_exp = torch.random(explanation[0].shape)
+                    # explanation[idx_0] = random_exp
                 else:
-                    x = data.cuda()
-                gts = gt.cuda()
+                    print("Error: Not implemented yet!")
+                    exit(-1)
 
-                embeddings = feature_extractor(x).flatten(start_dim=1)  # 512x1 for RN 18
+            if RunningParams.advising_network is True:
+                # Forward input, explanations, and softmax scores through MODEL2
+                if RunningParams.XAI_method == RunningParams.NO_XAI:
+                    output, _, _ = model(images=x, explanations=None, scores=model1_p)
+                else:
+                    output, query, i2e_attn, e2i_attn = model(images=x, explanations=explanation, scores=model1_p)
 
-                out = fc(embeddings)
-                model1_p = torch.nn.functional.softmax(out, dim=1)
-                score, index = torch.topk(model1_p, 1, dim=1)
-                predicted_ids = index.squeeze()
+                p = torch.nn.functional.softmax(output, dim=1)
+                model2_score, preds = torch.max(p, 1)
 
-                # MODEL1 Y/N label for input x
-                if RunningParams.IMAGENET_REAL and phase == 'val':
-                    model2_gt = torch.zeros([x.shape[0]], dtype=torch.int64).cuda()
+                results = (preds == labels)
+                VISUALIZE_TRANSFORMER_ATTN = False
+                if VISUALIZE_TRANSFORMER_ATTN is True:
+                    i2e_attn = i2e_attn.mean(dim=1)  # bsx8x3x50
+                    i2e_attn = i2e_attn[:, :, 1:]  # remove cls token --> bsx3x49
+
+                    e2i_attn = e2i_attn.mean(dim=1)
+                    e2i_attn = e2i_attn[:, :, 1:]  # remove cls token
+
+                    for sample_idx in range(x.shape[0]):
+                        if sample_idx == 1:
+                            break
+                        result = results[sample_idx].item()
+                        if result is True:
+                            correctness = 'Correctly'
+                        else:
+                            correctness = 'Incorrectly'
+
+                        pred = preds[sample_idx].item()
+                        if pred == 1:
+                            action = 'Accept'
+                        else:
+                            action = 'Reject'
+                        model2_decision = correctness + action
+
+                        query = pths[sample_idx]
+                        base_name = os.path.basename(query)
+                        prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
+                        for prototype_idx in range(RunningParams.k_value):
+                            bef_weights = i2e_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
+                            aft_weights = e2i_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
+
+                            # as the test images are from validation, then we do not need to exclude the fist prototype
+                            prototype = prototypes[prototype_idx]
+                            Visualization.visualize_transformer_attn_v2(bef_weights, aft_weights, prototype, query,
+                                                                        model2_decision, prototype_idx)
+
+                        # Combine visualizations
+                        cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 tmp/{}/{}.jpeg'.format(
+                            model2_decision, base_name, RunningParams.k_value - 1, model2_decision, base_name)
+                        # cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 my_plot.png'.format(
+                        #     model2_decision, base_name, RunningParams.k_value - 1)
+                        os.system(cmd)
+                        # Remove unused images
+                        cmd = 'rm -rf tmp/{}/{}_[0-{}].png'.format(
+                            model2_decision, base_name, RunningParams.k_value - 1)
+                        os.system(cmd)
+
+                REMOVE_UNCERT = False
+                for sample_idx in range(x.shape[0]):
+                    pred = preds[sample_idx].item()
+                    model2_conf = p[sample_idx][pred].item()
+                    if model2_conf < 0.60:
+                        uncertain_pred_cnt += 1
+                        if REMOVE_UNCERT is True:
+                            preds[sample_idx] = -1
+
+                if CATEGORY_ANALYSIS is True:
                     for sample_idx in range(x.shape[0]):
                         query = pths[sample_idx]
                         base_name = os.path.basename(query)
-                        real_ids = Dataset.real_labels[base_name]
-                        if predicted_ids[sample_idx].item() in real_ids:
-                            model2_gt[sample_idx] = 1
-                        else:
-                            model2_gt[sample_idx] = 0
-                else:
-                    model2_gt = (predicted_ids == gts) * 1  # 0 and 1
-                labels = model2_gt
 
-                if RunningParams.XAI_method == RunningParams.GradCAM:
-                    explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
-                elif RunningParams.XAI_method == RunningParams.NNs:
-                    if RunningParams.PRECOMPUTED_NN is True:
-                        explanation = data[1]
-                        if phase == 'train':
-                            explanation = explanation[:, 1:RunningParams.k_value + 1, :, :, :]  # ignore 1st NN = query
-                        else:
-                            explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
+                        key = category_dict[base_name]
+                        if preds[sample_idx].item() == labels[sample_idx].item():
+                            category_record[key]['crt'] += 1
 
-                # zero the parameter gradients
-                optimizer.zero_grad()
-
-                with torch.set_grad_enabled(phase == 'train'):
-                    if RunningParams.XAI_method == RunningParams.NO_XAI:
-                        output, _, _ = model(images=x, explanations=None, scores=model1_p)
-                    else:
-                        output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=model1_p)
-                        if RunningParams.XAI_method == RunningParams.NNs:
-                            # emb_cos_sim = F.cosine_similarity(query, nns)
-                            # embedding_loss = l1_dist(emb_cos_sim, labels)/(x.shape[0])
-                            idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
-                            idx_1 = (labels == 1).nonzero(as_tuple=True)[0]
-                            sim_0 = emb_cos_sim[idx_0].mean()
-                            sim_1 = emb_cos_sim[idx_1].mean()
-                            sim_0s.append(sim_0.item())
-                            sim_1s.append(sim_1.item())
-
-                        # import pdb
-                        # pdb.set_trace()
-
-                    p = torch.nn.functional.softmax(output, dim=1)
-                    confs, preds = torch.max(p, 1)
-                    label_loss = loss_func(p, labels)
-
-                    if RunningParams.XAI_method == RunningParams.NNs and RunningParams.embedding_loss is True:
-                        loss = label_loss + embedding_loss
-                        # loss = embedding_loss
-                    else:
-                        loss = label_loss
-
-                    CONFIDENCE_LOSS = False
-                    if CONFIDENCE_LOSS is True:
-                        conf_loss = (1 - confs).mean()
-                        loss = label_loss + conf_loss
-
-                    # backward + optimize only if in training phase
-                    if phase == 'train':
-                        loss.backward()
-                        optimizer.step()
-
-                # statistics
-                running_loss += loss.item() * x.size(0)
-                running_label_loss += label_loss.item() * x.size(0)
-                # if RunningParams.XAI_method == RunningParams.NNs:
-                #     running_embedding_loss += embedding_loss.item() * x.size(0)
-
+                # Count the number of correct predictions from advising network on the test dataset
                 running_corrects += torch.sum(preds == labels.data)
 
-                yes_cnt += sum(preds)
-                true_cnt += sum(labels)
+                AI_DELEGATE = True
+                if AI_DELEGATE is True:
+                    for sample_idx in range(x.shape[0]):
+                        result = results[sample_idx].item()
+                        pred = preds[sample_idx].item()
 
-            import statistics
-            print("k: {} | Mean for True: {:.2f} and Mean for False: {:.2f}".format(RunningParams.k_value, statistics.mean(sim_1s), statistics.mean(sim_0s)))
-            epoch_loss = running_loss / len(image_datasets[phase])
-            epoch_label_loss = running_label_loss / len(image_datasets[phase])
-            if RunningParams.XAI_method == RunningParams.NNs:
-                epoch_embedding_loss = running_embedding_loss / len(image_datasets[phase])
+                        s = int(model1_score[sample_idx].item()*100)
+                        if s not in confidence_dict:
+                            confidence_dict[s] = [0, 0, 0]
+                            # if model2_score[sample_idx].item() >= model1_score[sample_idx].item():
+                            if True:
+                                if result is True:
+                                    confidence_dict[s][0] += 1
+                                else:
+                                    confidence_dict[s][1] += 1
 
-            epoch_acc = running_corrects.double() / len(image_datasets[phase])
-            yes_ratio = yes_cnt.double() / len(image_datasets[phase])
-            true_ratio = true_cnt.double() / len(image_datasets[phase])
+                                if labels[sample_idx].item() == 1:
+                                    confidence_dict[s][2] += 1
 
-            if phase == 'train':
-                scheduler.step()
-                # scheduler.step(epoch_acc)
+                        else:
+                            # if model2_score[sample_idx].item() >= model1_score[sample_idx].item():
+                            if True:
+                                if result is True:
+                                    confidence_dict[s][0] += 1
+                                else:
+                                    confidence_dict[s][1] += 1
 
-            wandb.log({'{}_accuracy'.format(phase): epoch_acc, '{}_loss'.format(phase): epoch_loss})
+                                if labels[sample_idx].item() == 1:
+                                    confidence_dict[s][2] += 1
 
-            print('{} - Loss: {:.4f} - Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
-                phase, epoch_loss, epoch_acc*100, yes_ratio * 100, true_ratio*100))
-            # if RunningParams.XAI_method == RunningParams.NNs:
-            #     print('{} - Label Loss: {:.4f} - Embedding Loss: {:.4f} '.format(
-            #         phase, epoch_label_loss, epoch_embedding_loss))
+            if RunningParams.M2_VISUALIZATION is True:
+                for sample_idx in range(x.shape[0]):
+                    result = results[sample_idx].item()
+                    if result is True:
+                        correctness = 'Correctly'
+                    else:
+                        correctness = 'Incorrectly'
 
-            # deep copy the model
-            if phase == 'val' and epoch_acc > best_acc:
-                best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(model.state_dict())
+                    pred = preds[sample_idx].item()
+                    if pred == 1:
+                        action = 'Accept'
+                    else:
+                        action = 'Reject'
 
-                ckpt_path = '/home/giang/Downloads/advising_network/best_models/best_model_{}.pt'\
-                    .format(wandb.run.name)
+                    model2_decision = correctness + action
+                    query = pths[sample_idx]
 
-                torch.save({
-                    'epoch': epoch+1,
-                    'model_state_dict': best_model_wts,
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'val_loss': epoch_loss,
-                    'val_acc': epoch_acc*100,
-                    'val_yes_ratio': yes_ratio * 100,
-                    'running_params': RunningParams,
-                }, ckpt_path)
+                    # TODO: move this out to remove redundancy
+                    base_name = os.path.basename(query)
+                    save_path = os.path.join(save_dir, model2_decision, base_name)
 
-        print()
+                    gt_label = full_cub_dataset.classes[gts[sample_idx].item()]
+                    pred_label = full_cub_dataset.classes[predicted_ids[sample_idx].item()]
 
-    time_elapsed = time.time() - since
-    print(f'Training complete in {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s')
-    print(f'Best val Acc: {best_acc:4f}')
+                    model1_confidence = int(model1_score[sample_idx].item() * 100)
+                    model2_confidence = int(model2_score[sample_idx].item() * 100)
+                    model1_confidence_dist[model2_decision].append(model1_confidence)
+                    model2_confidence_dist[model2_decision].append(model2_confidence)
 
-    # load best model weights
-    model.load_state_dict(best_model_wts)
-    return model, best_acc
+                    # Finding the extreme cases
+                    # if (action == 'Accept' and confidence < 50) or (action == 'Reject' and confidence > 80):
+                    if correctness == 'Incorrectly':
+                        prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
+                        Visualization.visualize_model2_decision_with_prototypes(query,
+                                                                                gt_label,
+                                                                                pred_label,
+                                                                                model2_decision,
+                                                                                save_path,
+                                                                                save_dir,
+                                                                                model1_confidence,
+                                                                                model2_confidence,
+                                                                                prototypes)
 
+                    infer_result_dict[base_name] = dict()
+                    infer_result_dict[base_name]['model2_decision'] = model2_decision
+                    infer_result_dict[base_name]['confidence1'] = model1_confidence
+                    infer_result_dict[base_name]['confidence2'] = model2_confidence
+                    infer_result_dict[base_name]['gt_label'] = gt_label
+                    infer_result_dict[base_name]['pred_label'] = pred_label
+                    infer_result_dict[base_name]['result'] = result is True
 
-model2_name = 'TransformerAdvisingNetwork'
-MODEL2 = TransformerAdvisingNetwork()
+            yes_cnt += sum(preds)
+            true_cnt += sum(labels)
+            np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
 
-MODEL2 = MODEL2.cuda()
-MODEL2 = nn.DataParallel(MODEL2)
+        if RunningParams.M2_VISUALIZATION is True:
+            for cat in categories:
+                img_ratio = len(model1_confidence_dist[cat]) * 100 / dataset_sizes[ds]
+                title = '{}: {:.2f}% of test set'.format(cat, img_ratio)
+            #     Visualization.visualize_histogram_from_list(data=model1_confidence_dist[cat],
+            #                                                 title=title,
+            #                                                 x_label='Confidence',
+            #                                                 y_label='Images',
+            #                                                 file_name=os.path.join(save_dir, cat + 'Confidence.pdf'),
+            #                                                 )
+            # #
+            #     merge_pdf_cmd = 'img2pdf -o vis/{}Samples.pdf --rotation=ifvalid --pagesize A4^T vis/{}/*.jpg'.format(cat, cat)
+            #     os.system(merge_pdf_cmd)
+            #
+            # compress_cmd = 'tar -czvf analysis.tar.gz vis/*.pdf'
+            # os.system(compress_cmd)
 
-if RunningParams.CONTINUE_TRAINING:
-    model_path = 'best_models/best_model_pretty-puddle-331.pt'
-    checkpoint = torch.load(model_path)
-    MODEL2.load_state_dict(checkpoint['model_state_dict'])
+        epoch_acc = running_corrects.double() / len(image_datasets[ds])
+        yes_ratio = yes_cnt.double() / len(image_datasets[ds])
+        true_ratio = true_cnt.double() / len(image_datasets[ds])
+        uncertain_ratio = uncertain_pred_cnt / len(image_datasets[ds])
+        if REMOVE_UNCERT is True:
+            epoch_acc = running_corrects.double() / (len(image_datasets[ds]) - uncertain_pred_cnt)
 
-criterion = nn.CrossEntropyLoss()
+        if RunningParams.MODEL2_ADVISING is True:
+            advising_acc = advising_crt_cnt.double() / len(image_datasets[ds])
 
-# Observe all parameters that are being optimized
-optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)
+            print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Orig. accuracy: {:.2f} - Advising. accuracy: {:.2f}'.format(
+                ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100, advising_acc * 100))
+        else:
+            if REMOVE_UNCERT is True:
+                print('{} - Acc: {:.2f} - Always say Yes: {:.2f} - Uncertain. ratio: {:.2f}'.format(
+                    ds, epoch_acc * 100, true_ratio * 100, 0 * 100))
+            else:
+                print('{} - Acc: {:.2f} - Yes Ratio: {:.2f} - Always say Yes: {:.2f} - Uncertain. ratio: {:.2f}'.format(
+                    ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100, uncertain_ratio * 100))
 
-# Decay LR by a factor of 0.1 every 7 epochs
-# exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+        print(category_record)
+        if CATEGORY_ANALYSIS is True:
+            for c in correctness_bins:
+                print("{} - {:.2f}".format(c, category_record[c]['crt'] * 100 / category_record[c]['total']))
 
-oneLR_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    optimizer_ft, max_lr=0.01,
-    steps_per_epoch=dataset_sizes['train']//RunningParams.batch_size,
-    epochs=RunningParams.epochs)
+        np.save('confidence.npy', confidence_dict)
 
-# change to ReduceLROnPlateau scheduler, 'min': reduce LR if not decreasing
-# oneLR_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_ft, mode='min', patience=4)
-
-config = {"train": train_dataset,
-          "val": val_dataset,
-          "train_size": dataset_sizes['train'],
-          "val_size": dataset_sizes['val'],
-          "model1": model1_name,
-          "model2": model2_name,
-          "num_epochs": RunningParams.epochs,
-          "batch_size": RunningParams.batch_size,
-          "learning_rate": RunningParams.learning_rate,
-          'explanation': RunningParams.XAI_method,
-          'query_frozen': RunningParams.query_frozen,
-          'heatmap_frozen': RunningParams.heatmap_frozen,
-          'nns_frozen':RunningParams.nns_frozen,
-          'k_value': RunningParams.k_value,
-          'ImageNetReaL': RunningParams.IMAGENET_REAL,
-          'conv_layer': RunningParams.conv_layer,
-          'embedding_loss': RunningParams.embedding_loss,
-          'continue_training': RunningParams.CONTINUE_TRAINING,
-          'using_softmax': RunningParams.USING_SOFTMAX,
-          'dropout_rate': RunningParams.dropout,
-          'CrossCorrelation': RunningParams.CrossCorrelation,
-          'TOP1_NN': RunningParams.TOP1_NN,
-          'SIMCLR_MODEL': RunningParams.SIMCLR_MODEL,
-          'COSINE_ONLY': RunningParams.COSINE_ONLY,
-          }
-
-print(config)
-wandb.init(
-    project="advising-network",
-    entity="luulinh90s",
-    config=config
-)
-
-wandb.save(os.path.basename(__file__), policy='now')
-wandb.save('params.py', policy='now')
-wandb.save('explainers.py', policy='now')
-wandb.save('models.py', policy='now')
-wandb.save('datasets.py', policy='now')
-wandb.save('train.py', policy='now')
-
-
-_, best_acc = train_model(
-    MODEL2,
-    criterion,
-    optimizer_ft,
-    oneLR_scheduler,
-    config["num_epochs"])
-
-
-wandb.finish()

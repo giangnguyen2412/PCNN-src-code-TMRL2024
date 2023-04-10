@@ -28,11 +28,18 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "7,6,5,4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
 Explainer = ModelExplainer()
+
+assert (RunningParams.CUB_TRAINING is False)
+
+if [RunningParams.IMAGENET_TRAINING, RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING].count(True) > 1:
+    print("There are more than one training datasets chosen, skipping training!!!")
+    exit(-1)
+
 
 action = RunningParams.action
 if RunningParams.USING_CLASS_EMBEDDING is True:
@@ -48,17 +55,11 @@ if len(commit) == 0:
     exit(-1)
 
 
-if [RunningParams.IMAGENET_TRAINING, RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING].count(True) > 1:
-    print("There are more than one training datasets chosen, skipping training!!!")
-    exit(-1)
-
-assert (RunningParams.CUB_TRAINING is False)
-
-torch.backends.cudnn.deterministic = True
-random.seed(1)
-torch.manual_seed(1)
-torch.cuda.manual_seed(1)
-np.random.seed(1)
+# torch.backends.cudnn.deterministic = True
+# random.seed(1)
+# torch.manual_seed(1)
+# torch.cuda.manual_seed(1)
+# np.random.seed(1)
 
 if RunningParams.DOGS_TRAINING is True:
     MODEL1 = models.resnet34(pretrained=True).eval().cuda()
@@ -68,13 +69,6 @@ else:
 fc = MODEL1.fc
 fc = fc.cuda()
 
-data_dir = '/home/giang/Downloads/advising_network'
-# data_dir = '/home/giang/tmp'
-
-virtual_train_dataset = '{}/train'.format(data_dir)
-virtual_val_dataset = '{}/val'.format(data_dir)
-
-# train_dataset = '/home/giang/Downloads/datasets/random_train_dataset'
 train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_180k'
 val_dataset = '/home/giang/Downloads/datasets/balanced_val_dataset_6k'
 
@@ -107,25 +101,11 @@ if TRAIN_DOG is True:
                 category_record[key]['crt'] = 0
 
 
-if not HelperFunctions.is_program_running(os.path.basename(__file__)):
-# if True:
-    print('Creating symlink datasets...')
-    if os.path.islink(virtual_train_dataset) is True:
-        os.unlink(virtual_train_dataset)
-    os.symlink(train_dataset, virtual_train_dataset)
-
-    if os.path.islink(virtual_val_dataset) is True:
-        os.unlink(virtual_val_dataset)
-    os.symlink(val_dataset, virtual_val_dataset)
-else:
-    print('Script is running! No creating symlink datasets!')
-
 imagenet_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/imagenet1k-val', Dataset.data_transforms['train'])
 
-if RunningParams.XAI_method == RunningParams.NNs:
-    image_datasets = {x: ImageFolderForNNs(os.path.join(data_dir, x), Dataset.data_transforms[x]) for x in ['train', 'val']}
-else:
-    image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x), Dataset.data_transforms[x]) for x in ['train', 'val']}
+image_datasets = dict()
+image_datasets['train'] = ImageFolderForNNs(train_dataset, Dataset.data_transforms['train'])
+image_datasets['val'] = ImageFolderForNNs(val_dataset, Dataset.data_transforms['val'])
 
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 
@@ -146,15 +126,29 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
-
             if phase == 'train':
                 shuffle = True
                 model.train()  # Training mode
-                torch.set_grad_enabled(True)  # Using torch.no_grad without context manager
+
+                for param in MODEL2.parameters():
+                    param.requires_grad = False
+
+                # if RunningParams.MODEL2_FINETUNING is False:
+                if True:
+                    for param in MODEL2.module.transformer_feat_embedder.parameters():
+                        param.requires_grad_(True)
+
+                    for param in MODEL2.module.transformer.parameters():
+                        param.requires_grad_(True)
+
+                    for param in MODEL2.module.cross_transformer.parameters():
+                        param.requires_grad_(True)
+
+                for param in MODEL2.module.branch3.parameters():
+                    param.requires_grad_(True)
             else:
                 shuffle = False
                 model.eval()  # Evaluation mode
-                torch.set_grad_enabled(False)
 
             data_loader = torch.utils.data.DataLoader(
                 image_datasets[phase],
@@ -162,7 +156,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 shuffle=shuffle,  # turn shuffle to True
                 num_workers=16,
                 pin_memory=True,
-                # drop_last=True
+                drop_last=True
             )
 
             running_loss = 0.0
@@ -179,6 +173,15 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     x = data[0].cuda()
                 else:
                     x = data.cuda()
+
+                if TRAIN_DOG is True:
+                    for sample_idx in range(x.shape[0]):
+                        wnid = data_loader.dataset.classes[gt[sample_idx]]
+                        gt[sample_idx] = imagenet_dataset.class_to_idx[wnid]
+
+                        # wnid = imagenet_dataset.classes[predicted_ids[sample_idx]]
+                        # predicted_ids[sample_idx] = data_loader.dataset.class_to_idx[wnid]
+
                 gts = gt.cuda()
 
                 embeddings = feature_extractor(x).flatten(start_dim=1)  # 512x1 for RN 18
@@ -187,14 +190,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 model1_p = torch.nn.functional.softmax(out, dim=1)
                 score, index = torch.topk(model1_p, 1, dim=1)
                 predicted_ids = index.squeeze()
-
-                if TRAIN_DOG is True:
-                    for sample_idx in range(x.shape[0]):
-                        wnid = data_loader.dataset.classes[gts[sample_idx]]
-                        gts[sample_idx] = imagenet_dataset.class_to_idx[wnid]
-
-                        # wnid = imagenet_dataset.classes[predicted_ids[sample_idx]]
-                        # predicted_ids[sample_idx] = data_loader.dataset.class_to_idx[wnid]
 
                 # MODEL1 Y/N label for input x
                 if RunningParams.IMAGENET_REAL and phase == 'val' and RunningParams.IMAGENET_TRAINING:
@@ -214,6 +209,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 else:
                     model2_gt = (predicted_ids == gts) * 1  # 0 and 1
                 labels = model2_gt
+
+                #####################################################
 
                 if RunningParams.USING_CLASS_EMBEDDING:
                     prototype_class_id_list = []
@@ -236,11 +233,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                         explanation = data[1]
                         if phase == 'train':
                             explanation = explanation[:, 1:RunningParams.k_value + 1, :, :, :]  # ignore 1st NN = query
-                            # explanation = explanation[:, 2:, :, :, :]  # ignore 1st NN = query
                         else:
                             explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
-                            # black out the explanations
-                            # explanation = torch.zeros_like(explanation)
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -249,7 +243,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     if RunningParams.XAI_method == RunningParams.NO_XAI:
                         output, _, _ = model(images=x, explanations=None, scores=model1_p, prototype_class_id_list=prototype_class_id_list)
                     else:
-                        output, query, _, _ = model(images=x, explanations=explanation, scores=model1_p, prototype_class_id_list=prototype_class_id_list)
+                        output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=model1_p)
 
                     p = torch.nn.functional.softmax(output, dim=1)
                     confs, preds = torch.max(p, 1)
@@ -316,7 +310,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 print('Avg acc - {:.2f}'.format(avg_acc))
                 epoch_acc = avg_acc
 
-            wandb.log({'{}_accuracy'.format(phase): epoch_acc, '{}_loss'.format(phase): epoch_loss})
+            wandb.log({'{}_accuracy'.format(phase): epoch_acc*100, '{}_loss'.format(phase): epoch_loss})
 
             print('{} - {} - Loss: {:.4f} - Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
                 wandb.run.name, phase, epoch_loss, epoch_acc*100, yes_ratio * 100, true_ratio*100))
@@ -362,6 +356,13 @@ if RunningParams.CONTINUE_TRAINING:
     model_path = 'best_models/best_model_whole-universe-848.pt'
     checkpoint = torch.load(model_path)
     MODEL2.load_state_dict(checkpoint['model_state_dict'])
+
+    if RunningParams.USING_SOFTMAX is True:
+        orig_weight = MODEL2.module.branch3.net[0].weight
+        new_weight = torch.zeros((32, 6147 + 201)).cuda()
+        new_weight[:, :6147] = orig_weight
+        MODEL2.module.branch3.net[0].weight = torch.nn.Parameter(new_weight)
+
     print('Continue training from ckpt {}'.format(model_path))
     print('Pretrained model accuracy: {:.2f}'.format(checkpoint['val_acc']))
 
@@ -370,16 +371,11 @@ criterion = nn.CrossEntropyLoss()
 # Observe all parameters that are being optimized
 optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)
 
-# Decay LR by a factor of 0.1 every 7 epochs
-# exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
-
+max_lr = RunningParams.learning_rate*10
 oneLR_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    optimizer_ft, max_lr=0.01,
+    optimizer_ft, max_lr=max_lr,
     steps_per_epoch=dataset_sizes['train']//RunningParams.batch_size,
     epochs=RunningParams.epochs)
-
-# change to ReduceLROnPlateau scheduler, 'min': reduce LR if not decreasing
-# oneLR_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_ft, mode='min', patience=4)
 
 config = {"train": train_dataset,
           "val": val_dataset,
@@ -389,20 +385,12 @@ config = {"train": train_dataset,
           "batch_size": RunningParams.batch_size,
           "learning_rate": RunningParams.learning_rate,
           'explanation': RunningParams.XAI_method,
-          'query_frozen': RunningParams.query_frozen,
-          'heatmap_frozen': RunningParams.heatmap_frozen,
-          'nns_frozen':RunningParams.nns_frozen,
           'k_value': RunningParams.k_value,
-          'ImageNetReaL': RunningParams.IMAGENET_REAL,
           'conv_layer': RunningParams.conv_layer,
-          'embedding_loss': RunningParams.embedding_loss,
-          'continue_training': RunningParams.CONTINUE_TRAINING,
-          'using_softmax': RunningParams.USING_SOFTMAX,
+          'USING_SOFTMAX': RunningParams.USING_SOFTMAX,
           'dropout_rate': RunningParams.dropout,
-          'CrossCorrelation': RunningParams.CrossCorrelation,
           'TOP1_NN': RunningParams.TOP1_NN,
-          'SIMCLR_MODEL': RunningParams.SIMCLR_MODEL,
-          'COSINE_ONLY': RunningParams.COSINE_ONLY,
+          'CONTINUE_TRAINING': RunningParams.CONTINUE_TRAINING,
           }
 
 print(config)
@@ -415,12 +403,9 @@ wandb.init(
 
 wandb.save(os.path.basename(__file__), policy='now')
 wandb.save('params.py', policy='now')
-wandb.save('explainers.py', policy='now')
-wandb.save('models.py', policy='now')
 wandb.save('datasets.py', policy='now')
-wandb.save('avs_traing.py', policy='now')
+wandb.save('model_training.py', policy='now')
 wandb.save('transformer.py', policy='now')
-wandb.save('cross_vit.py', policy='now')
 
 
 _, best_acc = train_model(

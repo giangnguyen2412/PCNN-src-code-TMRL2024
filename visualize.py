@@ -76,15 +76,15 @@ class Visualization(object):
 
     @staticmethod
     def visualize_model2_decision_with_prototypes(query: str,
-                                   gt_label: str,
-                                   pred_label: str,
-                                   model2_decision: str,
-                                   save_path: str,
-                                   save_dir: str,
-                                   confidence1: int,
-                                   confidence2: int,
-                                   prototypes: list,
-                                   ):
+                                                  gt_label: str,
+                                                  pred_label: str,
+                                                  model2_decision: str,
+                                                  save_path: str,
+                                                  save_dir: str,
+                                                  confidence1: int,
+                                                  confidence2: int,
+                                                  prototypes: list,
+                                                  ):
         cmd = "convert '{}' -resize 256x256^ -gravity Center -extent 224x224 {}/query.jpeg".format(
             query, save_dir
         )
@@ -99,13 +99,75 @@ class Visualization(object):
 
         cmd = 'montage {}/[0-4].jpeg -tile 5x1 -geometry +0+0 {}/aggregate.jpeg'.format(save_dir, save_dir)
         os.system(cmd)
-        cmd = 'montage {}/query.jpeg {}/aggregate.jpeg -tile 2x -geometry +10+0 {}'.format(save_dir, save_dir, save_path)
+        cmd = 'montage {}/query.jpeg {}/aggregate.jpeg -tile 2x -geometry +10+0 {}'.format(save_dir, save_dir,
+                                                                                           save_path)
         os.system(cmd)
 
         cmd = 'convert {} -font aakar -pointsize 21 -gravity North -background White -splice 0x40 -annotate +0+4 "{}" {}'.format(
             save_path, annotation, save_path
         )
         print(cmd)
+        os.system(cmd)
+
+    @staticmethod
+    def visualize_model2_correction_with_prototypes(query: str,
+                                                    gt_label: str,
+                                                    pred_label: str,
+                                                    model2_decision: str,
+                                                    adv_label: str,
+                                                    save_path: str,
+                                                    save_dir: str,
+                                                    confidence1: int,
+                                                    confidence2: int,
+                                                    adv_conf: int,
+                                                    prototypes: list,
+                                                    adv_prototypes: list
+                                                    ):
+        cmd = "convert '{}' -resize 256x256^ -gravity Center -extent 224x224 {}/query.jpeg".format(
+            query, save_dir
+        )
+        os.system(cmd)
+        for idx, prototype in enumerate(prototypes):
+            cmd = "convert '{}' -resize 256x256^ -gravity Center -extent 224x224 {}/{}.jpeg".format(
+                prototype, save_dir, idx)
+            os.system(cmd)
+
+        annotation = 'GT: {} - Model1 Pred: {} - Model1 Conf: {}% - Model2 Conf: {}%'.format(
+            gt_label, pred_label, confidence1, confidence2)
+
+        cmd = 'montage {}/[0-4].jpeg -tile 3x1 -geometry +0+0 {}/aggregate.jpeg'.format(save_dir, save_dir)
+        os.system(cmd)
+        cmd = 'montage {}/query.jpeg {}/aggregate.jpeg -tile 2x -geometry +10+0 {}'.format(save_dir, save_dir,
+                                                                                           save_path)
+        os.system(cmd)
+
+        cmd = 'convert {} -font aakar -pointsize 16 -gravity North -background White -splice 0x40 -annotate +0+4 "{}" {}'.format(
+            save_path, annotation, 'tmp1.jpg'
+        )
+        os.system(cmd)
+
+        ################################################################################
+
+        for idx, prototype in enumerate(adv_prototypes):
+            cmd = "convert '{}' -resize 256x256^ -gravity Center -extent 224x224 {}/{}.jpeg".format(
+                prototype, save_dir, idx)
+            os.system(cmd)
+
+        annotation = 'GT: {} - Model1 Pred: {} - Model1 Conf: < {}% - Model2 Conf: {}%'.format(
+            gt_label, adv_label, 100-confidence1, adv_conf)
+
+        cmd = 'montage {}/[0-4].jpeg -tile 3x1 -geometry +0+0 {}/aggregate.jpeg'.format(save_dir, save_dir)
+        os.system(cmd)
+        cmd = 'montage {}/query.jpeg {}/aggregate.jpeg -tile 2x -geometry +10+0 {}'.format(save_dir, save_dir,
+                                                                                           save_path)
+        os.system(cmd)
+
+        cmd = 'convert {} -font aakar -pointsize 16 -gravity North -background White -splice 0x40 -annotate +0+4 "{}" {}'.format(
+            save_path, annotation, 'tmp2.jpg'
+        )
+        os.system(cmd)
+
+        cmd = 'montage tmp1.jpg tmp2.jpg -tile x2 -geometry +2+2 {}'.format(save_path)
         os.system(cmd)
 
     @staticmethod
@@ -324,11 +386,11 @@ class Visualization(object):
         ax2.set_title(input_label)
 
         ax3.imshow(bef_image)
-        im1 = ax3.imshow(cam_bef_weights, alpha=0.5, cmap='Reds', interpolation ='none', vmin=0, vmax=1)
+        im1 = ax3.imshow(cam_bef_weights, alpha=0.5, cmap='Reds', interpolation='none', vmin=0, vmax=1)
         ax3.axis("off")
 
         ax4.imshow(aft_image)
-        im2 = ax4.imshow(cam_aft_weights, alpha=0.5, cmap='Reds', interpolation ='none', vmin=0, vmax=1)
+        im2 = ax4.imshow(cam_aft_weights, alpha=0.5, cmap='Reds', interpolation='none', vmin=0, vmax=1)
         ax4.axis("off")
 
         fig.subplots_adjust(right=0.8)
@@ -341,5 +403,3 @@ class Visualization(object):
 
         HelperFunctions.check_and_mkdir('tmp/{}'.format(title))
         plt.savefig('tmp/{}/{}_{}.png'.format(title, basename, proto_idx), bbox_inches='tight')
-
-

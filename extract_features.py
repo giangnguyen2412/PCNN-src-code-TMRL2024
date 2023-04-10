@@ -40,21 +40,17 @@ fc = MODEL1.fc
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-RETRIEVE_TOP1_NEAREST = False
+RETRIEVE_TOP1_NEAREST = True
 
 in_features = MODEL1.fc.in_features
-print("Building FAISS index...")
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/train', transform=Dataset.data_transforms['train'])
 
-TRAIN_DOG = True
-if TRAIN_DOG == True:
-    if RETRIEVE_TOP1_NEAREST:
-        faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/Dogs_train', transform=Dataset.data_transforms['train'])
-    else:
-        faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/Dogs_train', transform=Dataset.data_transforms['train'])
-
-    imagenet_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/imagenet1k-val',
+imagenet_dataset = ImageFolderWithPaths('/home/giang/Downloads/datasets/imagenet1k-val',
                                          Dataset.data_transforms['train'])
+
+if RunningParams.DOGS_TRAINING == True:
+    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/Dogs_train', transform=Dataset.data_transforms['train'])
+else:
+    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/train', transform=Dataset.data_transforms['train'])
 
 # faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/imagenet1k-val', transform=Dataset.data_transforms['train'])
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -81,6 +77,7 @@ if RETRIEVE_TOP1_NEAREST is True:
             faiss_loader_dict[class_id] = class_id_loader
     else:
         print("FAISS class index NOT exists!")
+        print("Building FAISS index........................................")
         targets = faiss_data_loader.dataset.targets
         faiss_data_loader_ids_dict = dict()
         faiss_nns_class_dict = dict()
@@ -109,60 +106,16 @@ if RETRIEVE_TOP1_NEAREST is True:
             faiss_nns_class_dict[class_id] = faiss_gpu_index
             faiss_loader_dict[class_id] = class_id_loader
         np.save(INDEX_FILE, faiss_nns_class_dict)
-else:
-    INDEX_FILE = 'faiss/faiss_SDogs_topk.index'
-    if os.path.exists(INDEX_FILE):
-        print("FAISS index exists!")
-        faiss_cpu_index = faiss.read_index(INDEX_FILE)
-        faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
-            faiss_cpu_index
-        )
-    else:
-        print("FAISS index NOT exists! Creating FAISS index then save to disk...")
-        stack_embeddings = []
-        stack_labels = []
-        gallery_paths = []
-        input_data = []
 
-        for batch_idx, (data, label) in enumerate(tqdm(faiss_data_loader)):
-            input_data = data.detach()
-            embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
-            embeddings = torch.flatten(embeddings, start_dim=1)
-
-            stack_embeddings.append(embeddings.cpu().detach().numpy())
-            stack_labels.append(label.cpu().detach().numpy())
-
-            # for sample_idx in range(input_data.shape[0]):
-            #     base_name = os.path.basename(paths[sample_idx]) + '.pt'
-            #     save_path = os.path.join('/home/giang/Downloads/datasets/processed_train', base_name)
-            #     torch.save(input_data[sample_idx], save_path)
-
-        stack_embeddings = np.concatenate(stack_embeddings, axis=0)
-        stack_labels = np.concatenate(stack_labels, axis=0)
-
-        descriptors = np.vstack(stack_embeddings)
-        cpu_index = faiss.IndexFlatL2(in_features)
-        faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
-            cpu_index
-        )
-        print(faiss_gpu_index.ntotal)
-
-        faiss_gpu_index.add(descriptors)
-
-        faiss_cpu_index = faiss.index_gpu_to_cpu(  # build the index
-            faiss_gpu_index
-        )
-        faiss.write_index(faiss_cpu_index, INDEX_FILE)
-
+#####################################################################################
 
 # Use RN34 to determine whether an image or correct or wrong
 resnet34 = models.resnet34(pretrained=True).eval().cuda()
 resnet34.eval()
 resnet34 = nn.DataParallel(resnet34)
 
-if TRAIN_DOG is True:
+if RunningParams.DOGS_TRAINING is True:
     def load_imagenet_dog_label():
-        count = 0
         dog_id_list = list()
         input_f = open("/home/giang/Downloads/SDogs_dataset/dog_type.txt")
         for line in input_f:
@@ -170,49 +123,28 @@ if TRAIN_DOG is True:
             dog_id_list.append(dog_id)
         return dog_id_list
 
-
     dogs_id = load_imagenet_dog_label()
 
 
+set = 'test'
 if RETRIEVE_TOP1_NEAREST is True:
     data_dir = '/home/giang/Downloads/datasets/'
 
-    if TRAIN_DOG is True:
-        data_dir = '/home/giang/Downloads/datasets/'
-
     image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
-                                          Dataset.data_transforms['val'])
-                  for x in ['Dogs_val']}
+                                          Dataset.data_transforms['train'])
+                  for x in ['Dogs_{}'.format(set)]}
 
     train_loader = torch.utils.data.DataLoader(
-        image_datasets['Dogs_val'],
+        image_datasets['Dogs_{}'.format(set)],
         batch_size=RunningParams.batch_size,
         shuffle=False,  # turn shuffle to True
         num_workers=16,
         pin_memory=True,
     )
 
-    dataset_sizes = {x: len(image_datasets[x]) for x in ['Dogs_val']}
+    dataset_sizes = {x: len(image_datasets[x]) for x in ['Dogs_{}'.format(set)]}
 
-else:
-    data_dir = '/home/giang/Downloads/datasets/'
-
-    if TRAIN_DOG is True:
-        data_dir = '/home/giang/Downloads/SDogs_dataset/'
-
-    image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
-                                              Dataset.data_transforms['val'])
-                      for x in ['val']}
-
-    train_loader = torch.utils.data.DataLoader(
-        image_datasets['val'],
-        batch_size=RunningParams.batch_size,
-        shuffle=False,  # turn shuffle to True
-        num_workers=16,
-        pin_memory=True,
-    )
-
-    dataset_sizes = {x: len(image_datasets[x]) for x in ['val']}
+###########################################################################
 
 faiss_nn_dict = dict()
 nondog = 0
@@ -228,7 +160,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             base_name = os.path.basename(paths[sample_idx])
             predicted_idx = index[sample_idx].item()
 
-            if TRAIN_DOG is True:
+            if RunningParams.DOGS_TRAINING is True:
                 # key = list(imagenet_dataset.class_to_idx.keys())[
                 #     list(imagenet_dataset.class_to_idx.values()).index(predicted_idx)]
                 # predicted_idx = train_loader.dataset.class_to_idx[key]
@@ -266,6 +198,6 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
 
 print("Non-dogs: {} files".format(nondog))
 if RETRIEVE_TOP1_NEAREST:
-    np.save('faiss/faiss_SDogs_val_RN34_top1.npy', faiss_nn_dict)
+    np.save('faiss/faiss_SDogs_{}_RN34_top1.npy'.format(set), faiss_nn_dict)
 else:
-    np.save('faiss/faiss_SDogs_val_RN34_topk.npy', faiss_nn_dict)
+    np.save('faiss/faiss_SDogs_{}_RN34_topk.npy'.format(set), faiss_nn_dict)

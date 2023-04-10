@@ -24,7 +24,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "5"
 
 
 Dataset = Dataset()
@@ -99,7 +99,7 @@ if RETRIEVE_TOP1_NEAREST is True:
             class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
             faiss_loader_dict[class_id] = class_id_loader
     else:
-        print("FAISS class index NOT exists!")
+        print("FAISS class index NOT exists! Crreating class index.........")
         targets = faiss_data_loader.dataset.targets
         faiss_data_loader_ids_dict = dict()
         faiss_nns_class_dict = dict()
@@ -207,7 +207,8 @@ else:
 
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-data_dir = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
+set = 'train_trivialaugment'
+data_dir = '/home/giang/Downloads/RN50_dataset_CUB_HP/{}/'.format(set)
 image_datasets = dict()
 image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
 train_loader = torch.utils.data.DataLoader(
@@ -256,17 +257,17 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
 if RETRIEVE_TOP1_NEAREST:
     if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
         if HIGHPERFORMANCE_MODEL1 is True:
-            np.save('faiss/faiss_CUB_train_top1_HP_MODEL1_HP_FE.npy', faiss_nn_dict)
+            print("Here")
+            np.save('faiss/faiss_CUB_{}_top1_HP_MODEL1_HP_FE.npy'.format(set), faiss_nn_dict)
         else:
-            np.save('faiss/faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy', faiss_nn_dict)
+            np.save('faiss/faiss_CUB_{}_top1_LP_MODEL1_HP_FE.npy'.format(set), faiss_nn_dict)
     else:
         if HIGHPERFORMANCE_MODEL1 is True:
-            np.save('faiss/faiss_CUB_val_top1_HP_INAT.npy', faiss_nn_dict)
+            np.save('faiss/faiss_CUB_{}_top1_HP_MODEL1_LP_FE.npy'.format(set), faiss_nn_dict)
         else:
-            print("Here")
-            np.save('faiss/faiss_CUB_val_top1.npy', faiss_nn_dict)
+            np.save('faiss/faiss_CUB_{}_top1.npy'.format(set), faiss_nn_dict)
 else:
     if HIGHPERFORMANCE_MODEL1 is True:
-        np.save('faiss/faiss_CUB_200way_val_topk_HP_INAT.npy', faiss_nn_dict)
+        np.save('faiss/faiss_CUB_200way_{}_topk_HP_INAT.npy'.format(set), faiss_nn_dict)
     else:
-        np.save('faiss/faiss_CUB_val_topk.npy', faiss_nn_dict)
+        np.save('faiss/faiss_CUB_{}_topk.npy'.format(set), faiss_nn_dict)

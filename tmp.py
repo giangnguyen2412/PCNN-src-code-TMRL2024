@@ -1,92 +1,158 @@
-import numpy as np
 from datasets import ImageFolderForNNs
 from helpers import HelperFunctions
 import os
 import glob
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
 
-filename = 'faiss/faiss_CUB_val_top1_LP_MODEL1_HP_FE.npy'
-kbc = np.load(filename, allow_pickle=True, ).item()
+import torchvision
 
-pass
-# import glob
-# images = glob.glob('/home/giang/Downloads/datasets/CUB/combined_2/*/*.*')
+# resnet = torchvision.models.resnet34(pretrained=True).cuda()
+
+HelperFunctions = HelperFunctions()
+
+
+filename = 'confidence.npy'
+confidence_dict = np.load(filename, allow_pickle=True, ).item()
+
+confidence_dict = dict(sorted(confidence_dict.items()))
+
+def calculate_accuracy(confidence_dict, key):
+    correct_count = 0
+    total_count = 0
+    for confidence, counts in confidence_dict.items():
+        if confidence >= key:
+            correct_count += counts[0]
+            total_count += sum(counts)
+    accuracy = correct_count*100/total_count
+    return accuracy, total_count
+
+
+# conf < T -> advising network | conf >= T -> thresholding
+def calculate_accuracy_v2(confidence_dict, key):
+    correct_count = 0
+    total_count = 0
+    for confidence, counts in confidence_dict.items():
+        if confidence < key:
+            correct_count += counts[0]
+        else:
+            correct_count += counts[2]
+
+        total_count += counts[0] + counts[1]
+
+    accuracy = correct_count*100/279
+    return accuracy, total_count
+
+# Example usage
+for confidence, counts in confidence_dict.items():
+    accuracy, total_count = calculate_accuracy_v2(confidence_dict, confidence)
+    if confidence %5 == 0 or confidence == 99:
+        # print(f"Confidence scores: >= {confidence}, Advising network: {accuracy:.2f}, % of samples: {total_count*100/279:.2f}")
+        print(f"Confidence scores: >= {confidence}, Advising network: {accuracy:.2f}")
+
+
+
+# import torch
+# import torchvision.transforms as transforms
+# from PIL import Image
+# import matplotlib.pyplot as plt
 #
+# # Open the image
+# img = Image.open('tmp.jpg')
+#
+#
+# # Get the original dimensions of the image
+# width, height = img.size
+#
+# # Calculate the amount of padding needed
+# diff = abs(width - height)
+# padding = (0, diff//2, 0, diff//2) if width > height else (diff//2, 0, diff//2, 0)
+#
+# # Define the transform to pad and resize the image
+# padding_transform = transforms.Compose([
+#     transforms.Pad(padding, fill=0, padding_mode='constant'), # Pad the image
+#     transforms.Resize((224, 224), interpolation=Image.BILINEAR), # Resize to 224x224 using bilinear interpolation
+#     transforms.ToTensor() # Convert the image to a PyTorch tensor
+# ])
+#
+# # Define the transform to resize the image
+# resize_aspect = transforms.Compose([
+#     transforms.Resize((224, 224), interpolation=Image.BILINEAR), # Resize to 224x224 using bilinear interpolation
+#     transforms.ToTensor() # Convert the image to a PyTorch tensor
+# ])
+#
+# resize_center_crop = transforms.Compose([
+#                 transforms.Resize(256),
+#                 transforms.CenterCrop(224),
+#                 transforms.ToTensor(),
+#             ])
+#
+# # Define the transform to resize the image
+# resize_aspect_center_crop = transforms.Compose([
+#     transforms.Resize((224,224)),
+#     transforms.CenterCrop(224),
+#     transforms.ToTensor() # Convert the image to a PyTorch tensor
+# ])
+#
+#
+#
+# # Plot the original image and the transformed image side by side
+# fig, axes = plt.subplots(1, 4)
+# axes[0].imshow(img)
+# axes[0].set_title('Original')
+#
+#
+# # Apply the transform to the image
+# img_tensor = resize_aspect(img)
+# # Convert the tensor back to an image
+# img_transformed = transforms.ToPILImage()(img_tensor)
+# axes[1].imshow(img_transformed)
+# axes[1].set_title('R bilinear 224')
+#
+# # Apply the transform to the image
+# img_tensor = resize_center_crop(img)
+# # Convert the tensor back to an image
+# img_transformed = transforms.ToPILImage()(img_tensor)
+# axes[2].imshow(img_transformed)
+# axes[2].set_title('R256 CR 224')
+#
+# # Apply the transform to the image
+# img_tensor = padding_transform(img)
+# # Convert the tensor back to an image
+# img_transformed = transforms.ToPILImage()(img_tensor)
+# axes[3].imshow(img_transformed)
+# axes[3].set_title('Padding -> resize')
+# plt.show()
+
+
+
+# filename = 'faiss/faiss_SDogs_val_check_RN34_top1.npy'
+# file_a = np.load(filename, allow_pickle=True, ).item()
 # cnt = 0
-# files = []
-# for key, item in kbc.items():
-#     file_name = key
-#     for img in images:
-#         if file_name in img:
-#             cnt += 1
-#             files.append(img)
-#             break
+# for key, value in file_a.items():
+#     cnt += 1
+#     print(key, value[0])
+#     img_list = [key] + value[0:3]
+#     titles = []
+#     for img in img_list:
+#         dir = os.path.dirname(img)
+#         titles.append(HelperFunctions.id_map[os.path.basename(dir)].split(',')[0])
+#     ################################################################
+#     # Create a figure with 1 row and 4 columns
+#     fig, axs = plt.subplots(1, 4, figsize=(15, 5))
 #
-# print(cnt)
-# # print(img)
+#     # Loop through the image paths and plot each image
+#     for i, (img_path, title) in enumerate(zip(img_list, titles)):
+#         img = mpimg.imread(img_path)
+#         axs[i].imshow(img)
+#         axs[i].set_title(title)
+#         axs[i].axis('off')
 #
-# import os
-# import shutil
-#
-# # Define the list of file paths
-# file_paths = files  # Replace [...] with your list of file paths
-#
-# # Define the destination directory
-# destination_dir = '/home/giang/Downloads/RN50_dataset_CUB_Pretraining/val'
-#
-# # Loop through each file path in the list
-# for file_path in file_paths:
-#     # Extract the directory path from the file path
-#     dir_path = os.path.dirname(file_path)
-#     dir_path = os.path.basename(dir_path)
-#
-#     # Construct the destination directory path
-#     dest_dir_path = os.path.join(destination_dir, dir_path)
-#
-#     # Create the destination directory if it doesn't exist
-#     os.makedirs(dest_dir_path, exist_ok=True)
-#
-#     # Construct the destination file path
-#     dest_file_path = os.path.join(dest_dir_path, os.path.basename(file_path))
-#
-#     # Move the file to the destination directory
-#     shutil.move(file_path, dest_file_path)
+#     # Show the figure
+#     plt.show()
+#     ################################################################
 
 
-# import os
-# import random
-# import shutil
-#
-# source_folder = "/home/giang/Downloads/RN50_dataset_CUB_HIGH/val/Correct"
-# destination_folder = "/home/giang/Downloads/RN50_dataset_CUB_Finetuning/val"
-# num_files = 145
-#
-# # Create destination folder if it doesn't exist
-# if not os.path.exists(destination_folder):
-#     os.makedirs(destination_folder)
-#
-# # Loop through subfolders in the source folder
-# for dirpath, dirnames, filenames in os.walk(source_folder):
-#     # Determine the corresponding subfolder in the destination folder
-#     relative_path = os.path.relpath(dirpath, source_folder)
-#     dest_dir = os.path.join(destination_folder, relative_path)
-#     if not os.path.exists(dest_dir):
-#         os.makedirs(dest_dir)
-#
-#     # Randomly choose up to num_files files to copy from this subfolder
-#     files_to_copy = random.sample(filenames, min(num_files, len(filenames)))
-#
-#     # Copy the selected files to the corresponding subfolder in the destination folder
-#     for filename in files_to_copy:
-#         source_file = os.path.join(dirpath, filename)
-#         dest_file = os.path.join(dest_dir, filename)
-#         shutil.copy2(source_file, dest_file)
-#
-#         num_files -= 1
-#         if num_files == 0:
-#             break
-#
-#     if num_files == 0:
-#         break
-#
-# print("Random files copied to: ", destination_folder)
+
 

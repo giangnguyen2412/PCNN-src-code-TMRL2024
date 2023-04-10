@@ -442,11 +442,15 @@ if __name__ == '__main__':
                                     # If the MODEL2 always disagrees, we pick the label having the lowest confidence
                                     if LOWEST_CONFIDENCE_PATH is True:
                                         entries = []
-                                        for i in range(0, RunningParams.advising_steps):
+                                        for i in range(1, RunningParams.advising_steps):
                                             entries.append(adv_conf_dict[i][pred_idx])
 
                                         min_sublist = min(entries, key=lambda x: x[1])
-                                        min_sublist.append(i)
+                                        for adv_k in adv_conf_dict.keys():
+                                            if adv_conf_dict[adv_k][pred_idx] == min_sublist:
+                                                min_sublist.append(adv_k)
+                                                break
+
                                         correction_dict[pred_idx] = min_sublist
                                         class_label = min_sublist[0]
                                         model1_predicted_ids[pred_idx] = torch.tensor(class_label).cuda()
@@ -475,7 +479,8 @@ if __name__ == '__main__':
 
                 if LOWEST_CONFIDENCE_PATH is True:
                     for sample_idx in range(x.shape[0]):
-                        # If MODEL2 corrects a misclassfication
+                        # If MODEL2 corrects a misclassficationm
+                        # TODO: Vi dieu kien model2_gt[sample_idx].item() == 0 nen se khong the co truong hop label 1 conf nho hon lbel2 conf  dc
                         if adv_model2_gt[sample_idx].item() == 1 and model2_gt[sample_idx].item() == 0:
                             result = results[sample_idx].item()
                             if result is True:
@@ -506,7 +511,7 @@ if __name__ == '__main__':
 
                             # Finding the extreme cases
                             # if (action == 'Accept' and confidence < 50) or (action == 'Reject' and confidence > 80):
-                            if False:
+                            if True:
                                 prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
 
                                 # Plot the corrections

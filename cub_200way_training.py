@@ -3,7 +3,7 @@ from params import RunningParams
 RunningParams = RunningParams()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 TRAINING_FROM_SCRATCH = True
 USE_INPUT_AS_EXPLANATION = False
 

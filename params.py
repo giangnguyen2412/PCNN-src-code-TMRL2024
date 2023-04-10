@@ -18,6 +18,9 @@ class RunningParams(object):
         self.DOGS_TRAINING = False
         self.IMAGENET_TRAINING = False
 
+        if self.DOGS_TRAINING is True:
+            self.conv_layer_size = {4: 512}
+
         # XAI methods
         self.NO_XAI = 'No-XAI'
         self.GradCAM = 'GradCAM'
@@ -26,13 +29,11 @@ class RunningParams(object):
         # TODO: write script to run a set of basic experiments: No-XAI, NNs with conv2,3,4, k1,3,5
 
         self.USING_SOFTMAX = True  # ----------------------------------------- IMPORTANT PARAM --------
-        # TODO: make the difference b/w two run Running params
-        # TODO: No need to use softmax anymore at this time bcz we balanced this feature already
 
         # Training
         if self.CUB_TRAINING:
             self.MODEL2_FINETUNING = True
-            self.HIGHPERFORMANCE_FEATURE_EXTRACTOR = False
+            self.HIGHPERFORMANCE_FEATURE_EXTRACTOR = True
             self.HIGHPERFORMANCE_MODEL1 = False
 
             self.CUB_200WAY = False
@@ -44,23 +45,23 @@ class RunningParams(object):
                 self.batch_size = 100
                 self.epochs = 100
         elif self.DOGS_TRAINING:
-            self.batch_size = 512  # ----------------------------------------- IMPORTANT PARAM --------
+            self.batch_size = 128  # ----------------------------------------- IMPORTANT PARAM --------
             self.epochs = 100
 
-        self.learning_rate = 0.001
+        self.learning_rate = 1e-3
         self.query_frozen = True  # False = Trainable; True = Freeze? -------------------- IMPORTANT PARAM --------
         self.heatmap_frozen = False  # freeze?
         self.nns_frozen = False  # freeze?
         self.dropout = 0.0
 
-        if self.MODEL2_FINETUNING is True:
+        if self.CUB_TRAINING is True and self.MODEL2_FINETUNING is True:
             self.HIGHPERFORMANCE_FEATURE_EXTRACTOR = True
             self.HIGHPERFORMANCE_MODEL1 = True
             self.CONTINUE_TRAINING = True
 
             self.batch_size = 50
-            self.epochs = 100
-            self.learning_rate = 0.001
+            self.epochs = 300
+            self.learning_rate = 1e-3
 
         # Training heatmap
         self.GradCAM_RNlayer = 'layer4'
@@ -77,8 +78,8 @@ class RunningParams(object):
         self.ALBUM = False
 
         # Infer
-        self.advising_steps = 4
-        self.MODEL2_ADVISING = False
+        self.advising_steps = 2
+        self.MODEL2_ADVISING = True
 
         # Visualization
         self.M2_VISUALIZATION = False
