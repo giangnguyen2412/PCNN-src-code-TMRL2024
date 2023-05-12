@@ -3,7 +3,6 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.optim import lr_scheduler
 import torch.backends.cudnn as cudnn
-import numpy as np
 import matplotlib.pyplot as plt
 import torch.nn.functional as F
 import time
@@ -17,8 +16,7 @@ import random
 
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
-from models import AdvisingNetwork, TransformerAdvisingNetwork
-from transformer import Transformer_AdvisingNetwork
+from transformer import *
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
@@ -28,7 +26,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -55,12 +53,6 @@ if len(commit) == 0:
     exit(-1)
 
 
-# torch.backends.cudnn.deterministic = True
-# random.seed(1)
-# torch.manual_seed(1)
-# torch.cuda.manual_seed(1)
-# np.random.seed(1)
-
 if RunningParams.DOGS_TRAINING is True:
     MODEL1 = models.resnet34(pretrained=True).eval().cuda()
 else:
@@ -76,30 +68,6 @@ TRAIN_DOG = RunningParams.DOGS_TRAINING
 if TRAIN_DOG is True:
     train_dataset = '/home/giang/Downloads/datasets/Dogs_train'
     val_dataset = '/home/giang/Downloads/datasets/Dogs_val'
-
-    category_val_dataset = '???'
-    CATEGORY_ANALYSIS = False
-    if CATEGORY_ANALYSIS is True:
-        import glob
-
-        correctness = ['Correct', 'Wrong']
-        diffs = ['Easy', 'Medium', 'Hard']
-        category_dict = {}
-        category_record = {}
-
-        for c in correctness:
-            for d in diffs:
-                dir = os.path.join(category_val_dataset, c, d)
-                files = glob.glob(os.path.join(dir, '*', '*.*'))
-                key = c + d
-                for file in files:
-                    base_name = os.path.basename(file)
-                    category_dict[base_name] = key
-
-                category_record[key] = {}
-                category_record[key]['total'] = 0
-                category_record[key]['crt'] = 0
-
 
 imagenet_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/imagenet1k-val', Dataset.data_transforms['train'])
 
@@ -121,7 +89,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     best_acc = 0.0
 
     for epoch in range(num_epochs):
-        print(f'Epoch {epoch+1}/{num_epochs}')
+        print(f'Epoch {epoch + 1}/{num_epochs}')
         print('-' * 10)
 
         # Each epoch has a training and validation phase
@@ -129,20 +97,20 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             if phase == 'train':
                 shuffle = True
                 model.train()  # Training mode
-
                 for param in MODEL2.parameters():
                     param.requires_grad = False
 
-                # if RunningParams.MODEL2_FINETUNING is False:
-                if True:
-                    for param in MODEL2.module.transformer_feat_embedder.parameters():
-                        param.requires_grad_(True)
+                for param in MODEL2.module.transformer_feat_embedder.parameters():
+                    param.requires_grad_(True)
 
-                    for param in MODEL2.module.transformer.parameters():
-                        param.requires_grad_(True)
+                for param in MODEL2.module.conv_layers.parameters():
+                    param.requires_grad_(True)
 
-                    for param in MODEL2.module.cross_transformer.parameters():
-                        param.requires_grad_(True)
+                for param in MODEL2.module.transformer.parameters():
+                    param.requires_grad_(True)
+
+                for param in MODEL2.module.cross_transformer.parameters():
+                    param.requires_grad_(True)
 
                 for param in MODEL2.module.branch3.parameters():
                     param.requires_grad_(True)
@@ -203,38 +171,21 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                         else:
                             model2_gt[sample_idx] = 0
 
-                        if CATEGORY_ANALYSIS is True:
-                            key = category_dict[base_name]
-                            category_record[key]['total'] += 1
                 else:
                     model2_gt = (predicted_ids == gts) * 1  # 0 and 1
                 labels = model2_gt
 
                 #####################################################
 
-                if RunningParams.USING_CLASS_EMBEDDING:
-                    prototype_class_id_list = []
-                    for sample_idx in range(x.shape[0]):
-                        query_base_name = os.path.basename(pths[sample_idx])
-                        prototype_list = data_loader.dataset.faiss_nn_dict[query_base_name]
-                        if phase == 'train':
-                            prototype_classes = [prototype_list[i].split('/')[-2] for i in
-                                                 range(1, RunningParams.k_value + 1)]
-
-                        else:
-                            prototype_classes = [prototype_list[i].split('/')[-2] for i in range(0, RunningParams.k_value)]
-                        prototype_class_ids = [imagenet_dataset.class_to_idx[c] for c in prototype_classes]
-                        prototype_class_id_list.append(prototype_class_ids)
-
                 if RunningParams.XAI_method == RunningParams.GradCAM:
                     explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
                 elif RunningParams.XAI_method == RunningParams.NNs:
                     if RunningParams.PRECOMPUTED_NN is True:
                         explanation = data[1]
-                        if phase == 'train':
-                            explanation = explanation[:, 1:RunningParams.k_value + 1, :, :, :]  # ignore 1st NN = query
-                        else:
-                            explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
+                        # if phase == 'train':
+                        #     explanation = explanation[:, 1:RunningParams.k_value + 1, :, :, :]  # ignore 1st NN = query
+                        # else:
+                        explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -245,78 +196,40 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     else:
                         output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=model1_p)
 
-                    p = torch.nn.functional.softmax(output, dim=1)
-                    confs, preds = torch.max(p, 1)
-                    label_loss = loss_func(p, labels)
+                        # convert logits to probabilities using sigmoid function
+                        p = torch.sigmoid(output)
 
-                    loss = label_loss
+                        # classify inputs as 0 or 1 based on the threshold of 0.5
+                        preds = (p >= 0.5).long().squeeze()
 
-                    # CONFIDENCE_LOSS = RunningParams.CONFIDENCE_LOSS
-                    CONFIDENCE_LOSS = False
-                    if CONFIDENCE_LOSS is True:
-                        conf_loss = (1 - confs).mean()
-                        loss = label_loss + conf_loss
+                        loss = loss_func(output.squeeze(), labels.float())
 
                     # backward + optimize only if in training phase
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
 
-                    if phase == 'val':
-                        if CATEGORY_ANALYSIS is True:
-                            for sample_idx in range(x.shape[0]):
-                                query = pths[sample_idx]
-                                base_name = os.path.basename(query)
-
-                                key = category_dict[base_name]
-                                if preds[sample_idx].item() == labels[sample_idx].item():
-                                    category_record[key]['crt'] += 1
 
                 # statistics
                 running_loss += loss.item() * x.size(0)
-                running_label_loss += label_loss.item() * x.size(0)
-                # if RunningParams.XAI_method == RunningParams.NNs:
-                #     running_embedding_loss += embedding_loss.item() * x.size(0)
-
                 running_corrects += torch.sum(preds == labels.data)
 
                 yes_cnt += sum(preds)
                 true_cnt += sum(labels)
 
-            import statistics
-            # print("k: {} | Mean for True: {:.2f} and Mean for False: {:.2f}".format(RunningParams.k_value, statistics.mean(sim_1s), statistics.mean(sim_0s)))
             epoch_loss = running_loss / len(image_datasets[phase])
-            epoch_label_loss = running_label_loss / len(image_datasets[phase])
-            if RunningParams.XAI_method == RunningParams.NNs:
-                epoch_embedding_loss = running_embedding_loss / len(image_datasets[phase])
-
             epoch_acc = running_corrects.double() / len(image_datasets[phase])
             yes_ratio = yes_cnt.double() / len(image_datasets[phase])
             true_ratio = true_cnt.double() / len(image_datasets[phase])
 
             if phase == 'train':
                 scheduler.step()
-                # scheduler.step(epoch_acc)
-
-            if CATEGORY_ANALYSIS is True and phase == 'val':
-                bin_acc = []
-                for c in correctness:
-                    for d in diffs:
-                        print("{} - {} - {:.2f}".format(c, d,
-                                                        category_record[c + d]['crt'] * 100 / category_record[c + d][
-                                                            'total']))
-                        bin_acc.append(category_record[c + d]['crt']/ category_record[c + d]['total'])
-                avg_acc = statistics.mean(bin_acc)
-                print('Avg acc - {:.2f}'.format(avg_acc))
-                epoch_acc = avg_acc
 
             wandb.log({'{}_accuracy'.format(phase): epoch_acc*100, '{}_loss'.format(phase): epoch_loss})
 
             print('{} - {} - Loss: {:.4f} - Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
-                wandb.run.name, phase, epoch_loss, epoch_acc*100, yes_ratio * 100, true_ratio*100))
-            # if RunningParams.XAI_method == RunningParams.NNs:
-            #     print('{} - Label Loss: {:.4f} - Embedding Loss: {:.4f} '.format(
-            #         phase, epoch_label_loss, epoch_embedding_loss))
+                wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, yes_ratio.item() * 100,
+                                                   true_ratio.item() * 100))
 
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
@@ -352,21 +265,11 @@ MODEL2 = Transformer_AdvisingNetwork()
 MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
-if RunningParams.CONTINUE_TRAINING:
-    model_path = 'best_models/best_model_whole-universe-848.pt'
-    checkpoint = torch.load(model_path)
-    MODEL2.load_state_dict(checkpoint['model_state_dict'])
 
-    if RunningParams.USING_SOFTMAX is True:
-        orig_weight = MODEL2.module.branch3.net[0].weight
-        new_weight = torch.zeros((32, 6147 + 201)).cuda()
-        new_weight[:, :6147] = orig_weight
-        MODEL2.module.branch3.net[0].weight = torch.nn.Parameter(new_weight)
+pos_weight = torch.tensor([20 / 80])
+# define the loss function with weight for the positive class
+criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).cuda()
 
-    print('Continue training from ckpt {}'.format(model_path))
-    print('Pretrained model accuracy: {:.2f}'.format(checkpoint['val_acc']))
-
-criterion = nn.CrossEntropyLoss()
 
 # Observe all parameters that are being optimized
 optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)

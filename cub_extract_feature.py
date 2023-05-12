@@ -69,9 +69,9 @@ RETRIEVE_TOP1_NEAREST = True
 
 in_features = 2048
 print("Building FAISS index...! Training set is the knowledge base.")
-# faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB_Pretraining/train', transform=Dataset.data_transforms['train'])
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB_LP/train/', transform=Dataset.data_transforms['train'])
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB_pre_train',
+                                     transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
@@ -84,9 +84,9 @@ faiss_data_loader = torch.utils.data.DataLoader(
 
 if RETRIEVE_TOP1_NEAREST is True:
     if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-        INDEX_FILE = 'faiss/faiss_CUB200_class_idx_dict_HP_extractor.npy'
-    else:
-        INDEX_FILE = 'faiss/faiss_CUB200_class_idx_dict_LP_extractor.npy'
+        INDEX_FILE = 'faiss/cub/NeurIPS22_faiss_CUB200_class_idx_dict_HP_extractor.npy'
+        print(INDEX_FILE)
+
     if os.path.exists(INDEX_FILE):
         print("FAISS class index exists!")
         faiss_nns_class_dict = np.load(INDEX_FILE, allow_pickle="False", ).item()
@@ -99,7 +99,7 @@ if RETRIEVE_TOP1_NEAREST is True:
             class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
             faiss_loader_dict[class_id] = class_id_loader
     else:
-        print("FAISS class index NOT exists! Crreating class index.........")
+        print("FAISS class index NOT exists! Creating class index.........")
         targets = faiss_data_loader.dataset.targets
         faiss_data_loader_ids_dict = dict()
         faiss_nns_class_dict = dict()
@@ -119,60 +119,15 @@ if RETRIEVE_TOP1_NEAREST is True:
             descriptors = np.vstack(stack_embeddings)
 
             cpu_index = faiss.IndexFlatL2(in_features)
-            faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
-                cpu_index
-            )
+            # faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
+            #     cpu_index
+            # )
             faiss_gpu_index = cpu_index
 
             faiss_gpu_index.add(descriptors)
             faiss_nns_class_dict[class_id] = faiss_gpu_index
             faiss_loader_dict[class_id] = class_id_loader
         np.save(INDEX_FILE, faiss_nns_class_dict)
-else:
-    INDEX_FILE = 'faiss/faiss_CUB_200way.index'
-    if os.path.exists(INDEX_FILE):
-        print("FAISS index exists!")
-        faiss_cpu_index = faiss.read_index(INDEX_FILE)
-        faiss_gpu_index = faiss_cpu_index
-        # faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
-        #     faiss_cpu_index
-        # )
-    else:
-        print("FAISS index NOT exists! Creating FAISS index then save to disk...")
-        stack_embeddings = []
-        stack_labels = []
-        gallery_paths = []
-        input_data = []
-
-        for batch_idx, (data, label) in enumerate(tqdm(faiss_data_loader)):
-            input_data = data.detach()
-            embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
-            embeddings = torch.flatten(embeddings, start_dim=1)
-
-            stack_embeddings.append(embeddings.cpu().detach().numpy())
-            stack_labels.append(label.cpu().detach().numpy())
-
-        stack_embeddings = np.concatenate(stack_embeddings, axis=0)
-        stack_labels = np.concatenate(stack_labels, axis=0)
-
-        descriptors = np.vstack(stack_embeddings)
-        cpu_index = faiss.IndexFlatL2(in_features)
-
-        cpu_index.add(descriptors)
-        faiss.write_index(cpu_index, INDEX_FILE)
-        faiss_gpu_index = cpu_index
-
-        # faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
-        #     cpu_index
-        # )
-        # print(faiss_gpu_index.ntotal)
-        #
-        # faiss_gpu_index.add(descriptors)
-        #
-        # faiss_cpu_index = faiss.index_gpu_to_cpu(  # build the index
-        #     faiss_gpu_index
-        # )
-        # faiss.write_index(faiss_cpu_index, INDEX_FILE)
 
 
 HIGHPERFORMANCE_MODEL1 = RunningParams.HIGHPERFORMANCE_MODEL1
@@ -207,8 +162,9 @@ else:
 
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-set = 'train_trivialaugment'
-data_dir = '/home/giang/Downloads/RN50_dataset_CUB_HP/{}/'.format(set)
+set = 'CUB_val'
+data_dir = '/home/giang/Downloads/datasets/{}'.format(set)
+
 image_datasets = dict()
 image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
 train_loader = torch.utils.data.DataLoader(
@@ -218,7 +174,6 @@ train_loader = torch.utils.data.DataLoader(
     num_workers=16,
     pin_memory=True,
 )
-
 
 faiss_nn_dict = dict()
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
@@ -232,13 +187,20 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
         for sample_idx in range(data.shape[0]):
             base_name = os.path.basename(paths[sample_idx])
             predicted_idx = index[sample_idx].item()
+            class_name = os.path.basename(os.path.dirname(paths[sample_idx]))
+            gt_id = faiss_data_loader.dataset.class_to_idx[class_name]
 
             # Dataloader and knowledge base upon the predicted class
             loader = faiss_loader_dict[predicted_idx]
             faiss_index = faiss_nns_class_dict[predicted_idx]
             ###############################
-            _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 6)
+            # _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 6)
+            search_num = len(loader.dataset.indices)
+            _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), search_num)
+            # indices = indices[:, -6:]  # Get the farthest neighbors
+            indices = np.random.choice(indices[0], size=6, replace=False).reshape(1, 6)
             nn_list = list()
+
             for id in range(indices.shape[1]):
                 id = loader.dataset.indices[indices[0, id]]
                 nn_list.append(loader.dataset.dataset.imgs[id][0])
@@ -258,16 +220,7 @@ if RETRIEVE_TOP1_NEAREST:
     if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
         if HIGHPERFORMANCE_MODEL1 is True:
             print("Here")
-            np.save('faiss/faiss_CUB_{}_top1_HP_MODEL1_HP_FE.npy'.format(set), faiss_nn_dict)
+            np.save('faiss/cub/rd_NeurIPS_Finetuning_faiss_{}_top1_HP_MODEL1_HP_FE.npy'.format(set), faiss_nn_dict)
         else:
-            np.save('faiss/faiss_CUB_{}_top1_LP_MODEL1_HP_FE.npy'.format(set), faiss_nn_dict)
-    else:
-        if HIGHPERFORMANCE_MODEL1 is True:
-            np.save('faiss/faiss_CUB_{}_top1_HP_MODEL1_LP_FE.npy'.format(set), faiss_nn_dict)
-        else:
-            np.save('faiss/faiss_CUB_{}_top1.npy'.format(set), faiss_nn_dict)
-else:
-    if HIGHPERFORMANCE_MODEL1 is True:
-        np.save('faiss/faiss_CUB_200way_{}_topk_HP_INAT.npy'.format(set), faiss_nn_dict)
-    else:
-        np.save('faiss/faiss_CUB_{}_topk.npy'.format(set), faiss_nn_dict)
+            np.save('faiss/cub/NeurIPS_Pretraining_faiss_CUB_{}_top1_LP_MODEL1_HP_FE.npy'.format(set), faiss_nn_dict)
+

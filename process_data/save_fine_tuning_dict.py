@@ -2,7 +2,7 @@ import os
 import numpy as np
 
 # Define the path to the folder
-folder_path = "/home/giang/Downloads/RN50_dataset_CUB_Finetuning"
+folder_path = "/home/giang/Downloads/RN50_dataset_CUB_HP/final"
 
 # Create an empty dictionary to store the results
 file_dict = {}

@@ -23,12 +23,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
-
-# from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
-# MODEL1 = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
-# feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
-# feature_extractor.cuda()
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import torchvision
 MODEL1 = torchvision.models.resnet34(pretrained=True).cuda()
@@ -52,7 +47,6 @@ if RunningParams.DOGS_TRAINING == True:
 else:
     faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/train', transform=Dataset.data_transforms['train'])
 
-# faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/imagenet1k-val', transform=Dataset.data_transforms['train'])
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
     batch_size=RunningParams.batch_size,
@@ -97,9 +91,9 @@ if RETRIEVE_TOP1_NEAREST is True:
             descriptors = np.vstack(stack_embeddings)
 
             cpu_index = faiss.IndexFlatL2(in_features)
-            faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
-                cpu_index
-            )
+            # faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
+            #     cpu_index
+            # )
             faiss_gpu_index = cpu_index
 
             faiss_gpu_index.add(descriptors)
@@ -127,22 +121,21 @@ if RunningParams.DOGS_TRAINING is True:
 
 
 set = 'test'
-if RETRIEVE_TOP1_NEAREST is True:
-    data_dir = '/home/giang/Downloads/datasets/'
+data_dir = '/home/giang/Downloads/datasets/'
 
-    image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
-                                          Dataset.data_transforms['train'])
-                  for x in ['Dogs_{}'.format(set)]}
+image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
+                                      Dataset.data_transforms['train'])
+              for x in ['Dogs_{}'.format(set)]}
 
-    train_loader = torch.utils.data.DataLoader(
-        image_datasets['Dogs_{}'.format(set)],
-        batch_size=RunningParams.batch_size,
-        shuffle=False,  # turn shuffle to True
-        num_workers=16,
-        pin_memory=True,
-    )
+train_loader = torch.utils.data.DataLoader(
+    image_datasets['Dogs_{}'.format(set)],
+    batch_size=RunningParams.batch_size,
+    shuffle=False,  # turn shuffle to True
+    num_workers=16,
+    pin_memory=True,
+)
 
-    dataset_sizes = {x: len(image_datasets[x]) for x in ['Dogs_{}'.format(set)]}
+dataset_sizes = {x: len(image_datasets[x]) for x in ['Dogs_{}'.format(set)]}
 
 ###########################################################################
 
@@ -169,7 +162,8 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                     dog_wnid = random.choice([wnid for wnid in dogs_id if wnid != dog_wnid])
                     nondog += 1
 
-                dog_idx = train_loader.dataset.class_to_idx[dog_wnid]
+                # dog_idx = train_loader.dataset.class_to_idx[dog_wnid]
+                dog_idx = faiss_dataset.class_to_idx[dog_wnid]
                 predicted_idx = dog_idx
 
                 gt_idx = label[sample_idx].item()
@@ -178,7 +172,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             loader = faiss_loader_dict[predicted_idx]
             faiss_index = faiss_nns_class_dict[predicted_idx]
             ###############################
-            _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 6)
+            _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 11)
             nn_list = list()
             for id in range(indices.shape[1]):
                 id = loader.dataset.indices[indices[0, id]]
@@ -186,7 +180,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             faiss_nn_dict[base_name] = nn_list
     else:
         embeddings = embeddings.cpu().detach().numpy()
-        _, indices = faiss_gpu_index.search(embeddings, 6)  # Retrieve 6 NNs bcz we need to exclude the first one
+        _, indices = faiss_gpu_index.search(embeddings, 11)  # Retrieve 6 NNs bcz we need to exclude the first one
 
         for sample_idx in range(data.shape[0]):
             base_name = os.path.basename(paths[sample_idx])
@@ -198,6 +192,6 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
 
 print("Non-dogs: {} files".format(nondog))
 if RETRIEVE_TOP1_NEAREST:
-    np.save('faiss/faiss_SDogs_{}_RN34_top1.npy'.format(set), faiss_nn_dict)
+    np.save('faiss/dogs/faiss_SDogs_{}_RN34_top1.npy'.format(set), faiss_nn_dict)
 else:
-    np.save('faiss/faiss_SDogs_{}_RN34_topk.npy'.format(set), faiss_nn_dict)
+    np.save('faiss/dogs/faiss_SDogs_{}_RN34_topk.npy'.format(set), faiss_nn_dict)

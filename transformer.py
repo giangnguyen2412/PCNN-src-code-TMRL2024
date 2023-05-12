@@ -68,6 +68,10 @@ if RunningParams.CUB_TRAINING is True:
                     param.requires_grad = False
             conv_features = list(resnet.children())[:RunningParams.conv_layer-6]  # delete the last fc layer
             self.conv_layers = nn.Sequential(*conv_features)
+
+            if RunningParams.BOTTLENECK is True:
+                self.bottleneck = nn.Conv2d(2048, 512, kernel_size=1)
+
             self.pooling_layer = nn.AdaptiveAvgPool2d(output_size=(1, 1))
 
             class transformer_feat_embedder(nn.Module):
@@ -99,12 +103,22 @@ if RunningParams.CUB_TRAINING is True:
                                                       dim_head=64, dropout=0.0)
 
             if RunningParams.USING_SOFTMAX is True:
-                self.branch3 = BinaryMLP(
-                    RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] +
-                    RunningParams.k_value + 201, 32)
+
+                if RunningParams.THREE_BRANCH is True:
+                    self.softmax_branch = nn.Linear(1, 2)
+                    self.agg_branch = nn.Linear(4, 1)
+
+                if RunningParams.EXP_TOKEN is True:
+                    self.branch3 = BinaryMLP(
+                        2*(RunningParams.conv_layer_size[RunningParams.conv_layer]*RunningParams.k_value + RunningParams.k_value) +2, 32)
             else:
                 self.branch3 = BinaryMLP(RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] +
-                             RunningParams.k_value, 32)
+                     RunningParams.k_value, 32)
+
+            # if RunningParams.EXP_TOKEN is True:
+            #     self.branch3 = BinaryMLP(
+            #         RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] * 2 +
+            #         RunningParams.k_value * 2, 32)
 
             self.dropout = nn.Dropout(p=RunningParams.dropout)
 
@@ -117,6 +131,8 @@ if RunningParams.CUB_TRAINING is True:
             # Process the input images
             input_spatial_feats = self.conv_layers(images)
             input_feat = self.pooling_layer(input_spatial_feats).squeeze()
+            if RunningParams.BOTTLENECK is True:
+                input_spatial_feats = self.bottleneck(input_spatial_feats)
             input_spatial_feats = input_spatial_feats.flatten(start_dim=2)  # bsxcx49
 
             # Process the nearest neighbors
@@ -124,6 +140,8 @@ if RunningParams.CUB_TRAINING is True:
                 if RunningParams.k_value == 1:
                     explanations = explanations.squeeze()
                     explanation_spatial_feats = self.conv_layers(explanations)
+                    if RunningParams.BOTTLENECK is True:
+                        explanation_spatial_feats = self.bottleneck(explanation_spatial_feats)
                     explanation_feat = self.pooling_layer(explanation_spatial_feats).squeeze()
                     explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
                 else:  # K > 1
@@ -131,6 +149,8 @@ if RunningParams.CUB_TRAINING is True:
                     for sample_idx in range(RunningParams.k_value):
                         data = explanations[:, sample_idx, :]  # TODO: I traced to be at least correct here
                         explanation_spatial_feat = self.conv_layers(data)
+                        if RunningParams.BOTTLENECK is True:
+                            explanation_spatial_feat = self.bottleneck(explanation_spatial_feat)
                         explanation_spatial_feat = explanation_spatial_feat.flatten(start_dim=2)  #
                         explanation_spatial_feats.append(explanation_spatial_feat)
 
@@ -161,7 +181,7 @@ if RunningParams.CUB_TRAINING is True:
                     exp_spt_feats = self.transformer(explanation_spatial_feats)
 
                     # Cross-attention --> 50x2048; only the cls tokens are transformed. Image tokens are kept the same.
-                    input_spatial_feats, explanation_spatial_feats = self.cross_transformer(input_spt_feats, exp_spt_feats)
+                    input_spatial_feats, explanation_spatial_feats, i2e_attn, e2i_attn = self.cross_transformer(input_spt_feats, exp_spt_feats)
 
                 input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
                 input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
@@ -171,11 +191,11 @@ if RunningParams.CUB_TRAINING is True:
                 transformer_emb = torch.cat([sep_token, input_cls, sep_token, exp_cls], dim=1)
 
             else:
-                input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, 1)  # bsx50x2048
                 # Clone the input tensor K times along the second dimension
                 input_spatial_feats = input_spatial_feats.unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1).\
-                    view(input_spatial_feats.shape[0], RunningParams.k_value, 50, RunningParams.conv_layer_size[RunningParams.conv_layer])
-                explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats, 3)  # bsxKx50x2048
+                    view(input_spatial_feats.shape[0], RunningParams.k_value, 49, RunningParams.conv_layer_size[RunningParams.conv_layer])
+                input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, RunningParams.k_value)  # bsx50x2048
+                explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats, RunningParams.k_value)  # bsxKx50x2048
 
                 i2e_attns = []
                 e2i_attns = []
@@ -213,12 +233,30 @@ if RunningParams.CUB_TRAINING is True:
 
                 input_cls = input_emb[:, :, 0]
 
-                # Concatenating the input cls tokens
-                transformer_emb = torch.cat([sep_token, input_cls[:, 0, :]], dim=1)
-                for prototype_idx in range(1, RunningParams.k_value):
-                    transformer_emb = torch.cat(
-                        [transformer_emb, sep_token, input_cls[:, prototype_idx]],
-                        dim=1)
+                if RunningParams.EXP_TOKEN:
+                    exp_emb = explanation_spatial_feats
+                    exp_emb = exp_emb.squeeze()
+                    exp_cls = exp_emb[:, :, 0]
+                    # transformer_emb = torch.cat([sep_token, input_cls[:, 0, :], sep_token, exp_cls[:, 0, :]], dim=1)
+                    # for prototype_idx in range(1, RunningParams.k_value):
+                    #     transformer_emb = torch.cat([transformer_emb, sep_token, input_cls[:, prototype_idx], sep_token,
+                    #                                  exp_cls[:, prototype_idx]], dim=1)
+                    transformer_emb = torch.cat([sep_token, input_cls[:, 0, :]], dim=1)
+                    for prototype_idx in range(1, RunningParams.k_value):
+                        transformer_emb = torch.cat(
+                            [transformer_emb, sep_token, input_cls[:, prototype_idx]],
+                            dim=1)
+                    for prototype_idx in range(0, RunningParams.k_value):
+                        transformer_emb = torch.cat(
+                            [transformer_emb, sep_token, exp_cls[:, prototype_idx]],
+                            dim=1)
+                else:
+                    # Concatenating the input cls tokens
+                    transformer_emb = torch.cat([sep_token, input_cls[:, 0, :]], dim=1)
+                    for prototype_idx in range(1, RunningParams.k_value):
+                        transformer_emb = torch.cat(
+                            [transformer_emb, sep_token, input_cls[:, prototype_idx]],
+                            dim=1)
 
                 # Concatenating the softmax scores
                 if RunningParams.USING_SOFTMAX is True:
@@ -228,7 +266,14 @@ if RunningParams.CUB_TRAINING is True:
                 e2i_attns = torch.cat(e2i_attns, dim=2)
 
             output3 = self.branch3(transformer_emb)
-            output = output3
+
+            if RunningParams.THREE_BRANCH is True:
+                # output2 = self.quality_branch(self.pooling_layer(self.conv_layers(images)).squeeze())
+                output1 = self.softmax_branch(scores)
+
+                output = self.agg_branch(torch.cat([output1, output3], dim=1))
+            else:
+                output = output3
 
             if RunningParams.XAI_method == RunningParams.NO_XAI:
                 return output, None, None
@@ -288,7 +333,12 @@ elif RunningParams.DOGS_TRAINING is True:
             self.cross_transformer = CrossTransformer(sm_dim=feat_dim, lg_dim=feat_dim, depth=2, heads=2,
                                                       dim_head=64, dropout=0.0)
 
-            self.branch3 = BinaryMLP(RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] +
+            if RunningParams.USING_SOFTMAX is True:
+                self.branch3 = BinaryMLP(
+                    RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] +
+                    RunningParams.k_value + 201, 32)
+            else:
+                self.branch3 = BinaryMLP(RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] +
                                      RunningParams.k_value, 32)
 
             self.dropout = nn.Dropout(p=RunningParams.dropout)
@@ -346,15 +396,16 @@ elif RunningParams.DOGS_TRAINING is True:
                     exp_spt_feats = self.transformer(explanation_spatial_feats)
 
                     # Cross-attention --> 50x2048; only the cls tokens are transformed. Image tokens are kept the same.
-                    input_spatial_feats, explanation_spatial_feats = self.cross_transformer(input_spt_feats,
+                    input_spatial_feats, explanation_spatial_feats, i2e_attn, e2i_attn = self.cross_transformer(input_spt_feats,
                                                                                             exp_spt_feats)
+                    # inp, exp, i2e_attn, e2i_attn = self.cross_transformer(input_spt_feats, exp_spt_feats)
 
                 input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
                 input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
 
                 # Extracting the cls token --> 1x2048
                 input_cls, exp_cls = map(lambda t: t[:, 0], (input_emb, exp_emb))
-                transformer_emb = torch.cat([sep_token, input_cls, sep_token, exp_cls], dim=1)
+                transformer_emb = torch.cat([sep_token, input_cls], dim=1)
 
             else:
                 input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, 1)  # bsx50x2048

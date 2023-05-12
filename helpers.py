@@ -141,6 +141,14 @@ class HelperFunctions(object):
         input_f.close()
         return gt_dict
 
+    def load_imagenet_dog_label(self):
+        dog_id_list = list()
+        input_f = open("/home/giang/Downloads/SDogs_dataset/dog_type.txt")
+        for line in input_f:
+            dog_id = (line.split('-')[0])
+            dog_id_list.append(dog_id)
+        return dog_id_list
+
     @staticmethod
     def is_program_running(script):
         """

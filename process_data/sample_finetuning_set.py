@@ -3,7 +3,7 @@ import random
 import shutil
 
 
-set = 'train'
+set = 'test'
 source_folder = "/home/giang/Downloads/RN50_dataset_CUB_HIGH/val/Wrong"
 destination_folder = "/home/giang/Downloads/RN50_dataset_CUB_Finetuning/{}".format(set)
 if 'train' == set:

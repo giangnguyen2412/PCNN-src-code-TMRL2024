@@ -1,158 +1,471 @@
-from datasets import ImageFolderForNNs
-from helpers import HelperFunctions
-import os
-import glob
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
-
+import torch.nn.functional as F
+from torch.nn import TransformerEncoder, TransformerEncoderLayer
+import torch
+import torch.nn as nn
+from torchvision import models
+from params import RunningParams
+from cross_vit import CrossTransformer, Transformer
+from einops import rearrange, repeat
+from einops.layers.torch import Rearrange
 import torchvision
 
-# resnet = torchvision.models.resnet34(pretrained=True).cuda()
-
-HelperFunctions = HelperFunctions()
+RunningParams = RunningParams()
 
 
-filename = 'confidence.npy'
-confidence_dict = np.load(filename, allow_pickle=True, ).item()
+class BinaryMLP(nn.Module):
+    def __init__(self, input_dim, hidden_dim, dropout = 0.):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, 2),  # 2 for binary classification
+            nn.Dropout(dropout)
+        )
 
-confidence_dict = dict(sorted(confidence_dict.items()))
-
-def calculate_accuracy(confidence_dict, key):
-    correct_count = 0
-    total_count = 0
-    for confidence, counts in confidence_dict.items():
-        if confidence >= key:
-            correct_count += counts[0]
-            total_count += sum(counts)
-    accuracy = correct_count*100/total_count
-    return accuracy, total_count
-
-
-# conf < T -> advising network | conf >= T -> thresholding
-def calculate_accuracy_v2(confidence_dict, key):
-    correct_count = 0
-    total_count = 0
-    for confidence, counts in confidence_dict.items():
-        if confidence < key:
-            correct_count += counts[0]
-        else:
-            correct_count += counts[2]
-
-        total_count += counts[0] + counts[1]
-
-    accuracy = correct_count*100/279
-    return accuracy, total_count
-
-# Example usage
-for confidence, counts in confidence_dict.items():
-    accuracy, total_count = calculate_accuracy_v2(confidence_dict, confidence)
-    if confidence %5 == 0 or confidence == 99:
-        # print(f"Confidence scores: >= {confidence}, Advising network: {accuracy:.2f}, % of samples: {total_count*100/279:.2f}")
-        print(f"Confidence scores: >= {confidence}, Advising network: {accuracy:.2f}")
+    def forward(self, x):
+        return self.net(x)
 
 
+class BinaryMLPv2(nn.Module):
+    def __init__(self, input_dim, hidden_dim1, hidden_dim2, dropout = 0.):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim1),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim1, hidden_dim2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim2, 2),  # 2 for binary classification
+            nn.Dropout(dropout)
+        )
 
-# import torch
-# import torchvision.transforms as transforms
-# from PIL import Image
-# import matplotlib.pyplot as plt
-#
-# # Open the image
-# img = Image.open('tmp.jpg')
-#
-#
-# # Get the original dimensions of the image
-# width, height = img.size
-#
-# # Calculate the amount of padding needed
-# diff = abs(width - height)
-# padding = (0, diff//2, 0, diff//2) if width > height else (diff//2, 0, diff//2, 0)
-#
-# # Define the transform to pad and resize the image
-# padding_transform = transforms.Compose([
-#     transforms.Pad(padding, fill=0, padding_mode='constant'), # Pad the image
-#     transforms.Resize((224, 224), interpolation=Image.BILINEAR), # Resize to 224x224 using bilinear interpolation
-#     transforms.ToTensor() # Convert the image to a PyTorch tensor
-# ])
-#
-# # Define the transform to resize the image
-# resize_aspect = transforms.Compose([
-#     transforms.Resize((224, 224), interpolation=Image.BILINEAR), # Resize to 224x224 using bilinear interpolation
-#     transforms.ToTensor() # Convert the image to a PyTorch tensor
-# ])
-#
-# resize_center_crop = transforms.Compose([
-#                 transforms.Resize(256),
-#                 transforms.CenterCrop(224),
-#                 transforms.ToTensor(),
-#             ])
-#
-# # Define the transform to resize the image
-# resize_aspect_center_crop = transforms.Compose([
-#     transforms.Resize((224,224)),
-#     transforms.CenterCrop(224),
-#     transforms.ToTensor() # Convert the image to a PyTorch tensor
-# ])
-#
-#
-#
-# # Plot the original image and the transformed image side by side
-# fig, axes = plt.subplots(1, 4)
-# axes[0].imshow(img)
-# axes[0].set_title('Original')
-#
-#
-# # Apply the transform to the image
-# img_tensor = resize_aspect(img)
-# # Convert the tensor back to an image
-# img_transformed = transforms.ToPILImage()(img_tensor)
-# axes[1].imshow(img_transformed)
-# axes[1].set_title('R bilinear 224')
-#
-# # Apply the transform to the image
-# img_tensor = resize_center_crop(img)
-# # Convert the tensor back to an image
-# img_transformed = transforms.ToPILImage()(img_tensor)
-# axes[2].imshow(img_transformed)
-# axes[2].set_title('R256 CR 224')
-#
-# # Apply the transform to the image
-# img_tensor = padding_transform(img)
-# # Convert the tensor back to an image
-# img_transformed = transforms.ToPILImage()(img_tensor)
-# axes[3].imshow(img_transformed)
-# axes[3].set_title('Padding -> resize')
-# plt.show()
+    def forward(self, x):
+        return self.net(x)
 
+if RunningParams.CUB_TRAINING is True:
+    class Transformer_AdvisingNetwork(nn.Module):
+        def __init__(self):
+            print("Using training network for Birds")
+            super(Transformer_AdvisingNetwork, self).__init__()
 
+            if RunningParams.CUB_TRAINING is True:
+                from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+                resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+                my_model_state_dict = torch.load(
+                    'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+                resnet.load_state_dict(my_model_state_dict, strict=True)
+            elif RunningParams.DOGS_TRAINING is True:
+                resnet = torchvision.models.resnet50(pretrained=True).cuda()
 
-# filename = 'faiss/faiss_SDogs_val_check_RN34_top1.npy'
-# file_a = np.load(filename, allow_pickle=True, ).item()
-# cnt = 0
-# for key, value in file_a.items():
-#     cnt += 1
-#     print(key, value[0])
-#     img_list = [key] + value[0:3]
-#     titles = []
-#     for img in img_list:
-#         dir = os.path.dirname(img)
-#         titles.append(HelperFunctions.id_map[os.path.basename(dir)].split(',')[0])
-#     ################################################################
-#     # Create a figure with 1 row and 4 columns
-#     fig, axs = plt.subplots(1, 4, figsize=(15, 5))
-#
-#     # Loop through the image paths and plot each image
-#     for i, (img_path, title) in enumerate(zip(img_list, titles)):
-#         img = mpimg.imread(img_path)
-#         axs[i].imshow(img)
-#         axs[i].set_title(title)
-#         axs[i].axis('off')
-#
-#     # Show the figure
-#     plt.show()
-#     ################################################################
+                if RunningParams.SIMCLR_MODEL is True:
+                    from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
+                    resnet = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
 
+            if RunningParams.query_frozen is True:
+                for param in resnet.parameters():
+                    param.requires_grad = False
+            conv_features = list(resnet.children())[:RunningParams.conv_layer-6]  # delete the last fc layer
+            self.conv_layers = nn.Sequential(*conv_features)
 
+            if RunningParams.BOTTLENECK is True:
+                self.bottleneck = nn.Conv2d(2048, 512, kernel_size=1)
 
+            self.pooling_layer = nn.AdaptiveAvgPool2d(output_size=(1, 1))
 
+            class transformer_feat_embedder(nn.Module):
+                def __init__(self, num_patches, dim):
+                    super().__init__()
+                    self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
+                    self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
+
+                def forward(self, feat, k_value):
+                    if k_value == 1:
+                        b, n, _ = feat.shape
+                        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b=b)
+                        x = torch.cat((cls_tokens, feat), dim=1)
+                    else:
+                        b, k, n, _ = feat.shape
+                        cls_tokens = repeat(self.cls_token, '() n d -> b k n d', b=b, k=k)
+                        x = torch.cat((cls_tokens, feat), dim=2)
+
+                    x += self.pos_embedding[:, :(n + 1)]
+
+                    return x
+
+            self.transformer_feat_embedder = transformer_feat_embedder(RunningParams.feat_map_size[RunningParams.conv_layer],
+                                                                       RunningParams.conv_layer_size[RunningParams.conv_layer])
+
+            feat_dim = RunningParams.conv_layer_size[RunningParams.conv_layer]
+            self.transformer = Transformer(dim=feat_dim, depth=2, heads=8, dim_head=64, mlp_dim=512, dropout=0.0)
+            self.cross_transformer = CrossTransformer(sm_dim=feat_dim, lg_dim=feat_dim, depth=2, heads=2,
+                                                      dim_head=64, dropout=0.0)
+
+            if RunningParams.USING_SOFTMAX is True:
+
+                if RunningParams.THREE_BRANCH is True:
+                    self.softmax_branch = nn.Linear(1, 2)
+                    self.agg_branch = nn.Linear(4, 1)
+
+                if RunningParams.EXP_TOKEN is True:
+                    self.branch3 = BinaryMLP(
+                        2*(RunningParams.conv_layer_size[RunningParams.conv_layer]*RunningParams.k_value + RunningParams.k_value) +2, 32)
+            else:
+                self.branch3 = BinaryMLP(RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] +
+                     RunningParams.k_value, 32)
+
+            self.dropout = nn.Dropout(p=RunningParams.dropout)
+
+            # initialize all fc layers to xavier
+            for m in self.modules():
+                if isinstance(m, nn.Linear):
+                    torch.nn.init.xavier_normal_(m.weight, gain=1)
+
+        def forward(self, images, explanations, scores):
+            # Process the input images
+            input_spatial_feats = self.conv_layers(images)
+            input_feat = self.pooling_layer(input_spatial_feats).squeeze()
+            if RunningParams.BOTTLENECK is True:
+                input_spatial_feats = self.bottleneck(input_spatial_feats)
+            input_spatial_feats = input_spatial_feats.flatten(start_dim=2)  # bsxcx49
+
+            # Process the nearest neighbors
+            if RunningParams.XAI_method == RunningParams.NNs:
+                if RunningParams.k_value == 1:
+                    explanations = explanations.squeeze()
+                    explanation_spatial_feats = self.conv_layers(explanations)
+                    if RunningParams.BOTTLENECK is True:
+                        explanation_spatial_feats = self.bottleneck(explanation_spatial_feats)
+                    explanation_feat = self.pooling_layer(explanation_spatial_feats).squeeze()
+                    explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
+                else:  # K > 1
+                    explanation_spatial_feats = []
+                    for sample_idx in range(RunningParams.k_value):
+                        data = explanations[:, sample_idx, :]  # TODO: I traced to be at least correct here
+                        explanation_spatial_feat = self.conv_layers(data)
+                        if RunningParams.BOTTLENECK is True:
+                            explanation_spatial_feat = self.bottleneck(explanation_spatial_feat)
+                        explanation_spatial_feat = explanation_spatial_feat.flatten(start_dim=2)  #
+                        explanation_spatial_feats.append(explanation_spatial_feat)
+
+                    # bsxKx2048x49
+                    explanation_spatial_feats = torch.stack(explanation_spatial_feats, dim=1)
+
+            # change from 2048x49 -> 49x2048
+            # 49 tokens for an image
+            input_spatial_feats = torch.transpose(input_spatial_feats, 1, 2)
+            if RunningParams.k_value == 1:
+                explanation_spatial_feats = torch.transpose(explanation_spatial_feats, 1, 2)
+            else:
+                explanation_spatial_feats = torch.transpose(explanation_spatial_feats, 2, 3)  # 4x3x49x2048
+
+            sep_token = torch.zeros([explanations.shape[0], 1], requires_grad=False).cuda()
+
+            transformer_encoder_depth = 2
+
+            if RunningParams.k_value == 1:
+                # Add the cls token and positional embedding --> 50x2048
+                input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, 1)
+                explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats, 1)
+
+                # TODO: as the output of the first layer does not propagate to the second layer, then transformer_encoder_depth should be 1
+                for _ in range(transformer_encoder_depth):
+                    # Self-attention --> 50x2048; both cls and image tokens are transformed.
+                    input_spt_feats = self.transformer(input_spatial_feats)
+                    exp_spt_feats = self.transformer(explanation_spatial_feats)
+
+                    # Cross-attention --> 50x2048; only the cls tokens are transformed. Image tokens are kept the same.
+                    input_spatial_feats, explanation_spatial_feats, i2e_attn, e2i_attn = self.cross_transformer(input_spt_feats, exp_spt_feats)
+
+                input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
+                input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
+
+                # Extracting the cls token --> 1x2048
+                input_cls, exp_cls = map(lambda t: t[:, 0], (input_emb, exp_emb))
+                transformer_emb = torch.cat([sep_token, input_cls, sep_token, exp_cls], dim=1)
+
+            else:
+                # Clone the input tensor K times along the second dimension
+                input_spatial_feats = input_spatial_feats.unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1).\
+                    view(input_spatial_feats.shape[0], RunningParams.k_value, 49, RunningParams.conv_layer_size[RunningParams.conv_layer])
+                input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, RunningParams.k_value)  # bsx50x2048
+                explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats, RunningParams.k_value)  # bsxKx50x2048
+
+                i2e_attns = []
+                e2i_attns = []
+                for depth_idx in range(transformer_encoder_depth):
+                    input_list = []
+                    explanation_list = []
+                    for prototype_idx in range(RunningParams.k_value):
+                        input = input_spatial_feats[:, prototype_idx, :]
+                        explanation = explanation_spatial_feats[:, prototype_idx, :]
+
+                        input = self.transformer(input)
+                        explanation = self.transformer(explanation)
+
+                        # TODO: Thử remove self-attention
+                        # TODO: với VIT hiện tại ko có model về patch (local) mà chỉ có global info
+                        # input = input_spatial_feats
+                        # explanation = explanation
+
+                        # Cross-attention --> bsx50x2048; only the cls tokens are transformed. Image tokens are kept the same.
+                        inp, exp, i2e_attn, e2i_attn = self.cross_transformer(input, explanation)
+
+                        # Extract attention from the last layer (i.e. closest to classification head)
+                        if depth_idx == transformer_encoder_depth - 1:
+                            i2e_attns.append(i2e_attn)
+                            e2i_attns.append(e2i_attn)
+
+                        input_list.append(inp)
+                        explanation_list.append(exp)
+
+                    input_spatial_feats = torch.stack(input_list, dim=1)
+                    explanation_spatial_feats = torch.stack(explanation_list, dim=1)
+
+                input_emb = input_spatial_feats
+                input_emb = input_emb.squeeze()
+
+                input_cls = input_emb[:, :, 0]
+
+                if RunningParams.EXP_TOKEN:
+                    exp_emb = explanation_spatial_feats
+                    exp_emb = exp_emb.squeeze()
+                    exp_cls = exp_emb[:, :, 0]
+                    # transformer_emb = torch.cat([sep_token, input_cls[:, 0, :], sep_token, exp_cls[:, 0, :]], dim=1)
+                    # for prototype_idx in range(1, RunningParams.k_value):
+                    #     transformer_emb = torch.cat([transformer_emb, sep_token, input_cls[:, prototype_idx], sep_token,
+                    #                                  exp_cls[:, prototype_idx]], dim=1)
+                    transformer_emb = torch.cat([sep_token, input_cls[:, 0, :]], dim=1)
+                    for prototype_idx in range(1, RunningParams.k_value):
+                        transformer_emb = torch.cat(
+                            [transformer_emb, sep_token, input_cls[:, prototype_idx]],
+                            dim=1)
+                    for prototype_idx in range(0, RunningParams.k_value):
+                        transformer_emb = torch.cat(
+                            [transformer_emb, sep_token, exp_cls[:, prototype_idx]],
+                            dim=1)
+                else:
+                    # Concatenating the input cls tokens
+                    transformer_emb = torch.cat([sep_token, input_cls[:, 0, :]], dim=1)
+                    for prototype_idx in range(1, RunningParams.k_value):
+                        transformer_emb = torch.cat(
+                            [transformer_emb, sep_token, input_cls[:, prototype_idx]],
+                            dim=1)
+
+                # Concatenating the softmax scores
+                if RunningParams.USING_SOFTMAX is True:
+                    transformer_emb = torch.cat([transformer_emb, sep_token, scores], dim=1)
+
+                i2e_attns = torch.cat(i2e_attns, dim=2)
+                e2i_attns = torch.cat(e2i_attns, dim=2)
+
+            output3 = self.branch3(transformer_emb)
+
+            if RunningParams.THREE_BRANCH is True:
+                # output2 = self.quality_branch(self.pooling_layer(self.conv_layers(images)).squeeze())
+                output1 = self.softmax_branch(scores)
+
+                output = self.agg_branch(torch.cat([output1, output3], dim=1))
+            else:
+                output = output3
+
+            if RunningParams.XAI_method == RunningParams.NO_XAI:
+                return output, None, None
+            elif RunningParams.XAI_method == RunningParams.NNs:
+                if RunningParams.k_value == 1:
+                    return output, input_feat, None, None
+                else:
+                    return output, input_feat, i2e_attns, e2i_attns
+
+elif RunningParams.DOGS_TRAINING is True:
+    class Transformer_AdvisingNetwork(nn.Module):
+        def __init__(self):
+            print("Using training network for Dogs")
+            super(Transformer_AdvisingNetwork, self).__init__()
+            if RunningParams.DOGS_TRAINING is True:
+                # resnet = torchvision.models.resnet50(pretrained=True).cuda()
+                resnet = torchvision.models.resnet34(pretrained=True).cuda()
+
+                if RunningParams.SIMCLR_MODEL is True:
+                    from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
+                    resnet = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
+
+            if RunningParams.query_frozen is True:
+                for param in resnet.parameters():
+                    param.requires_grad = False
+
+            conv_features = list(resnet.children())[:RunningParams.conv_layer - 6]  # delete the last fc layer
+            self.conv_layers = nn.Sequential(*conv_features)
+            self.pooling_layer = nn.AdaptiveAvgPool2d(output_size=(1, 1))
+
+            class transformer_feat_embedder(nn.Module):
+                def __init__(self, num_patches, dim):
+                    super().__init__()
+                    self.pos_embedding = nn.Parameter(torch.randn(1, num_patches + 1, dim))
+                    self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
+
+                def forward(self, feat, k_value):
+                    if k_value == 1:
+                        b, n, _ = feat.shape
+                        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b=b)
+                        x = torch.cat((cls_tokens, feat), dim=1)
+                    else:
+                        b, k, n, _ = feat.shape
+                        cls_tokens = repeat(self.cls_token, '() n d -> b k n d', b=b, k=k)
+                        x = torch.cat((cls_tokens, feat), dim=2)
+
+                    x += self.pos_embedding[:, :(n + 1)]
+
+                    return x
+
+            self.transformer_feat_embedder = transformer_feat_embedder(
+                RunningParams.feat_map_size[RunningParams.conv_layer],
+                RunningParams.conv_layer_size[RunningParams.conv_layer])
+
+            feat_dim = RunningParams.conv_layer_size[RunningParams.conv_layer]
+            self.transformer = Transformer(dim=feat_dim, depth=2, heads=8, dim_head=64, mlp_dim=512, dropout=0.0)
+            self.cross_transformer = CrossTransformer(sm_dim=feat_dim, lg_dim=feat_dim, depth=2, heads=2,
+                                                      dim_head=64, dropout=0.0)
+
+            if RunningParams.USING_SOFTMAX is True:
+                self.branch3 = BinaryMLP(
+                    RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] +
+                    RunningParams.k_value + 201, 32)
+            else:
+                self.branch3 = BinaryMLP(RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] +
+                                     RunningParams.k_value, 32)
+
+            self.dropout = nn.Dropout(p=RunningParams.dropout)
+
+            # initialize all fc layers to xavier
+            for m in self.modules():
+                if isinstance(m, nn.Linear):
+                    torch.nn.init.xavier_normal_(m.weight, gain=1)
+
+        def forward(self, images, explanations, scores):
+            # Process the input images
+            input_spatial_feats = self.conv_layers(images)
+            input_feat = self.pooling_layer(input_spatial_feats).squeeze()
+            input_spatial_feats = input_spatial_feats.flatten(start_dim=2)  # bsxcx49
+
+            # Process the nearest neighbors
+            if RunningParams.XAI_method == RunningParams.NNs:
+                if RunningParams.k_value == 1:
+                    explanations = explanations.squeeze()
+                    explanation_spatial_feats = self.conv_layers(explanations)
+                    explanation_feat = self.pooling_layer(explanation_spatial_feats).squeeze()
+                    explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
+                else:  # K > 1
+                    explanation_spatial_feats = []
+                    for sample_idx in range(RunningParams.k_value):
+                        data = explanations[:, sample_idx, :]
+                        explanation_spatial_feat = self.conv_layers(data)
+                        explanation_spatial_feat = explanation_spatial_feat.flatten(start_dim=2)  #
+                        explanation_spatial_feats.append(explanation_spatial_feat)
+
+                    # bsxKx2048x49
+                    explanation_spatial_feats = torch.stack(explanation_spatial_feats, dim=1)
+
+            # change from 2048x49 -> 49x2048
+            # 49 tokens for an image
+            input_spatial_feats = torch.transpose(input_spatial_feats, 1, 2)
+            if RunningParams.k_value == 1:
+                explanation_spatial_feats = torch.transpose(explanation_spatial_feats, 1, 2)
+            else:
+                explanation_spatial_feats = torch.transpose(explanation_spatial_feats, 2, 3)  # 4x3x49x2048
+
+            sep_token = torch.zeros([explanations.shape[0], 1], requires_grad=False).cuda()
+
+            transformer_encoder_depth = 2
+
+            if RunningParams.k_value == 1:
+                # Add the cls token and positional embedding --> 50x2048
+                input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, 1)
+                explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats, 1)
+
+                # TODO: as the output of the first layer does not propagate to the second layer, then transformer_encoder_depth should be 1
+                for _ in range(transformer_encoder_depth):
+                    # Self-attention --> 50x2048; both cls and image tokens are transformed.
+                    input_spt_feats = self.transformer(input_spatial_feats)
+                    exp_spt_feats = self.transformer(explanation_spatial_feats)
+
+                    # Cross-attention --> 50x2048; only the cls tokens are transformed. Image tokens are kept the same.
+                    input_spatial_feats, explanation_spatial_feats, i2e_attn, e2i_attn = self.cross_transformer(input_spt_feats,
+                                                                                            exp_spt_feats)
+                    # inp, exp, i2e_attn, e2i_attn = self.cross_transformer(input_spt_feats, exp_spt_feats)
+
+                input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
+                input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
+
+                # Extracting the cls token --> 1x2048
+                input_cls, exp_cls = map(lambda t: t[:, 0], (input_emb, exp_emb))
+                transformer_emb = torch.cat([sep_token, input_cls], dim=1)
+
+            else:
+                input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, 1)  # bsx50x2048
+                # Clone the input tensor K times along the second dimension
+                input_spatial_feats = input_spatial_feats.unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1). \
+                    view(input_spatial_feats.shape[0], RunningParams.k_value, 50, RunningParams.conv_layer_size[RunningParams.conv_layer])
+                explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats, 3)  # bsxKx50x2048
+
+                i2e_attns = []
+                e2i_attns = []
+                for depth_idx in range(transformer_encoder_depth):
+                    input_list = []
+                    explanation_list = []
+                    for prototype_idx in range(RunningParams.k_value):
+                        input = input_spatial_feats[:, prototype_idx, :]
+                        explanation = explanation_spatial_feats[:, prototype_idx, :]
+
+                        input = self.transformer(input)
+                        explanation = self.transformer(explanation)
+
+                        # TODO: Thử remove self-attention
+                        # TODO: với VIT hiện tại ko có model về patch (local) mà chỉ có global info
+                        # input = input_spatial_feats
+                        # explanation = explanation
+
+                        # Cross-attention --> bsx50x2048; only the cls tokens are transformed. Image tokens are kept the same.
+                        inp, exp, i2e_attn, e2i_attn = self.cross_transformer(input, explanation)
+
+                        # Extract attention from the last layer (i.e. closest to classification head)
+                        if depth_idx == transformer_encoder_depth - 1:
+                            i2e_attns.append(i2e_attn)
+                            e2i_attns.append(e2i_attn)
+
+                        input_list.append(inp)
+                        explanation_list.append(exp)
+
+                    input_spatial_feats = torch.stack(input_list, dim=1)
+                    explanation_spatial_feats = torch.stack(explanation_list, dim=1)
+
+                input_emb = input_spatial_feats
+                input_emb = input_emb.squeeze()
+
+                input_cls = input_emb[:, :, 0]
+
+                # Concatenating the input cls tokens
+                transformer_emb = torch.cat([sep_token, input_cls[:, 0, :]], dim=1)
+                for prototype_idx in range(1, RunningParams.k_value):
+                    transformer_emb = torch.cat(
+                        [transformer_emb, sep_token, input_cls[:, prototype_idx]],
+                        dim=1)
+
+                # Concatenating the softmax scores
+                if RunningParams.USING_SOFTMAX is True:
+                    transformer_emb = torch.cat([transformer_emb, sep_token, scores], dim=1)
+
+                i2e_attns = torch.cat(i2e_attns, dim=2)
+                e2i_attns = torch.cat(e2i_attns, dim=2)
+
+            output3 = self.branch3(transformer_emb)
+            output = output3
+
+            if RunningParams.XAI_method == RunningParams.NO_XAI:
+                return output, None, None
+            elif RunningParams.XAI_method == RunningParams.NNs:
+                if RunningParams.k_value == 1:
+                    return output, input_feat, None, None
+                else:
+                    return output, input_feat, i2e_attns, e2i_attns

@@ -13,10 +13,9 @@ import torchvision.transforms as T
 
 # Define the TrivialAugmentWide transform
 trivial_augmenter = T.TrivialAugmentWide()
-jitter = T.ColorJitter(brightness=.5, hue=.3)
 
 # Define the RandomApply transform to apply the TrivialAugmentWide transform with a probability of 0.5
-trivial_augmenter = T.RandomApply(torch.nn.ModuleList([trivial_augmenter, jitter]), p=0.5)
+trivial_augmenter = T.RandomApply(torch.nn.ModuleList([trivial_augmenter]), p=0.5)
 
 RunningParams = RunningParams()
 
@@ -98,62 +97,34 @@ class ImageFolderForNNs(ImageFolder):
             # Load the pre-computed NNs
             if RunningParams.CUB_TRAINING is True:
                 if RunningParams.TOP1_NN is True:
-                    if 'train' in root:
+                    if 'train' in os.path.basename(root):
                         if RunningParams.MODEL2_FINETUNING is True:
-                            # file_name = 'faiss/faiss_CUB_train_top1_HP_MODEL1_HP_FE.npy'
-                            file_name = 'faiss/faiss_CUB_tmp_train_trivialaugment_top1_HP_MODEL1_HP_FE.npy'
-                            # file_name = 'faiss/tmp_train.npy'
-                        else:
-                            if RunningParams.CUB_TRAINING is True and RunningParams.CUB_200WAY is True:
-                                file_name = 'faiss/faiss_CUB_200way_train_topk_HP_INAT.npy'
+                            # file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_train_top1_HP_MODEL1_HP_FE.npy'
+                            file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_train_aug_top1_HP_MODEL1_HP_FE.npy'
+                        else:  # Pretraining
+                            if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
+                                file_name = 'faiss/cub/NeurIPS_Pretraining_faiss_CUB_CUB_pre_train_top1_LP_MODEL1_HP_FE.npy'
+                    else:
+                        if RunningParams.MODEL2_FINETUNING is True:
+                            if 'val' in os.path.basename(root):
+                                file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy'
+                            else:
+                                file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_test_top1_HP_MODEL1_HP_FE.npy'
+                        else:  # Pretraining
+                            if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
+                                if 'val' in os.path.basename(root):
+                                    file_name = 'faiss/cub/NeurIPS_Pretraining_faiss_CUB_CUB_pre_val_top1_LP_MODEL1_HP_FE.npy'
+                                else:  # dummy feature
+                                    file_name = 'faiss/cub/NeurIPS_Pretraining_faiss_CUB_CUB_pre_val_top1_LP_MODEL1_HP_FE.npy'
 
-                            else:
-                                if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-                                    file_name = 'faiss/faiss_CUB_train_top1_LP_MODEL1_HP_FE.npy'
-                                else:
-                                    file_name = 'faiss/faiss_CUB_train_top1.npy'
-                    elif 'merged' in root:
-                        file_name = 'faiss/faiss_CUB_merged_top1_HP_MODEL1_HP_FE.npy'
-                    else:
-                        if RunningParams.MODEL2_FINETUNING is True:
-                            if 'val' in root:
-                                # file_name = 'faiss/faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy'
-                                file_name = 'faiss/faiss_CUB_tmp_val_top1_HP_MODEL1_HP_FE.npy'
-                                # file_name = 'faiss/tmp_val.npy'
-                            else:
-                                file_name = 'faiss/faiss_CUB_tmp_test_top1_HP_MODEL1_HP_FE.npy'
-                        else:
-                            if RunningParams.CUB_TRAINING is True and RunningParams.CUB_200WAY is True:
-                                file_name = 'faiss/faiss_CUB_200way_val_topk_HP_INAT.npy'
-                            else:
-                                if RunningParams.HIGHPERFORMANCE_MODEL1 is True:
-                                    if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-                                        file_name = 'faiss/???.npy'
-                                    else:
-                                        file_name = 'faiss/faiss_CUB_val_top1_HP_INAT.npy'
-                                else:
-                                    if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-                                        file_name = 'faiss/faiss_CUB_val_top1_LP_MODEL1_HP_FE.npy'
-                                    else:
-                                        file_name = 'faiss/faiss_CUB_val_top1.npy'
-                else: # TOPK_NN
-                    if 'train' in root:
-                        if RunningParams.MODEL2_FINETUNING is True:
-                            file_name = 'faiss/faiss_CUB_val_topk_HP_MODEL1_HP_FE_finetune_set.npy'
-                        else:
-                            file_name = 'faiss/faiss_CUB_train_topk.npy'
-                    else:
-                        if RunningParams.HIGHPERFORMANCE_MODEL1 is True:
-                            file_name = 'faiss/faiss_CUB_val_topk_HP_INAT.npy'
-                        else:
-                            file_name = 'faiss/faiss_CUB_val_topk.npy'
             else:
                 if RunningParams.TOP1_NN is True:
-                    if 'train' in root:
-                        file_name = 'faiss/faiss_SDogs_train_RN34_top1.npy'
-                    elif 'val' in root:
+                    if 'train' in os.path.basename(root):
+                        # file_name = 'faiss/faiss_SDogs_train_RN34_top1.npy'
+                        file_name = 'faiss/faiss_SDogs_train_augment_RN34_top1.npy'
+                    elif 'val' in os.path.basename(root):
                         file_name = 'faiss/faiss_SDogs_val_RN34_top1.npy'
-                    elif 'test' in root:
+                    elif 'test' in os.path.basename(root):
                         file_name = 'faiss/faiss_SDogs_test_RN34_top1.npy'
                     else:
                         exit(-1)
@@ -204,12 +175,19 @@ class ImageFolderForNNs(ImageFolder):
 
         # Transform NNs
         explanations = list()
+        dup = False
         for pth in nns:
             sample = self.loader(pth)
-            if 'train' in self.root:  # then augment NNs
-                sample = trivial_augmenter(sample)
+            nn_base_name = os.path.basename(pth)
+            if nn_base_name in base_name:
+                dup = True
+                continue
             sample = self.transform(sample)
+
             explanations.append(sample)
+        # If query is the same with any of NNs --> duplicate the last element
+        if dup is True:
+            explanations += [explanations[-1]]
         explanations = torch.stack(explanations)
 
         # Transform query
@@ -268,7 +246,7 @@ class Dataset(object):
         }
 
         if RunningParams.IMAGENET_REAL is True:
-            real_json = open("reassessed-imagenet/real.json")
+            real_json = open("/home/giang/Downloads/advising_network/reassessed-imagenet/real.json")
             real_ids = json.load(real_json)
             self.real_labels = {
                 f"ILSVRC2012_val_{i + 1:08d}.JPEG": labels

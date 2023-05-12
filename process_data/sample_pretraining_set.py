@@ -6,11 +6,11 @@ import numpy as np
 finetuning = np.load('../Finetuning.npy', allow_pickle=True).item()
 
 # Get the list of files in the test folder
-test_files = finetuning['test'] + finetuning['val'] + finetuning['train']
+test_files = finetuning['final_test'] + finetuning['final_val'] + finetuning['final_train']
 
 # Define the paths for the train_tmp and val_tmp folders
-train_tmp_path = '/home/giang/Downloads/RN50_dataset_CUB_LP/train'
-val_tmp_path = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
+train_tmp_path = '/home/giang/Downloads/Final_RN50_dataset_CUB_LP/train'
+val_tmp_path = '/home/giang/Downloads/Final_RN50_dataset_CUB_LP/val'
 
 # Create the train_tmp and val_tmp folders if they don't exist
 os.makedirs(train_tmp_path, exist_ok=True)
@@ -34,10 +34,11 @@ for folder_name in os.listdir('/home/giang/Downloads/datasets/CUB/combined'):
     all_files.extend(files)
 
 
+np.random.seed(42)
 # Shuffle the files and split them into train and val
 np.random.shuffle(all_files)
-train_files = all_files[:9000]
-val_files = all_files[9000:]
+train_files = all_files[:8000]
+val_files = all_files[8000:]
 
 # Move the train files to the train_tmp folder
 for folder_name, file_name in train_files:

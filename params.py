@@ -28,13 +28,15 @@ class RunningParams(object):
         self.XAI_method = self.NNs
         # TODO: write script to run a set of basic experiments: No-XAI, NNs with conv2,3,4, k1,3,5
 
-        self.USING_SOFTMAX = True  # ----------------------------------------- IMPORTANT PARAM --------
+        self.BOTTLENECK = False
+        if self.BOTTLENECK is True:
+            self.conv_layer_size = {4: 512}
 
         # Training
         if self.CUB_TRAINING:
             self.MODEL2_FINETUNING = True
             self.HIGHPERFORMANCE_FEATURE_EXTRACTOR = True
-            self.HIGHPERFORMANCE_MODEL1 = False
+            self.HIGHPERFORMANCE_MODEL1 = True
 
             self.CUB_200WAY = False
 
@@ -43,10 +45,13 @@ class RunningParams(object):
                 self.epochs = 50
             else:
                 self.batch_size = 100
-                self.epochs = 100
+                self.epochs = 300
+
         elif self.DOGS_TRAINING:
-            self.batch_size = 128  # ----------------------------------------- IMPORTANT PARAM --------
-            self.epochs = 100
+            self.batch_size = 50  # ----------------------------------------- IMPORTANT PARAM --------
+            self.epochs = 500
+
+            self.WEIGHTED_LOSS_DOGS = True
 
         self.learning_rate = 1e-3
         self.query_frozen = True  # False = Trainable; True = Freeze? -------------------- IMPORTANT PARAM --------
@@ -59,16 +64,26 @@ class RunningParams(object):
             self.HIGHPERFORMANCE_MODEL1 = True
             self.CONTINUE_TRAINING = True
 
-            self.batch_size = 50
+            self.batch_size = 500
             self.epochs = 300
             self.learning_rate = 1e-3
+
+        self.USING_SOFTMAX = True  # ----------------------------------------- IMPORTANT PARAM --------
+        self.UNBALANCED_TRAINING = True
+        self.pos_w = 0.3
+        self.EXP_TOKEN = True
+
+        self.THREE_BRANCH = True
 
         # Training heatmap
         self.GradCAM_RNlayer = 'layer4'
 
         # Training NNs
         self.embedding_loss = False
-        self.k_value = 3  # ----------------------------------------- IMPORTANT PARAM --------
+        if self.DOGS_TRAINING is True:
+            self.k_value = 5
+        elif self.CUB_TRAINING is True:
+            self.k_value = 3  # ----------------------------------------- IMPORTANT PARAM --------
         self.PRECOMPUTED_NN = True
         self.CrossCorrelation = True  # ----------------------------------------- IMPORTANT PARAM --------
 
@@ -78,8 +93,8 @@ class RunningParams(object):
         self.ALBUM = False
 
         # Infer
-        self.advising_steps = 2
         self.MODEL2_ADVISING = True
+        self.advising_steps = 3
 
         # Visualization
         self.M2_VISUALIZATION = False

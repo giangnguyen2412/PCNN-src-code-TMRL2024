@@ -16,14 +16,14 @@ import numpy as np
 
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
-from transformer import Transformer_AdvisingNetwork
+from transformer import Transformer_AdvisingNetwork, BinaryMLP
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
 from explainers import ModelExplainer
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -35,7 +35,7 @@ if [RunningParams.IMAGENET_TRAINING, RunningParams.DOGS_TRAINING, RunningParams.
     print("There are more than one training datasets chosen, skipping training!!!")
     exit(-1)
 
-if RunningParams.MODEL2_FINETUNING is True:
+if RunningParams.MODEL2_FINETUNING is True or RunningParams.UNBALANCED_TRAINING:
     from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
@@ -60,11 +60,16 @@ else:
     fc = fc.cuda()
 
 if RunningParams.MODEL2_FINETUNING is True:
-    train_dataset = '/home/giang/Downloads/RN50_dataset_CUB_HP/tmp_train_trivialaugment'
-    val_dataset = '/home/giang/Downloads/RN50_dataset_CUB_HP/tmp_val'
+    train_dataset = '/home/giang/Downloads/Final_RN50_dataset_CUB_HP/final_train_aug'
+    val_dataset = '/home/giang/Downloads/Final_RN50_dataset_CUB_HP/final_val'
+    if RunningParams.UNBALANCED_TRAINING is True:
+        # train_dataset = '/home/giang/Downloads/datasets/CUB_train'
+        train_dataset = '/home/giang/Downloads/datasets/CUB_train_aug'
+        val_dataset = '/home/giang/Downloads/datasets/CUB_val'
 else:
-    train_dataset = '/home/giang/Downloads/RN50_dataset_CUB_LP/train'
-    val_dataset = '/home/giang/Downloads/RN50_dataset_CUB_LP/val'
+    train_dataset = '/home/giang/Downloads/datasets/CUB_pre_train'
+    val_dataset = '/home/giang/Downloads/datasets/CUB_pre_val'
+
 
 full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
                                      Dataset.data_transforms['train'])
@@ -76,6 +81,7 @@ if RunningParams.XAI_method == RunningParams.NNs:
 else:
     pass
     # Not implemented
+
 
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 
@@ -103,9 +109,12 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 for param in MODEL2.parameters():
                     param.requires_grad = False
 
-                if RunningParams.MODEL2_FINETUNING is False:
-                    for param in MODEL2.module.transformer_feat_embedder.parameters():
-                        param.requires_grad_(True)
+                if RunningParams.MODEL2_FINETUNING is True:
+                    # for param in MODEL2.module.transformer_feat_embedder.parameters():
+                    #     param.requires_grad_(True)
+
+                    # for param in MODEL2.module.conv_layers.parameters():
+                    #     param.requires_grad_(True)
 
                     for param in MODEL2.module.transformer.parameters():
                         param.requires_grad_(True)
@@ -115,14 +124,23 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                 for param in MODEL2.module.branch3.parameters():
                     param.requires_grad_(True)
+                if RunningParams.THREE_BRANCH is True:
+                    # for param in MODEL2.module.quality_branch.parameters():
+                    #     param.requires_grad_(True)
+
+                    for param in MODEL2.module.softmax_branch.parameters():
+                        param.requires_grad_(True)
+
+                    for param in MODEL2.module.agg_branch.parameters():
+                        param.requires_grad_(True)
             else:
                 shuffle = False
                 model.eval()  # Evaluation mode
 
-            random.seed(42)
-            torch.manual_seed(42)
-            torch.cuda.manual_seed(42)
-            np.random.seed(42)
+            # random.seed(42)
+            # torch.manual_seed(42)
+            # torch.cuda.manual_seed(42)
+            # np.random.seed(42)
 
             data_loader = torch.utils.data.DataLoader(
                 image_datasets[phase],
@@ -170,13 +188,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 elif RunningParams.XAI_method == RunningParams.NNs:
                     if RunningParams.PRECOMPUTED_NN is True:
                         explanation = data[1]
-                        if phase == 'train':
-                            explanation = explanation[:, 1:RunningParams.k_value + 1, :, :, :]  # ignore 1st NN = query
-                        else:
-                            explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
-                        if RunningParams.MODEL2_FINETUNING:
-                            explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
+                        explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
@@ -185,11 +198,23 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     if RunningParams.XAI_method == RunningParams.NO_XAI:
                         output, _, _ = model(images=x, explanations=None, scores=model1_p)
                     else:
-                        output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=model1_p)
+                        output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
 
-                    p = torch.nn.functional.softmax(output, dim=1)
-                    confs, preds = torch.max(p, 1)
-                    loss = loss_func(p, labels)
+                    # p = torch.nn.functional.softmax(output, dim=1)
+                    # confs, preds = torch.max(p, 1)
+                    #
+                    # if RunningParams.UNBALANCED_TRAINING is True:
+                    #     loss = loss_func(p[:, 1], labels.float())
+                    # else:
+                    #     loss = loss_func(p, labels)
+
+                    # convert logits to probabilities using sigmoid function
+                    p = torch.sigmoid(output)
+
+                    # classify inputs as 0 or 1 based on the threshold of 0.5
+                    preds = (p >= 0.5).long().squeeze()
+
+                    loss = loss_func(output.squeeze(), labels.float())
 
                     # backward + optimize only if in training phase
                     if phase == 'train':
@@ -215,8 +240,10 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             wandb.log({'{}_accuracy'.format(phase): epoch_acc * 100, '{}_loss'.format(phase): epoch_loss})
 
             # print(memo)
+            # print('{} - {} - Loss: {:.4f} - Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
+            #     wandb.run.name, phase, epoch_loss, epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
             print('{} - {} - Loss: {:.4f} - Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
-                wandb.run.name, phase, epoch_loss, epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
+                wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, yes_ratio.item() * 100, true_ratio.item() * 100))
 
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
@@ -253,20 +280,54 @@ MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
 if RunningParams.CONTINUE_TRAINING:
-    model_path = 'best_models/best_model_swept-terrain-1560.pt'
+    model_path = 'best_models/best_model_twilight-elevator-1955.pt'  # bottleneck false
+    # model_path = 'best_models/best_model_legendary-lake-1956.pt'  # bottleneck false
     checkpoint = torch.load(model_path)
     MODEL2.load_state_dict(checkpoint['model_state_dict'])
 
     if RunningParams.USING_SOFTMAX is True:
-        orig_weight = MODEL2.module.branch3.net[0].weight
-        new_weight = torch.zeros((32, 6147 + 201)).cuda()
-        new_weight[:, :6147] = orig_weight
-        MODEL2.module.branch3.net[0].weight = torch.nn.Parameter(new_weight)
+        feat_num = RunningParams.conv_layer_size[RunningParams.conv_layer]*RunningParams.k_value + RunningParams.k_value
+        # orig_weight = MODEL2.module.branch3.net[0].weight
+        # new_weight = torch.zeros((32, feat_num + 1)).cuda()
+        # new_weight[:, :feat_num] = orig_weight
+        # MODEL2.module.branch3.net[0].weight = torch.nn.Parameter(new_weight)
+
+        if RunningParams.THREE_BRANCH is True:
+            # MODEL2.module.quality_branch = BinaryMLP(RunningParams.conv_layer_size[RunningParams.conv_layer], 32).cuda()
+            MODEL2.module.softmax_branch = nn.Linear(1, 2).cuda()
+            MODEL2.module.agg_branch = nn.Linear(4, 1).cuda()
+            # MODEL2.module.GELU = nn.GELU().cuda()
+
+        if RunningParams.EXP_TOKEN is True:
+            orig_weight = MODEL2.module.branch3.net[0].weight
+            new_weight = torch.zeros((32, feat_num + 2 + feat_num)).cuda()
+            new_weight[:, :feat_num] = orig_weight
+            MODEL2.module.branch3.net[0].weight = torch.nn.Parameter(new_weight)
+
+            ######################
+            # MODEL2.module.branch3 = BinaryMLP(feat_num + 2 + feat_num, 512).cuda()
+            # # initialize all fc layers to xavier
+            # for m in MODEL2.module.branch3.modules():
+            #     if isinstance(m, nn.Linear):
+            #         torch.nn.init.xavier_normal_(m.weight, gain=1)
+            ######################
 
     print('Continue training from ckpt {}'.format(model_path))
     print('Pretrained model accuracy: {:.2f}'.format(checkpoint['val_acc']))
 
 criterion = nn.CrossEntropyLoss()
+
+if RunningParams.UNBALANCED_TRAINING is True:
+    # # define the misclassification costs for the two classes
+    # pos_weight = torch.tensor([RunningParams.pos_w])  # the cost of misclassifying a positive sample
+    # neg_weight = torch.tensor([1 - RunningParams.pos_w])  # the cost of misclassifying a negative sample
+    #
+    # # define the loss function with weight for the positive class
+    # criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).cuda()
+
+    # pos_weight = torch.tensor([0.16])  # the cost of misclassifying a positive sample
+    pos_weight = torch.tensor([27/73])  # the cost of misclassifying a positive sample
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).cuda()
 
 # Observe all parameters that are being optimized
 optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)
@@ -294,6 +355,10 @@ config = {"train": train_dataset,
           'HIGHPERFORMANCE_FEATURE_EXTRACTOR': RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR,
           'HIGHPERFORMANCE_MODEL1': RunningParams.HIGHPERFORMANCE_MODEL1,
           'CONTINUE_TRAINING': RunningParams.CONTINUE_TRAINING,
+          'BOTTLENECK': RunningParams.BOTTLENECK,
+          'pos_w': RunningParams.pos_w,
+          'THREE_BRANCH': RunningParams.THREE_BRANCH,
+          'EXP_TOKEN': RunningParams.EXP_TOKEN,
           }
 
 print(config)

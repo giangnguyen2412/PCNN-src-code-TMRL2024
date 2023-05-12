@@ -28,7 +28,7 @@ ModelExplainer = ModelExplainer()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
@@ -50,7 +50,15 @@ CATEGORY_ANALYSIS = True
 if RunningParams.MODEL2_ADVISING is True:
     in_features = 2048
     print("Building FAISS index...! Training set is the knowledge base.")
-    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN50_dataset_CUB_LP/train',
+    # TODO: Anytime you change the database in extracting features, you also need to put the same path here
+    if RunningParams.UNBALANCED_TRAINING is True:
+        faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB_train',
+                                             transform=Dataset.data_transforms['train'])
+    else:
+        faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/NeurIPS_Pretraining_CUB/train',
+                                             transform=Dataset.data_transforms['train'])
+
+    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB_pre_train',
                                          transform=Dataset.data_transforms['train'])
 
     faiss_data_loader = torch.utils.data.DataLoader(
@@ -62,11 +70,9 @@ if RunningParams.MODEL2_ADVISING is True:
         pin_memory=True,
     )
 
-    HIGHPERFORMANCE_FEATURE_EXTRACTOR = True
-    if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-        INDEX_FILE = 'faiss/faiss_CUB200_class_idx_dict_HP_extractor.npy'
-    else:
-        INDEX_FILE = 'faiss/faiss_CUB200_class_idx_dict_LP_extractor.npy'
+    # TODO: CHANGE THIS IF CUB_EXTRACT_FEATURE CHANGES THE INDEX FILE NAME
+    INDEX_FILE = 'faiss/cub/NeurIPS22_faiss_CUB200_class_idx_dict_HP_extractor.npy'
+
     if os.path.exists(INDEX_FILE):
         print("FAISS class index exists!")
         faiss_nns_class_dict = np.load(INDEX_FILE, allow_pickle="False", ).item()
@@ -89,11 +95,11 @@ full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combine
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_dazzling-snowball-1662.pt',
+                        default='best_model_firm-valley-2657.pt',
+                        # default='best_model_fragrant-moon-2605.pt',
+                        # default='best_model_wild-water-2279.pt',
+                        # default='best_model_autumn-rain-1993.pt',
                         help='Model check point')
-    # parser.add_argument('--dataset', type=str,
-    #                     default='balanced_val_dataset_6k',
-    #                     help='Evaluation dataset')
 
     args = parser.parse_args()
     model_path = os.path.join('best_models', args.ckpt)
@@ -116,7 +122,8 @@ if __name__ == '__main__':
 
     model.eval()
 
-    test_dir = '/home/giang/Downloads/RN50_dataset_CUB_HP/tmp_val'
+    test_dir = '/home/giang/Downloads/datasets/CUB_test'  ##################################
+
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'])
     dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
@@ -134,11 +141,7 @@ if __name__ == '__main__':
         fc = list(MODEL1.children())[-1].cuda()
         fc = nn.DataParallel(fc)
 
-        if RunningParams.MODEL2_FINETUNING:
-            categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_HIGH/combined'
-        else:
-            categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_LOW/combined'
-
+        categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_HIGH/combined'
     else:
         import torchvision
 
@@ -152,10 +155,7 @@ if __name__ == '__main__':
         fc = MODEL1.fc.cuda()
         fc = nn.DataParallel(fc)
 
-        if RunningParams.MODEL2_FINETUNING:
-            categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_HIGH/combined'
-        else:
-            categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_LOW/combined'
+        categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_LOW/combined'
 
     feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
     feature_extractor.cuda()
@@ -183,7 +183,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=50,
+            batch_size=20,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -198,8 +198,9 @@ if __name__ == '__main__':
 
         categories = ['CorrectlyAccept', 'IncorrectlyAccept', 'CorrectlyReject', 'IncorrectlyReject']
         save_dir = '/home/giang/Downloads/advising_network/vis'
-        HelperFunctions.check_and_rm(save_dir)
-        HelperFunctions.check_and_mkdir(save_dir)
+        if RunningParams.M2_VISUALIZATION is True:
+            HelperFunctions.check_and_rm(save_dir)
+            HelperFunctions.check_and_mkdir(save_dir)
         model1_confidence_dist = dict()
         model2_confidence_dist = dict()
         for cat in categories:
@@ -210,8 +211,6 @@ if __name__ == '__main__':
         infer_result_dict = dict()
 
         for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
-            # if batch_idx == 5:
-            #     break
             if RunningParams.XAI_method == RunningParams.NNs:
                 x = data[0].cuda()
             else:
@@ -254,29 +253,51 @@ if __name__ == '__main__':
             if RunningParams.XAI_method == RunningParams.GradCAM:
                 explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
             elif RunningParams.XAI_method == RunningParams.NNs:
-                if RunningParams.PRECOMPUTED_NN is True:
-                    explanation = data[1]
-                    # TODO: In test, I do not need to skip the 1st NN
-                    # TODO: However, in validation, I must skip the 1st NN
-                    explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
+                explanation = data[1]
+                explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
+                # Find the maximum value along each row
+                max_values, _ = torch.max(model1_p, dim=1)
 
-                    # Make the random explanations
-                    # Pseudo-code --> Need to debug here to see
-                    # random_exp = torch.random(explanation[0].shape)
-                    # explanation[idx_0] = random_exp
-                else:
-                    print("Error: Not implemented yet!")
-                    exit(-1)
+                SAME = False
+                RAND = False
+
+                if SAME is True:
+                    # Replace the maximum value with 0.99
+                    # for i in range(model1_p.shape[0]):
+                    #     model1_p[i][torch.argmax(model1_p[i])] = 0.999
+                    model1_score.fill_(0.999)
+
+                    explanation = x.clone().unsqueeze(1).repeat(1, 3, 1, 1, 1)
+                if RAND is True:
+                    explanation = torch.rand_like(explanation) * (explanation.max() - explanation.min()) + explanation.min()
+                    explanation.cuda()
+                    # Replace the maximum value with random guess
+                    # model1_p.fill_(1/200)
+                    model1_score.fill_(1/200)
 
             if RunningParams.advising_network is True:
                 # Forward input, explanations, and softmax scores through MODEL2
                 if RunningParams.XAI_method == RunningParams.NO_XAI:
                     output, _, _ = model(images=x, explanations=None, scores=model1_p)
                 else:
-                    output, query, i2e_attn, e2i_attn = model(images=x, explanations=explanation, scores=model1_p)
+                    output, query, i2e_attn, e2i_attn = model(images=x, explanations=explanation, scores=model1_score)
+                    # output, query, i2e_attn, e2i_attn = model(images=x, explanations=explanation, scores=model1_p)
+                    # output, query, nns, emb_cos_sim = model(images=data[2].cuda(), explanations=explanation,
+                    #                                         scores=model1_p)
 
-                p = torch.nn.functional.softmax(output, dim=1)
-                model2_score, preds = torch.max(p, 1)
+                # convert logits to probabilities using sigmoid function
+                p = torch.sigmoid(output)
+
+                # classify inputs as 0 or 1 based on the threshold of 0.5
+                preds = (p >= 0.5).long().squeeze()
+                model2_score = p
+
+                conf_list = []
+                confidences = model1_score
+                for j, confidence in enumerate(confidences):
+                    confidence = confidence.item() * 100
+                    if confidence >= 95:
+                        preds[j] = 1
 
                 results = (preds == labels)
                 VISUALIZE_TRANSFORMER_ATTN = False
@@ -327,6 +348,8 @@ if __name__ == '__main__':
                         os.system(cmd)
 
                 # Running ADVISING process
+                start_from = 0
+                LOWEST_CONFIDENCE_PATH = True
                 if RunningParams.MODEL2_ADVISING is True:
                     # TODO: Reduce compute overhead by only running on disagreed samples
                     advising_steps = RunningParams.advising_steps
@@ -338,9 +361,9 @@ if __name__ == '__main__':
                     model1_predicted_ids = torch.clone(predicted_ids)
                     # We need to save the original MODEL2 predictions to ...
                     tmp_preds = torch.clone(preds)
-                    # print("Before advising: MODEL 2 agrees {}/{}".format(tmp_preds.sum(), RunningParams.batch_size))
+                    print("Before advising: MODEL 2 agrees {}/{}".format(tmp_preds.sum(), x.shape[0]))
+                    adv_model1_score = torch.clone(model1_score)
 
-                    LOWEST_CONFIDENCE_PATH = True
                     if LOWEST_CONFIDENCE_PATH is True:
                         # MODEL2 confidence dictionary
                         adv_conf_dict = {}
@@ -369,6 +392,7 @@ if __name__ == '__main__':
                             # if MODEL2 disagrees, change the predicted id to top-k
                             if tmp_preds[pred_idx].item() == 0:
                                 model1_predicted_ids[pred_idx] = model1_topk[pred_idx]
+                                adv_model1_score[pred_idx] = model1_p[pred_idx, model1_predicted_ids[pred_idx]]
 
                         # This step makes up the explanations for the top-k predicted labels
                         post_explanaton = []
@@ -390,7 +414,8 @@ if __name__ == '__main__':
                                 # Database for the predicted class
                                 loader = faiss_loader_dict[pred_id]
                                 faiss_index = faiss_nns_class_dict[pred_id]
-                                # Retrieve k prototypes from FAISS database
+                                # Retrieve k prototypes from FAISS database of the pred_id
+                                # Here we retrieve EXACTLY k NNs because we are in test. The query and the NN must not be the same
                                 _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]),
                                                                 RunningParams.k_value)
                                 nn_list = list()
@@ -413,14 +438,24 @@ if __name__ == '__main__':
                             post_explanaton.append(advising_explanation)
 
                         adv_post_explanation = torch.stack(post_explanaton)
-                        advising_output, _, _, _ = model(images=x, explanations=adv_post_explanation, scores=model1_p)
-                        advising_p = torch.nn.functional.softmax(advising_output, dim=1)
-                        advising_score, tmp_preds = torch.max(advising_p, 1)
+                        advising_output, _, _, _ = model(images=x, explanations=adv_post_explanation, scores=adv_model1_score)
+
+                        advising_p = torch.sigmoid(advising_output)
+                        advising_score = advising_p
+                        tmp_preds = (advising_score >= 0.5).long().squeeze()
+
+                        # Correct again as the MODEL2 now can assign scores < 50% for samples having MODEL1 >= 95%
+                        for j, confidence in enumerate(confidences):
+                            confidence = confidence.item() * 100
+                            if confidence >= 95:
+                                tmp_preds[j] = 1
 
                         for sample_idx in range(x.shape[0]):
                             # If the MODEL2 changes the decision from No to Yes
                             if tmp_preds[sample_idx].item() > preds[sample_idx].item():
                                 model1_predicted_ids[sample_idx] = model1_topk[sample_idx]
+
+                            preds = torch.clone(tmp_preds)
 
                             if LOWEST_CONFIDENCE_PATH is True:
                                 adv_conf_dict[k][sample_idx] = [model1_predicted_ids[sample_idx].item(),
@@ -434,18 +469,14 @@ if __name__ == '__main__':
                             # First value is the label, second is the confidence score, 3rd is the advising step
                             correction_dict = {}
                             for pred_idx in range(x.shape[0]):
-                                # TODO: NGHĨA LÀ Ở ĐÂY TA CHỈ CÓ CORRECTION DICT CHO CÁC TRƯỜNG HỢP ALL WRONGS
-                                # TODO: PHẢI CHECK TRƯỜNG HỢP CORRECT BẰNG CÁCH SAY YES CHO SAMPLES TOP2,TOP3 NỮA
-                                # VÌ CHƯA CHECK NÊN ĐANG BỊ LỖI KEY ERROR KHO VISUALIZE
-                                # TODO: A) PHÂN TÍCH PLOTS VÀ B) THÊM VÀO SLIDE VÀ LÀM SUMMARY
                                 if tmp_preds[pred_idx].item() == 0:
                                     # If the MODEL2 always disagrees, we pick the label having the lowest confidence
                                     if LOWEST_CONFIDENCE_PATH is True:
                                         entries = []
-                                        for i in range(1, RunningParams.advising_steps):
+                                        for i in range(start_from, RunningParams.advising_steps):
                                             entries.append(adv_conf_dict[i][pred_idx])
 
-                                        min_sublist = min(entries, key=lambda x: x[1])
+                                        min_sublist = max(entries, key=lambda x: x[1])
                                         for adv_k in adv_conf_dict.keys():
                                             if adv_conf_dict[adv_k][pred_idx] == min_sublist:
                                                 min_sublist.append(adv_k)
@@ -458,7 +489,7 @@ if __name__ == '__main__':
                                         # Change the predicted id to top-1 if MODEL2 disagrees
                                         model1_predicted_ids[pred_idx] = model1_top1[pred_idx]
 
-                    # print("After advising: MODEL 2 agrees {}/{}".format(tmp_preds.sum(), RunningParams.batch_size))
+                    print("After advising: MODEL 2 agrees {}/{}".format(tmp_preds.sum(), 20))
 
                 if CATEGORY_ANALYSIS is True:
                     for sample_idx in range(x.shape[0]):
@@ -483,56 +514,56 @@ if __name__ == '__main__':
                         # TODO: Vi dieu kien model2_gt[sample_idx].item() == 0 nen se khong the co truong hop label 1 conf nho hon lbel2 conf  dc
                         if adv_model2_gt[sample_idx].item() == 1 and model2_gt[sample_idx].item() == 0:
                             result = results[sample_idx].item()
-                            if result is True:
-                                correctness = 'Correctly'
-                            else:
-                                correctness = 'Incorrectly'
-
-                            pred = preds[sample_idx].item()
-                            if pred == 1:
-                                action = 'Accept'
-                            else:
-                                action = 'Reject'
-
-                            model2_decision = correctness + action
-                            query = pths[sample_idx]
-
-                            # TODO: move this out to remove redundancy
-                            base_name = os.path.basename(query)
-                            save_path = os.path.join(save_dir, model2_decision, base_name)
-
-                            gt_label = full_cub_dataset.classes[gts[sample_idx].item()]
-                            pred_label = full_cub_dataset.classes[predicted_ids[sample_idx].item()]
-
-                            model1_confidence = int(model1_score[sample_idx].item() * 100)
-                            model2_confidence = int(model2_score[sample_idx].item() * 100)
-                            model1_confidence_dist[model2_decision].append(model1_confidence)
-                            model2_confidence_dist[model2_decision].append(model2_confidence)
-
-                            # Finding the extreme cases
-                            # if (action == 'Accept' and confidence < 50) or (action == 'Reject' and confidence > 80):
-                            if True:
-                                prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
-
-                                # Plot the corrections
-                                # adv_label = full_cub_dataset.classes[model1_predicted_ids[sample_idx].item()]
-                                if sample_idx in correction_dict:
-                                    adv_label = full_cub_dataset.classes[correction_dict[sample_idx][0]]
-                                    adv_conf = int(correction_dict[sample_idx][1]*100)
-                                    adv_prototypes = adv_prototype_dict[correction_dict[sample_idx][2]][sample_idx]
-
-                                    Visualization.visualize_model2_correction_with_prototypes(query,
-                                                                                              gt_label,
-                                                                                              pred_label,
-                                                                                              model2_decision,
-                                                                                              adv_label,
-                                                                                              save_path,
-                                                                                              save_dir,
-                                                                                              model1_confidence,
-                                                                                              model2_confidence,
-                                                                                              adv_conf,
-                                                                                              prototypes,
-                                                                                              adv_prototypes)
+                            # if result is True:
+                            #     correctness = 'Correctly'
+                            # else:
+                            #     correctness = 'Incorrectly'
+                            #
+                            # pred = preds[sample_idx].item()
+                            # if pred == 1:
+                            #     action = 'Accept'
+                            # else:
+                            #     action = 'Reject'
+                            #
+                            # model2_decision = correctness + action
+                            # query = pths[sample_idx]
+                            #
+                            # # TODO: move this out to remove redundancy
+                            # base_name = os.path.basename(query)
+                            # save_path = os.path.join(save_dir, model2_decision, base_name)
+                            #
+                            # gt_label = full_cub_dataset.classes[gts[sample_idx].item()]
+                            # pred_label = full_cub_dataset.classes[predicted_ids[sample_idx].item()]
+                            #
+                            # model1_confidence = int(model1_score[sample_idx].item() * 100)
+                            # model2_confidence = int(model2_score[sample_idx].item() * 100)
+                            # model1_confidence_dist[model2_decision].append(model1_confidence)
+                            # model2_confidence_dist[model2_decision].append(model2_confidence)
+                            #
+                            # # Finding the extreme cases
+                            # # if (action == 'Accept' and confidence < 50) or (action == 'Reject' and confidence > 80):
+                            # if True:
+                            #     prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
+                            #
+                            #     # Plot the corrections
+                            #     # adv_label = full_cub_dataset.classes[model1_predicted_ids[sample_idx].item()]
+                            #     if sample_idx in correction_dict:
+                            #         adv_label = full_cub_dataset.classes[correction_dict[sample_idx][0]]
+                            #         adv_conf = int(correction_dict[sample_idx][1]*100)
+                            #         adv_prototypes = adv_prototype_dict[correction_dict[sample_idx][2]][sample_idx]
+                            #
+                            #         Visualization.visualize_model2_correction_with_prototypes(query,
+                            #                                                                   gt_label,
+                            #                                                                   pred_label,
+                            #                                                                   model2_decision,
+                            #                                                                   adv_label,
+                            #                                                                   save_path,
+                            #                                                                   save_dir,
+                            #                                                                   model1_confidence,
+                            #                                                                   model2_confidence,
+                            #                                                                   adv_conf,
+                            #                                                                   prototypes,
+                            #                                                                   adv_prototypes)
 
                 running_corrects += torch.sum(preds == labels.data)
 
@@ -620,6 +651,13 @@ if __name__ == '__main__':
             yes_cnt += sum(preds)
             true_cnt += sum(labels)
             np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
+
+        cmd = 'img2pdf -o /home/giang/Downloads/advising_network/vis/IncorrectlyAccept/output.pdf ' \
+              '--pagesize A4^T /home/giang/Downloads/advising_network/vis/IncorrectlyAccept/*.jpg'
+        os.system(cmd)
+        cmd = 'img2pdf -o /home/giang/Downloads/advising_network/vis/IncorrectlyReject/output.pdf ' \
+              '--pagesize A4^T /home/giang/Downloads/advising_network/vis/IncorrectlyReject/*.jpg'
+        os.system(cmd)
 
         epoch_acc = running_corrects.double() / len(image_datasets[ds])
         yes_ratio = yes_cnt.double() / len(image_datasets[ds])
