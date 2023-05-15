@@ -64,16 +64,18 @@ class RunningParams(object):
             self.HIGHPERFORMANCE_MODEL1 = True
             self.CONTINUE_TRAINING = True
 
-            self.batch_size = 500
+            self.batch_size = 50
             self.epochs = 300
             self.learning_rate = 1e-3
 
-        self.USING_SOFTMAX = True  # ----------------------------------------- IMPORTANT PARAM --------
+        self.USING_SOFTMAX = False  # ----------------------------------------- IMPORTANT PARAM --------
         self.UNBALANCED_TRAINING = True
         self.pos_w = 0.3
         self.EXP_TOKEN = True
 
-        self.THREE_BRANCH = True
+        self.THREE_BRANCH = False
+
+        self.MODEL_ENSEMBLE = False
 
         # Training heatmap
         self.GradCAM_RNlayer = 'layer4'

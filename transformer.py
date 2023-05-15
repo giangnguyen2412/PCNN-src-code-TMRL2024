@@ -26,6 +26,20 @@ class BinaryMLP(nn.Module):
     def forward(self, x):
         return self.net(x)
 
+class BinaryMLP_1head(nn.Module):
+    def __init__(self, input_dim, hidden_dim, dropout = 0.):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, 1),  # 2 for binary classification
+            nn.Dropout(dropout)
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
 
 class BinaryMLPv2(nn.Module):
     def __init__(self, input_dim, hidden_dim1, hidden_dim2, dropout = 0.):
@@ -102,23 +116,14 @@ if RunningParams.CUB_TRAINING is True:
             self.cross_transformer = CrossTransformer(sm_dim=feat_dim, lg_dim=feat_dim, depth=2, heads=2,
                                                       dim_head=64, dropout=0.0)
 
-            if RunningParams.USING_SOFTMAX is True:
-
-                if RunningParams.THREE_BRANCH is True:
-                    self.softmax_branch = nn.Linear(1, 2)
-                    self.agg_branch = nn.Linear(4, 1)
-
-                if RunningParams.EXP_TOKEN is True:
-                    self.branch3 = BinaryMLP(
-                        2*(RunningParams.conv_layer_size[RunningParams.conv_layer]*RunningParams.k_value + RunningParams.k_value) +2, 32)
+            if RunningParams.EXP_TOKEN is True:
+                self.branch3 = BinaryMLP(
+                    2 * RunningParams.conv_layer_size[RunningParams.conv_layer] + 2, 32)
+                self.agg_branch = nn.Linear(6, 1).cuda()
             else:
-                self.branch3 = BinaryMLP(RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] +
-                     RunningParams.k_value, 32)
-
-            # if RunningParams.EXP_TOKEN is True:
-            #     self.branch3 = BinaryMLP(
-            #         RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] * 2 +
-            #         RunningParams.k_value * 2, 32)
+                self.branch3 = BinaryMLP(
+                    RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] +
+                    RunningParams.k_value, 32)
 
             self.dropout = nn.Dropout(p=RunningParams.dropout)
 
@@ -230,50 +235,25 @@ if RunningParams.CUB_TRAINING is True:
 
                 input_emb = input_spatial_feats
                 input_emb = input_emb.squeeze()
-
                 input_cls = input_emb[:, :, 0]
 
-                if RunningParams.EXP_TOKEN:
-                    exp_emb = explanation_spatial_feats
-                    exp_emb = exp_emb.squeeze()
-                    exp_cls = exp_emb[:, :, 0]
-                    # transformer_emb = torch.cat([sep_token, input_cls[:, 0, :], sep_token, exp_cls[:, 0, :]], dim=1)
-                    # for prototype_idx in range(1, RunningParams.k_value):
-                    #     transformer_emb = torch.cat([transformer_emb, sep_token, input_cls[:, prototype_idx], sep_token,
-                    #                                  exp_cls[:, prototype_idx]], dim=1)
-                    transformer_emb = torch.cat([sep_token, input_cls[:, 0, :]], dim=1)
-                    for prototype_idx in range(1, RunningParams.k_value):
-                        transformer_emb = torch.cat(
-                            [transformer_emb, sep_token, input_cls[:, prototype_idx]],
-                            dim=1)
-                    for prototype_idx in range(0, RunningParams.k_value):
-                        transformer_emb = torch.cat(
-                            [transformer_emb, sep_token, exp_cls[:, prototype_idx]],
-                            dim=1)
-                else:
-                    # Concatenating the input cls tokens
-                    transformer_emb = torch.cat([sep_token, input_cls[:, 0, :]], dim=1)
-                    for prototype_idx in range(1, RunningParams.k_value):
-                        transformer_emb = torch.cat(
-                            [transformer_emb, sep_token, input_cls[:, prototype_idx]],
-                            dim=1)
-
-                # Concatenating the softmax scores
-                if RunningParams.USING_SOFTMAX is True:
-                    transformer_emb = torch.cat([transformer_emb, sep_token, scores], dim=1)
+                exp_emb = explanation_spatial_feats
+                exp_emb = exp_emb.squeeze()
+                exp_cls = exp_emb[:, :, 0]
 
                 i2e_attns = torch.cat(i2e_attns, dim=2)
                 e2i_attns = torch.cat(e2i_attns, dim=2)
 
-            output3 = self.branch3(transformer_emb)
+            pairwise_feats = []
+            for prototype_idx in range(0, RunningParams.k_value):
+                x = self.branch3(
+                    torch.cat([sep_token, input_cls[:, prototype_idx], sep_token, exp_cls[:, prototype_idx]], dim=1))
+                pairwise_feats.append(x)
 
-            if RunningParams.THREE_BRANCH is True:
-                # output2 = self.quality_branch(self.pooling_layer(self.conv_layers(images)).squeeze())
-                output1 = self.softmax_branch(scores)
+            output3 = torch.cat(pairwise_feats, dim=1)
+            output3 = self.agg_branch(output3)
 
-                output = self.agg_branch(torch.cat([output1, output3], dim=1))
-            else:
-                output = output3
+            output = output3
 
             if RunningParams.XAI_method == RunningParams.NO_XAI:
                 return output, None, None

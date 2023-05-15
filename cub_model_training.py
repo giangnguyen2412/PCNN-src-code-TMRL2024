@@ -16,7 +16,7 @@ import numpy as np
 
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
-from transformer import Transformer_AdvisingNetwork, BinaryMLP
+from transformer import *
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
@@ -64,7 +64,8 @@ if RunningParams.MODEL2_FINETUNING is True:
     val_dataset = '/home/giang/Downloads/Final_RN50_dataset_CUB_HP/final_val'
     if RunningParams.UNBALANCED_TRAINING is True:
         # train_dataset = '/home/giang/Downloads/datasets/CUB_train'
-        train_dataset = '/home/giang/Downloads/datasets/CUB_train_aug'
+        train_dataset = '/home/giang/Downloads/datasets/CUB_train_all_backup2'
+        # train_dataset = '/home/giang/Downloads/datasets/CUB_train_aug'
         val_dataset = '/home/giang/Downloads/datasets/CUB_val'
 else:
     train_dataset = '/home/giang/Downloads/datasets/CUB_pre_train'
@@ -110,11 +111,11 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     param.requires_grad = False
 
                 if RunningParams.MODEL2_FINETUNING is True:
-                    # for param in MODEL2.module.transformer_feat_embedder.parameters():
-                    #     param.requires_grad_(True)
+                    for param in MODEL2.module.transformer_feat_embedder.parameters():
+                        param.requires_grad_(True)
 
-                    # for param in MODEL2.module.conv_layers.parameters():
-                    #     param.requires_grad_(True)
+                    for param in MODEL2.module.conv_layers.parameters():
+                        param.requires_grad_(True)
 
                     for param in MODEL2.module.transformer.parameters():
                         param.requires_grad_(True)
@@ -136,11 +137,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             else:
                 shuffle = False
                 model.eval()  # Evaluation mode
-
-            # random.seed(42)
-            # torch.manual_seed(42)
-            # torch.cuda.manual_seed(42)
-            # np.random.seed(42)
 
             data_loader = torch.utils.data.DataLoader(
                 image_datasets[phase],
@@ -181,6 +177,9 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 model2_gt = (predicted_ids == gts) * 1  # 0 and 1
                 labels = model2_gt
 
+                if phase == 'train':
+                    labels = data[2].cuda()
+
                 #####################################################
 
                 if RunningParams.XAI_method == RunningParams.GradCAM:
@@ -200,15 +199,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     else:
                         output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
 
-                    # p = torch.nn.functional.softmax(output, dim=1)
-                    # confs, preds = torch.max(p, 1)
-                    #
-                    # if RunningParams.UNBALANCED_TRAINING is True:
-                    #     loss = loss_func(p[:, 1], labels.float())
-                    # else:
-                    #     loss = loss_func(p, labels)
-
-                    # convert logits to probabilities using sigmoid function
                     p = torch.sigmoid(output)
 
                     # classify inputs as 0 or 1 based on the threshold of 0.5
@@ -273,7 +263,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     model.load_state_dict(best_model_wts)
     return model, best_acc
 
-
 MODEL2 = Transformer_AdvisingNetwork()
 
 MODEL2 = MODEL2.cuda()
@@ -285,49 +274,28 @@ if RunningParams.CONTINUE_TRAINING:
     checkpoint = torch.load(model_path)
     MODEL2.load_state_dict(checkpoint['model_state_dict'])
 
-    if RunningParams.USING_SOFTMAX is True:
-        feat_num = RunningParams.conv_layer_size[RunningParams.conv_layer]*RunningParams.k_value + RunningParams.k_value
-        # orig_weight = MODEL2.module.branch3.net[0].weight
-        # new_weight = torch.zeros((32, feat_num + 1)).cuda()
-        # new_weight[:, :feat_num] = orig_weight
-        # MODEL2.module.branch3.net[0].weight = torch.nn.Parameter(new_weight)
+    if RunningParams.EXP_TOKEN is True:
+        MODEL2.module.branch3 = BinaryMLP(
+            RunningParams.conv_layer_size[RunningParams.conv_layer] * 2 + 2, 32).cuda()
+        MODEL2.module.agg_branch = nn.Linear(6, 1).cuda()
 
-        if RunningParams.THREE_BRANCH is True:
-            # MODEL2.module.quality_branch = BinaryMLP(RunningParams.conv_layer_size[RunningParams.conv_layer], 32).cuda()
-            MODEL2.module.softmax_branch = nn.Linear(1, 2).cuda()
-            MODEL2.module.agg_branch = nn.Linear(4, 1).cuda()
-            # MODEL2.module.GELU = nn.GELU().cuda()
+    ######################
+    # initialize all fc layers to xavier
+    for m in MODEL2.module.branch3.modules():
+        if isinstance(m, nn.Linear):
+            torch.nn.init.xavier_normal_(m.weight, gain=1)
 
-        if RunningParams.EXP_TOKEN is True:
-            orig_weight = MODEL2.module.branch3.net[0].weight
-            new_weight = torch.zeros((32, feat_num + 2 + feat_num)).cuda()
-            new_weight[:, :feat_num] = orig_weight
-            MODEL2.module.branch3.net[0].weight = torch.nn.Parameter(new_weight)
-
-            ######################
-            # MODEL2.module.branch3 = BinaryMLP(feat_num + 2 + feat_num, 512).cuda()
-            # # initialize all fc layers to xavier
-            # for m in MODEL2.module.branch3.modules():
-            #     if isinstance(m, nn.Linear):
-            #         torch.nn.init.xavier_normal_(m.weight, gain=1)
-            ######################
+    for m in MODEL2.module.agg_branch.modules():
+        if isinstance(m, nn.Linear):
+            torch.nn.init.xavier_normal_(m.weight, gain=1)
+    ######################
 
     print('Continue training from ckpt {}'.format(model_path))
     print('Pretrained model accuracy: {:.2f}'.format(checkpoint['val_acc']))
 
-criterion = nn.CrossEntropyLoss()
-
 if RunningParams.UNBALANCED_TRAINING is True:
-    # # define the misclassification costs for the two classes
-    # pos_weight = torch.tensor([RunningParams.pos_w])  # the cost of misclassifying a positive sample
-    # neg_weight = torch.tensor([1 - RunningParams.pos_w])  # the cost of misclassifying a negative sample
-    #
-    # # define the loss function with weight for the positive class
-    # criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).cuda()
-
-    # pos_weight = torch.tensor([0.16])  # the cost of misclassifying a positive sample
-    pos_weight = torch.tensor([27/73])  # the cost of misclassifying a positive sample
-    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).cuda()
+    # pos_weight = torch.tensor([5.41/94.59])  # the cost of misclassifying a positive sample
+    criterion = nn.BCEWithLogitsLoss().cuda()
 
 # Observe all parameters that are being optimized
 optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)

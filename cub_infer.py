@@ -28,7 +28,7 @@ ModelExplainer = ModelExplainer()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
@@ -95,7 +95,8 @@ full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combine
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_firm-valley-2657.pt',
+                        default='best_model_apricot-paper-2768.pt',
+                        # default='best_model_eternal-dawn-2771.pt',
                         # default='best_model_fragrant-moon-2605.pt',
                         # default='best_model_wild-water-2279.pt',
                         # default='best_model_autumn-rain-1993.pt',
@@ -117,7 +118,12 @@ if __name__ == '__main__':
     loss = checkpoint['val_loss']
     acc = checkpoint['val_acc']
 
-    print('Validation accuracy: {:.2f}'.format(acc))
+    if RunningParams.MODEL_ENSEMBLE is True:
+        print('The best confidence score was: {}'.format(checkpoint['best_conf']))
+        print('Validation accuracy: {:.2f}'.format(acc / 100))
+    else:
+        print('Validation accuracy: {:.2f}'.format(acc))
+
     print(RunningParams.__dict__)
 
     model.eval()
@@ -192,6 +198,20 @@ if __name__ == '__main__':
 
         running_corrects = 0
         advising_crt_cnt = 0
+
+        MODEL_BAGGING = False
+        if MODEL_BAGGING is True:
+            running_corrects_conf_dict = {key: 0 for key in range(0, 96, 5)}
+            # Init by 0.001 to avoid diving by ZERO
+            total_conf_dict = {key: 0.001 for key in range(0, 96, 5)}
+            thresholding_accs = [85.83, 85.83, 85.83, 85.87, 86.01, 86.17, 86.47, 86.89, 87.47,
+                                 88.15, 88.97, 90.05, 90.91, 92.01, 92.81, 93.62, 94.60, 95.52, 96.42, 97.68]
+            thresholding_accs_dict = {key: thresholding_accs[i] for i, key in enumerate(range(0, 96, 5))}
+            thresholding_ratios = [1.0000, 1.0000, 1.0000, 0.9991, 0.9967, 0.9933, 0.9888, 0.9819,
+                                   0.9722, 0.9570, 0.9392, 0.9173, 0.8947, 0.8723, 0.8469, 0.8198, 0.7891, 0.7551,
+                                   0.7090, 0.6108]
+            thresholding_ratios_dict = {key: thresholding_ratios[i] for i, key in enumerate(range(0, 96, 5))}
+
         yes_cnt = 0
         true_cnt = 0
         confidence_dict = dict()
@@ -262,18 +282,15 @@ if __name__ == '__main__':
                 RAND = False
 
                 if SAME is True:
-                    # Replace the maximum value with 0.99
-                    # for i in range(model1_p.shape[0]):
-                    #     model1_p[i][torch.argmax(model1_p[i])] = 0.999
                     model1_score.fill_(0.999)
 
                     explanation = x.clone().unsqueeze(1).repeat(1, 3, 1, 1, 1)
                 if RAND is True:
-                    explanation = torch.rand_like(explanation) * (explanation.max() - explanation.min()) + explanation.min()
+                    explanation = torch.rand_like(explanation) * (
+                                explanation.max() - explanation.min()) + explanation.min()
                     explanation.cuda()
                     # Replace the maximum value with random guess
-                    # model1_p.fill_(1/200)
-                    model1_score.fill_(1/200)
+                    model1_score.fill_(1 / 200)
 
             if RunningParams.advising_network is True:
                 # Forward input, explanations, and softmax scores through MODEL2
@@ -281,7 +298,6 @@ if __name__ == '__main__':
                     output, _, _ = model(images=x, explanations=None, scores=model1_p)
                 else:
                     output, query, i2e_attn, e2i_attn = model(images=x, explanations=explanation, scores=model1_score)
-                    # output, query, i2e_attn, e2i_attn = model(images=x, explanations=explanation, scores=model1_p)
                     # output, query, nns, emb_cos_sim = model(images=data[2].cuda(), explanations=explanation,
                     #                                         scores=model1_p)
 
@@ -292,12 +308,31 @@ if __name__ == '__main__':
                 preds = (p >= 0.5).long().squeeze()
                 model2_score = p
 
-                conf_list = []
-                confidences = model1_score
-                for j, confidence in enumerate(confidences):
-                    confidence = confidence.item() * 100
-                    if confidence >= 95:
-                        preds[j] = 1
+                if MODEL_BAGGING is True:
+                    ###############################
+                    conf_list = []
+                    confidences = model1_score
+                    confidences = (confidences * 100).long()
+                    my_dict = {}
+                    for key in range(0, 96, 5):
+                        # get the indices where the tensor is smaller than the key
+                        # advising net handles hard cases
+                        indices = (confidences < key).nonzero().squeeze().view(-1, 2).tolist()
+                        # add the indices to the dictionary
+                        my_dict[key] = [id[0] for id in indices]
+
+                        total_conf_dict[key] += len(my_dict[key])
+                        running_corrects_conf_dict[key] += torch.sum((preds == labels.data)[my_dict[key]])
+                    ###############################
+
+                if RunningParams.MODEL_ENSEMBLE is True:
+                    conf_list = []
+                    confidences = model1_score
+                    for j, confidence in enumerate(confidences):
+                        confidence = confidence.item() * 100
+                        if confidence >= checkpoint['best_conf']:
+                            # if confidence >= 65:
+                            preds[j] = 1
 
                 results = (preds == labels)
                 VISUALIZE_TRANSFORMER_ATTN = False
@@ -348,8 +383,8 @@ if __name__ == '__main__':
                         os.system(cmd)
 
                 # Running ADVISING process
-                start_from = 0
-                LOWEST_CONFIDENCE_PATH = True
+                start_from = 1
+                LOWEST_CONFIDENCE_PATH = False
                 if RunningParams.MODEL2_ADVISING is True:
                     # TODO: Reduce compute overhead by only running on disagreed samples
                     advising_steps = RunningParams.advising_steps
@@ -371,6 +406,7 @@ if __name__ == '__main__':
                         adv_prototype_dict = {}
                         adv_prototype_dict[0] = {}
                         for sample_idx in range(x.shape[0]):
+                            # Record the predicted ids and confidences at the beginning of the process
                             adv_conf_dict[0][sample_idx] = [predicted_ids[sample_idx].item(),
                                                             model2_score[sample_idx].item()]
 
@@ -438,17 +474,18 @@ if __name__ == '__main__':
                             post_explanaton.append(advising_explanation)
 
                         adv_post_explanation = torch.stack(post_explanaton)
-                        advising_output, _, _, _ = model(images=x, explanations=adv_post_explanation, scores=adv_model1_score)
+                        advising_output, _, _, _ = model(images=x, explanations=adv_post_explanation,
+                                                         scores=adv_model1_score)
 
                         advising_p = torch.sigmoid(advising_output)
                         advising_score = advising_p
                         tmp_preds = (advising_score >= 0.5).long().squeeze()
 
                         # Correct again as the MODEL2 now can assign scores < 50% for samples having MODEL1 >= 95%
-                        for j, confidence in enumerate(confidences):
-                            confidence = confidence.item() * 100
-                            if confidence >= 95:
-                                tmp_preds[j] = 1
+                        # for j, confidence in enumerate(model1_score):
+                        #     confidence = confidence.item() * 100
+                        #     if confidence >= 85:
+                        #         tmp_preds[j] = 1
 
                         for sample_idx in range(x.shape[0]):
                             # If the MODEL2 changes the decision from No to Yes
@@ -473,17 +510,14 @@ if __name__ == '__main__':
                                     # If the MODEL2 always disagrees, we pick the label having the lowest confidence
                                     if LOWEST_CONFIDENCE_PATH is True:
                                         entries = []
+
+                                        delta = 1e-10
                                         for i in range(start_from, RunningParams.advising_steps):
                                             entries.append(adv_conf_dict[i][pred_idx])
+                                            if adv_conf_dict[i][pred_idx][1] > delta:
+                                                class_label = adv_conf_dict[i][pred_idx][0]
+                                                delta = adv_conf_dict[i][pred_idx][1]
 
-                                        min_sublist = max(entries, key=lambda x: x[1])
-                                        for adv_k in adv_conf_dict.keys():
-                                            if adv_conf_dict[adv_k][pred_idx] == min_sublist:
-                                                min_sublist.append(adv_k)
-                                                break
-
-                                        correction_dict[pred_idx] = min_sublist
-                                        class_label = min_sublist[0]
                                         model1_predicted_ids[pred_idx] = torch.tensor(class_label).cuda()
                                     else:
                                         # Change the predicted id to top-1 if MODEL2 disagrees
@@ -665,6 +699,18 @@ if __name__ == '__main__':
 
         orig_wrong = len(image_datasets[ds]) - true_cnt
         adv_wrong = len(image_datasets[ds]) - advising_crt_cnt
+
+        if MODEL_BAGGING is True:
+            adv_net_acc_dict = {}
+            ensemble_acc_dict = {}
+            for key in range(0, 96, 5):
+                adv_net_acc_dict[key] = running_corrects_conf_dict[key] * 100 / total_conf_dict[key]
+                ensemble_acc_dict[key] = thresholding_accs_dict[key] * thresholding_ratios_dict[key] + \
+                                         adv_net_acc_dict[key] * (1.0 - thresholding_ratios_dict[key])
+
+                print(
+                    'Using bagging - Optimal threshold: {} - Ensemble Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
+                        key, ensemble_acc_dict[key], yes_ratio.item() * 100, true_ratio.item() * 100))
 
         if RunningParams.MODEL2_ADVISING is True:
             advising_acc = advising_crt_cnt.double() / len(image_datasets[ds])

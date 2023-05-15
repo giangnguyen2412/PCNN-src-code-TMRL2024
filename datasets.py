@@ -13,9 +13,10 @@ import torchvision.transforms as T
 
 # Define the TrivialAugmentWide transform
 trivial_augmenter = T.TrivialAugmentWide()
+jitter = T.ColorJitter(brightness=.5, hue=.3)
 
 # Define the RandomApply transform to apply the TrivialAugmentWide transform with a probability of 0.5
-trivial_augmenter = T.RandomApply(torch.nn.ModuleList([trivial_augmenter]), p=0.5)
+trivial_augmenter = T.RandomApply(torch.nn.ModuleList([trivial_augmenter, jitter]), p=0.5)
 
 RunningParams = RunningParams()
 
@@ -100,7 +101,9 @@ class ImageFolderForNNs(ImageFolder):
                     if 'train' in os.path.basename(root):
                         if RunningParams.MODEL2_FINETUNING is True:
                             # file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_train_top1_HP_MODEL1_HP_FE.npy'
-                            file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_train_aug_top1_HP_MODEL1_HP_FE.npy'
+                            # file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_train_aug_top1_HP_MODEL1_HP_FE.npy'
+                            # file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_train_all_top1_HP_MODEL1_HP_FE.npy'
+                            file_name = 'faiss/cub/top3_NeurIPS_Finetuning_faiss_CUB_train_all_top1_HP_MODEL1_HP_FE.npy'
                         else:  # Pretraining
                             if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
                                 file_name = 'faiss/cub/NeurIPS_Pretraining_faiss_CUB_CUB_pre_train_top1_LP_MODEL1_HP_FE.npy'
@@ -171,7 +174,11 @@ class ImageFolderForNNs(ImageFolder):
         query_path, target = self.samples[index]
         base_name = os.path.basename(query_path)
         if RunningParams.XAI_method == RunningParams.NNs:
-            nns = self.faiss_nn_dict[base_name]  # 6NNs here
+            if 'train' in os.path.basename(self.root):
+                nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
+                model2_target = self.faiss_nn_dict[base_name]['label']
+            else:
+                nns = self.faiss_nn_dict[base_name]  # 6NNs here
 
         # Transform NNs
         explanations = list()
@@ -183,7 +190,6 @@ class ImageFolderForNNs(ImageFolder):
                 dup = True
                 continue
             sample = self.transform(sample)
-
             explanations.append(sample)
         # If query is the same with any of NNs --> duplicate the last element
         if dup is True:
@@ -195,7 +201,11 @@ class ImageFolderForNNs(ImageFolder):
         query = self.transform(sample)
 
         # make a new tuple that includes original and the path
-        tuple_with_path = ((query, explanations), target, query_path)
+        if 'train' in os.path.basename(self.root):
+            tuple_with_path = ((query, explanations, model2_target), target, query_path)
+        else:
+            tuple_with_path = ((query, explanations), target, query_path)
+
         return tuple_with_path
 
 
