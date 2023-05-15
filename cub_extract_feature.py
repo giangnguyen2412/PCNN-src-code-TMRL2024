@@ -172,7 +172,7 @@ train_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-depth_of_pred = 3
+depth_of_pred = 5
 
 faiss_nn_dict = dict()
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
@@ -199,17 +199,17 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             id = loader.dataset.indices[indices[0, id]]
             nn_list.append(loader.dataset.dataset.imgs[id][0])
 
-        if predicted_idx == gt_id:
-            key = 'Correct1_' + base_name
+        if index[sample_idx][0].item() == gt_id:
+            key = 'Correct_' + base_name
         else:
-            key = 'Wrong1_' + base_name
+            key = 'Wrong_' + base_name
         faiss_nn_dict[key] = dict()
         faiss_nn_dict[key]['NNs'] = nn_list
         faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
         faiss_nn_dict[key]['conf'] = score[sample_idx][0].item()
 
         # Inspect the top-2 class
-        if predicted_idx == gt_id:
+        if index[sample_idx][0].item() == gt_id:
             predicted_idx = index[sample_idx][1].item()
             # Dataloader and knowledge base upon the predicted class
             loader = faiss_loader_dict[predicted_idx]
@@ -248,13 +248,34 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
             faiss_nn_dict[key]['conf'] = score[sample_idx][2].item()
 
-            ################################################################
+        ################################################################
+        # Get the NNs from GT label if top1 is wrong
+        if index[sample_idx][0].item() != gt_id:
+            predicted_idx = gt_id.item()
+            # Dataloader and knowledge base upon the predicted class
+            loader = faiss_loader_dict[predicted_idx]
+            faiss_index = faiss_nns_class_dict[predicted_idx]
+            ###############################
+            _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 6)
+            nn_list = list()
+
+            for id in range(indices.shape[1]):
+                id = loader.dataset.indices[indices[0, id]]
+                nn_list.append(loader.dataset.dataset.imgs[id][0])
+
+            key = 'Correct_Correct_' + base_name
+            faiss_nn_dict[key] = dict()
+            faiss_nn_dict[key]['NNs'] = nn_list
+            faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
+            faiss_nn_dict[key]['conf'] = 'n/a'
+
+        ################################################################
 
 
 if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
     if HIGHPERFORMANCE_MODEL1 is True:
         print("Here")
-        np.save('faiss/cub/top3_all_NeurIPS_Finetuning_faiss_{}_top1_HP_MODEL1_HP_FE.npy'.format(set), faiss_nn_dict)
+        np.save('faiss/cub/top3_final_NeurIPS_Finetuning_faiss_{}_top1_HP_MODEL1_HP_FE.npy'.format(set), faiss_nn_dict)
     else:
         np.save('faiss/cub/NeurIPS_Pretraining_faiss_CUB_{}_top1_LP_MODEL1_HP_FE.npy'.format(set), faiss_nn_dict)
 
