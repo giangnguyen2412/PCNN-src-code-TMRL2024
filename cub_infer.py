@@ -28,7 +28,7 @@ ModelExplainer = ModelExplainer()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "6,7"
 
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
@@ -95,7 +95,14 @@ full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combine
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
+                        # default='best_model_eager-pine-2791.pt',
                         default='best_model_apricot-paper-2768.pt',
+                        # default='best_model_hopeful-cloud-2789.pt',
+                        # default='best_model_olive-field-2793.pt',
+                        # default='best_model_rosy-violet-2795.pt',
+                        # default='best_model_hopeful-totem-2790.pt',
+                        # default='best_model_fragrant-sea-2785.pt',
+                        # default='best_model_ancient-plant-2777.pt',
                         # default='best_model_eternal-dawn-2771.pt',
                         # default='best_model_fragrant-moon-2605.pt',
                         # default='best_model_wild-water-2279.pt',
@@ -189,7 +196,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=20,
+            batch_size=50,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -199,7 +206,7 @@ if __name__ == '__main__':
         running_corrects = 0
         advising_crt_cnt = 0
 
-        MODEL_BAGGING = False
+        MODEL_BAGGING = True
         if MODEL_BAGGING is True:
             running_corrects_conf_dict = {key: 0 for key in range(0, 96, 5)}
             # Init by 0.001 to avoid diving by ZERO
@@ -298,8 +305,8 @@ if __name__ == '__main__':
                     output, _, _ = model(images=x, explanations=None, scores=model1_p)
                 else:
                     output, query, i2e_attn, e2i_attn = model(images=x, explanations=explanation, scores=model1_score)
-                    # output, query, nns, emb_cos_sim = model(images=data[2].cuda(), explanations=explanation,
-                    #                                         scores=model1_p)
+                    # output, query, nns, emb_cos_sim = model(images=data[-1].cuda(), explanations=explanation,
+                    #                                         scores=model1_score)
 
                 # convert logits to probabilities using sigmoid function
                 p = torch.sigmoid(output)
@@ -325,14 +332,16 @@ if __name__ == '__main__':
                         running_corrects_conf_dict[key] += torch.sum((preds == labels.data)[my_dict[key]])
                     ###############################
 
-                if RunningParams.MODEL_ENSEMBLE is True:
-                    conf_list = []
-                    confidences = model1_score
-                    for j, confidence in enumerate(confidences):
-                        confidence = confidence.item() * 100
-                        if confidence >= checkpoint['best_conf']:
-                            # if confidence >= 65:
-                            preds[j] = 1
+                optimal_T = 85
+                ##################################
+                conf_list = []
+                confidences = model1_score
+                for j, confidence in enumerate(confidences):
+                    confidence = confidence.item() * 100
+                    # if confidence >= checkpoint['best_conf']:
+                    if confidence >= optimal_T:
+                        preds[j] = 1
+                ###############################
 
                 results = (preds == labels)
                 VISUALIZE_TRANSFORMER_ATTN = False
@@ -384,7 +393,7 @@ if __name__ == '__main__':
 
                 # Running ADVISING process
                 start_from = 1
-                LOWEST_CONFIDENCE_PATH = False
+                LOWEST_CONFIDENCE_PATH = True
                 if RunningParams.MODEL2_ADVISING is True:
                     # TODO: Reduce compute overhead by only running on disagreed samples
                     advising_steps = RunningParams.advising_steps
@@ -481,11 +490,13 @@ if __name__ == '__main__':
                         advising_score = advising_p
                         tmp_preds = (advising_score >= 0.5).long().squeeze()
 
+                        ################################
                         # Correct again as the MODEL2 now can assign scores < 50% for samples having MODEL1 >= 95%
-                        # for j, confidence in enumerate(model1_score):
-                        #     confidence = confidence.item() * 100
-                        #     if confidence >= 85:
-                        #         tmp_preds[j] = 1
+                        for j, confidence in enumerate(model1_score):
+                            confidence = confidence.item() * 100
+                            if confidence >= optimal_T:
+                                tmp_preds[j] = 1
+                        #################################
 
                         for sample_idx in range(x.shape[0]):
                             # If the MODEL2 changes the decision from No to Yes
@@ -523,7 +534,7 @@ if __name__ == '__main__':
                                         # Change the predicted id to top-1 if MODEL2 disagrees
                                         model1_predicted_ids[pred_idx] = model1_top1[pred_idx]
 
-                    print("After advising: MODEL 2 agrees {}/{}".format(tmp_preds.sum(), 20))
+                    print("After advising: MODEL 2 agrees {}/{}".format(tmp_preds.sum(), 10))
 
                 if CATEGORY_ANALYSIS is True:
                     for sample_idx in range(x.shape[0]):

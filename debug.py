@@ -15,8 +15,8 @@ import shutil
 from shutil import copyfile
 
 # Set the paths and filenames
-folder_path = "/home/giang/Downloads/datasets/CUB_train_all_backup2"
-dict_path = "faiss/cub/top3_NeurIPS_Finetuning_faiss_CUB_train_all_top1_HP_MODEL1_HP_FE.npy"
+folder_path = "/home/giang/Downloads/datasets/CUB_train_all_top3_final/"
+dict_path = "faiss/cub/top3_final_NeurIPS_Finetuning_faiss_CUB_train_all_top1_HP_MODEL1_HP_FE.npy"
 
 # Load the dictionary
 file_dict = np.load(dict_path, allow_pickle=True).item()
@@ -35,6 +35,13 @@ for root, dirs, files in os.walk(folder_path):
                 dst_path = os.path.join(root, crt_file)
                 copyfile(src_path, dst_path)
                 cnt +=1
+
+            crt_file = 'Correct_Correct_' + file
+            if crt_file in file_dict:
+                src_path = file_path
+                dst_path = os.path.join(root, crt_file)
+                copyfile(src_path, dst_path)
+                cnt += 1
 
             wrong_file = 'Wrong_' + file
             if wrong_file in file_dict:

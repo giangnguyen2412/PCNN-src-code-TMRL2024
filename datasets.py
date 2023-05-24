@@ -10,6 +10,7 @@ from albumentations.pytorch.transforms import ToTensorV2
 from albumentations.augmentations.transforms import Normalize
 import cv2
 import torchvision.transforms as T
+from PIL import Image
 
 # Define the TrivialAugmentWide transform
 trivial_augmenter = T.TrivialAugmentWide()
@@ -103,7 +104,7 @@ class ImageFolderForNNs(ImageFolder):
                             # file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_train_top1_HP_MODEL1_HP_FE.npy'
                             # file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_train_aug_top1_HP_MODEL1_HP_FE.npy'
                             # file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_train_all_top1_HP_MODEL1_HP_FE.npy'
-                            file_name = 'faiss/cub/top3_NeurIPS_Finetuning_faiss_CUB_train_all_top1_HP_MODEL1_HP_FE.npy'
+                            file_name = 'faiss/cub/top5_NeurIPS_Finetuning_faiss_CUB_train_all_top1_HP_MODEL1_HP_FE.npy'
                         else:  # Pretraining
                             if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
                                 file_name = 'faiss/cub/NeurIPS_Pretraining_faiss_CUB_CUB_pre_train_top1_LP_MODEL1_HP_FE.npy'
@@ -180,31 +181,94 @@ class ImageFolderForNNs(ImageFolder):
             else:
                 nns = self.faiss_nn_dict[base_name]  # 6NNs here
 
-        # Transform NNs
-        explanations = list()
-        dup = False
-        for pth in nns:
-            sample = self.loader(pth)
-            nn_base_name = os.path.basename(pth)
-            if nn_base_name in base_name:
-                dup = True
-                continue
-            sample = self.transform(sample)
-            explanations.append(sample)
-        # If query is the same with any of NNs --> duplicate the last element
-        if dup is True:
-            explanations += [explanations[-1]]
-        explanations = torch.stack(explanations)
+            # Transform NNs
+            explanations = list()
+            dup = False
+            for pth in nns:
+                sample = self.loader(pth)
+                nn_base_name = os.path.basename(pth)
+                if nn_base_name in base_name:
+                    dup = True
+                    continue
+                sample = self.transform(sample)
+                explanations.append(sample)
+            # If query is the same with any of NNs --> duplicate the last element
+            if dup is True:
+                explanations += [explanations[-1]]
+            explanations = torch.stack(explanations)
+
+            # Transform query
+            sample = self.loader(query_path)
+            query = self.transform(sample)
+
+            # make a new tuple that includes original and the path
+            if 'train' in os.path.basename(self.root):
+                tuple_with_path = ((query, explanations, model2_target), target, query_path)
+            else:
+                tuple_with_path = ((query, explanations), target, query_path)
+
+            return tuple_with_path
+
+
+class ImageFolderForZeroshot(ImageFolder):
+    """Custom dataset that includes image file paths. Extends
+    torchvision.datasets.ImageFolder
+    """
+
+    def __init__(self, root, transform=None):
+        super(ImageFolderForZeroshot, self).__init__(root, transform=transform)
+
+        self.root = root
+        # Load the pre-computed NNs
+        if 'test' in os.path.basename(root):
+            file_name = 'faiss/NN_dict_NA-Birds-small-zero-shot_test.npy'
+        else:
+            exit(-1)
+
+        print(file_name)
+        self.faiss_nn_dict = np.load(file_name, allow_pickle=True, ).item()
+
+        original_len = len(self.imgs)
+        imgs = []
+        samples = []
+        targets = []
+        for sample_idx in range(original_len):
+            imgs.append(self.imgs[sample_idx])
+            samples.append(self.samples[sample_idx])
+            targets.append(self.targets[sample_idx])
+
+        self.imgs = imgs
+        self.samples = samples
+        self.targets = targets
+
+    def __getitem__(self, index):
+        query_path, target = self.samples[index]
 
         # Transform query
         sample = self.loader(query_path)
         query = self.transform(sample)
 
-        # make a new tuple that includes original and the path
-        if 'train' in os.path.basename(self.root):
-            tuple_with_path = ((query, explanations, model2_target), target, query_path)
-        else:
-            tuple_with_path = ((query, explanations), target, query_path)
+        base_name = os.path.basename(query_path)
+
+        nns = self.faiss_nn_dict[base_name]  # 6NNs here
+
+        # Initialize an empty tensor to store the transformed images
+        tensor_images = torch.empty((len(nns), 6, 3, 224, 224))
+
+        # Iterate over the dictionary entries and transform the images
+        for i, key in enumerate(nns):
+            file_paths = nns[key]
+            for j, file_path in enumerate(file_paths):
+                # Load the image using the loader function
+                image = self.loader(file_path)  # Replace `loader` with your actual loader function
+
+                # Apply the transformation to the image
+                transformed_image = self.transform(image)
+
+                # Assign the transformed image to the tensor
+                tensor_images[i, j] = transformed_image
+
+        tuple_with_path = ((query, tensor_images), target, query_path)
 
         return tuple_with_path
 

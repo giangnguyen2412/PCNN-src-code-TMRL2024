@@ -1,0 +1,556 @@
+,id,label_name,annotation,name
+295,295,Common Eider (Adult male),Adult male,Common Eider
+296,296,Long-tailed Duck (Winter male),Winter male,Long-tailed Duck
+297,297,Ruddy Duck (Breeding male),Breeding male,Ruddy Duck
+298,298,Swainson's Hawk (Dark morph ),Dark morph ,Swainson's Hawk
+299,299,Red-tailed Hawk (Light morph adult),Light morph adult,Red-tailed Hawk
+313,313,Snow Goose (White morph),White morph,Snow Goose
+314,314,Wood Duck (Breeding male),Breeding male,Wood Duck
+315,315,Gadwall (Breeding male),Breeding male,Gadwall
+316,316,American Wigeon (Breeding male),Breeding male,American Wigeon
+317,317,Mallard (Breeding male),Breeding male,Mallard
+318,318,Blue-winged Teal  (Male),Male,Blue-winged Teal
+319,319,Cinnamon Teal (Male),Male,Cinnamon Teal
+320,320,Northern Shoveler (Breeding male),Breeding male,Northern Shoveler
+321,321,Northern Pintail (Breeding male),Breeding male,Northern Pintail
+322,322,Green-winged Teal (Male),Male,Green-winged Teal
+323,323,Canvasback (Breeding male),Breeding male,Canvasback
+324,324,Redhead (Breeding male),Breeding male,Redhead
+325,325,Ring-necked Duck (Breeding male),Breeding male,Ring-necked Duck
+326,326,Greater Scaup (Breeding male),Breeding male,Greater Scaup
+327,327,Lesser Scaup (Breeding male),Breeding male,Lesser Scaup
+328,328,Harlequin Duck (Male),Male,Harlequin Duck
+329,329,Surf Scoter (Male),Male,Surf Scoter
+330,330,White-winged Scoter (Male),Male,White-winged Scoter
+331,331,Black Scoter (Male),Male,Black Scoter
+332,332,Bufflehead (Breeding male),Breeding male,Bufflehead
+333,333,Common Goldeneye (Breeding male),Breeding male,Common Goldeneye
+334,334,Barrow's Goldeneye (Breeding male),Breeding male,Barrow's Goldeneye
+335,335,Hooded Merganser (Breeding male),Breeding male,Hooded Merganser
+336,336,Common Merganser (Breeding male),Breeding male,Common Merganser
+337,337,Red-breasted Merganser (Breeding male),Breeding male,Red-breasted Merganser
+338,338,California Quail (Male),Male,California Quail
+339,339,Gambel's Quail (Male),Male,Gambel's Quail
+340,340,Ring-necked Pheasant (Male),Male,Ring-necked Pheasant
+341,341,Red-throated Loon (Breeding),Breeding,Red-throated Loon
+342,342,Pacific Loon (Breeding),Breeding,Pacific Loon
+343,343,Common Loon (Breeding),Breeding,Common Loon
+344,344,Horned Grebe (Breeding),Breeding,Horned Grebe
+345,345,Red-necked Grebe (Breeding),Breeding,Red-necked Grebe
+346,346,Eared Grebe (Breeding),Breeding,Eared Grebe
+347,347,"Northern Gannet (Adult, Subadult)","Adult, Subadult",Northern Gannet
+348,348,Double-crested Cormorant (Immature),Immature,Double-crested Cormorant
+349,349,Great Cormorant (Adult),Adult,Great Cormorant
+350,350,Little Blue Heron (Adult),Adult,Little Blue Heron
+351,351,Reddish Egret (Dark morph),Dark morph,Reddish Egret
+352,352,Black-crowned Night-Heron (Adult),Adult,Black-crowned Night-Heron
+353,353,Yellow-crowned Night-Heron (Adult),Adult,Yellow-crowned Night-Heron
+354,354,White Ibis (Adult),Adult,White Ibis
+355,355,"Bald Eagle (Adult, subadult)","Adult, subadult",Bald Eagle
+356,356,Northern Harrier (Adult male),Adult male,Northern Harrier
+357,357,Sharp-shinned Hawk (Adult ),Adult ,Sharp-shinned Hawk
+358,358,Cooper's Hawk (Adult),Adult,Cooper's Hawk
+359,359,Red-shouldered Hawk (Adult ),Adult ,Red-shouldered Hawk
+360,360,Broad-winged Hawk (Adult),Adult,Broad-winged Hawk
+361,361,Rough-legged Hawk (Dark morph),Dark morph,Rough-legged Hawk
+362,362,Golden Eagle (Adult),Adult,Golden Eagle
+363,363,American Kestrel (Adult male),Adult male,American Kestrel
+364,364,Peregrine Falcon (Adult),Adult,Peregrine Falcon
+365,365,Purple Gallinule (Adult),Adult,Purple Gallinule
+366,366,Common Gallinule (Adult),Adult,Common Gallinule
+367,367,Black-bellied Plover (Breeding),Breeding,Black-bellied Plover
+368,368,Spotted Sandpiper (Breeding),Breeding,Spotted Sandpiper
+369,369,Sanderling (Breeding),Breeding,Sanderling
+370,370,Dunlin (Breeding),Breeding,Dunlin
+371,371,Wilson's Phalarope (Breeding),Breeding,Wilson's Phalarope
+372,372,Broad-billed Hummingbird (Adult Male),Adult Male,Broad-billed Hummingbird
+373,373,Ruby-throated Hummingbird (Adult Male),Adult Male,Ruby-throated Hummingbird
+374,374,Black-chinned Hummingbird (Adult Male),Adult Male,Black-chinned Hummingbird
+375,375,Anna's Hummingbird (Adult Male),Adult Male,Anna's Hummingbird
+376,376,Costa's Hummingbird (Adult Male),Adult Male,Costa's Hummingbird
+377,377,Calliope Hummingbird (Adult Male),Adult Male,Calliope Hummingbird
+378,378,Broad-tailed Hummingbird (Adult Male),Adult Male,Broad-tailed Hummingbird
+379,379,Rufous Hummingbird (Adult Male),Adult Male,Rufous Hummingbird
+380,380,Allen's Hummingbird (Adult Male),Adult Male,Allen's Hummingbird
+381,381,Red-headed Woodpecker (Adult),Adult,Red-headed Woodpecker
+382,382,Northern Flicker (Yellow-shafted),Yellow-shafted,Northern Flicker
+392,392,Black Guillemot (Breeding),Breeding,Black Guillemot
+393,393,Pigeon Guillemot (Breeding),Breeding,Pigeon Guillemot
+394,394,Black-legged Kittiwake (Adult),Adult,Black-legged Kittiwake
+395,395,Laughing Gull (Breeding),Breeding,Laughing Gull
+396,396,Heermann's Gull (Adult),Adult,Heermann's Gull
+397,397,Ring-billed Gull (Adult),Adult,Ring-billed Gull
+398,398,Western Gull (Adult),Adult,Western Gull
+399,399,California Gull (Adult),Adult,California Gull
+400,400,Herring Gull (Adult),Adult,Herring Gull
+401,401,Glaucous-winged Gull (Adult),Adult,Glaucous-winged Gull
+402,402,Great Black-backed Gull (Adult),Adult,Great Black-backed Gull
+446,446,Bonaparte's Gull,,Bonaparte's Gull
+447,447,Mew Gull,,Mew Gull
+448,448,Caspian Tern,,Caspian Tern
+449,449,Black Tern,,Black Tern
+450,450,Common Tern,,Common Tern
+451,451,Forster's Tern,,Forster's Tern
+452,452,Royal Tern,,Royal Tern
+453,453,Black Skimmer,,Black Skimmer
+454,454,Greater White-fronted Goose,,Greater White-fronted Goose
+455,455,Brant,,Brant
+456,456,Cackling Goose,,Cackling Goose
+457,457,Canada Goose,,Canada Goose
+458,458,Mute Swan,,Mute Swan
+459,459,Trumpeter Swan,,Trumpeter Swan
+460,460,Tundra Swan,,Tundra Swan
+461,461,American Black Duck,,American Black Duck
+462,462,Mottled Duck,,Mottled Duck
+463,463,Common Eider (Female/juvenile),Female/juvenile,Common Eider
+464,464,Long-tailed Duck (Summer male),Summer male,Long-tailed Duck
+465,465,Ruddy Duck (Winter male),Winter male,Ruddy Duck
+466,466,Scaled Quail,,Scaled Quail
+467,467,Northern Bobwhite,,Northern Bobwhite
+468,468,Ruffed Grouse,,Ruffed Grouse
+469,469,Wild Turkey,,Wild Turkey
+470,470,Pied-billed Grebe,,Pied-billed Grebe
+471,471,Western Grebe,,Western Grebe
+472,472,Clark's Grebe,,Clark's Grebe
+473,473,Wood Stork,,Wood Stork
+474,474,Brandt's Cormorant,,Brandt's Cormorant
+475,475,Neotropic Cormorant,,Neotropic Cormorant
+476,476,Pelagic Cormorant,,Pelagic Cormorant
+477,477,Anhinga,,Anhinga
+478,478,American White Pelican,,American White Pelican
+479,479,Brown Pelican,,Brown Pelican
+480,480,Great Blue Heron,,Great Blue Heron
+481,481,Great Egret,,Great Egret
+482,482,Snowy Egret,,Snowy Egret
+483,483,Tricolored Heron,,Tricolored Heron
+484,484,Cattle Egret,,Cattle Egret
+485,485,Green Heron,,Green Heron
+486,486,Glossy Ibis,,Glossy Ibis
+487,487,White-faced Ibis,,White-faced Ibis
+488,488,Roseate Spoonbill,,Roseate Spoonbill
+489,489,Black Vulture,,Black Vulture
+490,490,Turkey Vulture,,Turkey Vulture
+491,491,Osprey,,Osprey
+492,492,Swallow-tailed Kite,,Swallow-tailed Kite
+493,493,White-tailed Kite,,White-tailed Kite
+494,494,Mississippi Kite,,Mississippi Kite
+495,495,Harris's Hawk,,Harris's Hawk
+496,496,Swainson's Hawk (Light morph ),Light morph ,Swainson's Hawk
+497,497,Red-tailed Hawk (Dark morph),Dark morph,Red-tailed Hawk
+498,498,Crested Caracara,,Crested Caracara
+499,499,Merlin,,Merlin
+500,500,Prairie Falcon,,Prairie Falcon
+501,501,American Coot,,American Coot
+502,502,Sandhill Crane,,Sandhill Crane
+503,503,Semipalmated Plover,,Semipalmated Plover
+504,504,Killdeer,,Killdeer
+505,505,American Oystercatcher,,American Oystercatcher
+506,506,Black Oystercatcher,,Black Oystercatcher
+507,507,Black-necked Stilt,,Black-necked Stilt
+508,508,American Avocet,,American Avocet
+509,509,Solitary Sandpiper,,Solitary Sandpiper
+510,510,Greater Yellowlegs,,Greater Yellowlegs
+511,511,Willet,,Willet
+512,512,Lesser Yellowlegs,,Lesser Yellowlegs
+513,513,Whimbrel,,Whimbrel
+514,514,Long-billed Curlew,,Long-billed Curlew
+515,515,Marbled Godwit,,Marbled Godwit
+516,516,Ruddy Turnstone,,Ruddy Turnstone
+517,517,Black Turnstone,,Black Turnstone
+518,518,Surfbird,,Surfbird
+519,519,Semipalmated Sandpiper,,Semipalmated Sandpiper
+520,520,Western Sandpiper,,Western Sandpiper
+521,521,Least Sandpiper,,Least Sandpiper
+522,522,Short-billed Dowitcher,,Short-billed Dowitcher
+523,523,Wilson's Snipe,,Wilson's Snipe
+524,524,American Woodcock,,American Woodcock
+525,525,Rock Pigeon,,Rock Pigeon
+526,526,Band-tailed Pigeon,,Band-tailed Pigeon
+527,527,Eurasian Collared-Dove,,Eurasian Collared-Dove
+528,528,White-winged Dove,,White-winged Dove
+529,529,Mourning Dove,,Mourning Dove
+530,530,Inca Dove,,Inca Dove
+531,531,Common Ground-Dove,,Common Ground-Dove
+532,532,Monk Parakeet,,Monk Parakeet
+533,533,Yellow-billed Cuckoo,,Yellow-billed Cuckoo
+534,534,Black-billed Cuckoo,,Black-billed Cuckoo
+535,535,Greater Roadrunner,,Greater Roadrunner
+536,536,Barn Owl,,Barn Owl
+537,537,Western Screech-Owl,,Western Screech-Owl
+538,538,Eastern Screech-Owl,,Eastern Screech-Owl
+539,539,Great Horned Owl,,Great Horned Owl
+540,540,Snowy Owl,,Snowy Owl
+541,541,Northern Pygmy-Owl,,Northern Pygmy-Owl
+542,542,Burrowing Owl,,Burrowing Owl
+543,543,Barred Owl,,Barred Owl
+544,544,Northern Saw-whet Owl,,Northern Saw-whet Owl
+545,545,Common Nighthawk,,Common Nighthawk
+546,546,Chimney Swift,,Chimney Swift
+547,547,Vaux's Swift,,Vaux's Swift
+548,548,White-throated Swift,,White-throated Swift
+549,549,Belted Kingfisher,,Belted Kingfisher
+550,550,Acorn Woodpecker,,Acorn Woodpecker
+551,551,Gila Woodpecker,,Gila Woodpecker
+552,552,Golden-fronted Woodpecker,,Golden-fronted Woodpecker
+553,553,Red-bellied Woodpecker,,Red-bellied Woodpecker
+554,554,Yellow-bellied Sapsucker,,Yellow-bellied Sapsucker
+555,555,Red-naped Sapsucker,,Red-naped Sapsucker
+556,556,Red-breasted Sapsucker,,Red-breasted Sapsucker
+557,557,Ladder-backed Woodpecker,,Ladder-backed Woodpecker
+558,558,Nuttall's Woodpecker,,Nuttall's Woodpecker
+559,559,Downy Woodpecker,,Downy Woodpecker
+560,560,Hairy Woodpecker,,Hairy Woodpecker
+561,561,Pileated Woodpecker,,Pileated Woodpecker
+599,599,"Black Guillemot (Nonbreeding, juvenile)","Nonbreeding, juvenile",Black Guillemot
+600,600,"Pigeon Guillemot (Nonbreeding, juvenile)","Nonbreeding, juvenile",Pigeon Guillemot
+601,601,Black-legged Kittiwake (Immature),Immature,Black-legged Kittiwake
+602,602,Laughing Gull (Nonbreeding/Immature),Nonbreeding/Immature,Laughing Gull
+603,603,Heermann's Gull (Immature),Immature,Heermann's Gull
+604,604,Ring-billed Gull (Immature),Immature,Ring-billed Gull
+605,605,Western Gull (Immature),Immature,Western Gull
+606,606,California Gull (Immature),Immature,California Gull
+607,607,Herring Gull (Immature),Immature,Herring Gull
+608,608,Glaucous-winged Gull (Immature),Immature,Glaucous-winged Gull
+609,609,Great Black-backed Gull (Immature),Immature,Great Black-backed Gull
+610,610,Black-bellied Whistling-Duck,,Black-bellied Whistling-Duck
+611,611,Snow Goose (Blue morph),Blue morph,Snow Goose
+612,612,Ross's Goose,,Ross's Goose
+613,613,Wood Duck (Female/Eclipse male),Female/Eclipse male,Wood Duck
+614,614,Gadwall (Female/Eclipse male),Female/Eclipse male,Gadwall
+615,615,American Wigeon (Female/Eclipse male),Female/Eclipse male,American Wigeon
+616,616,Mallard (Female/Eclipse male),Female/Eclipse male,Mallard
+617,617,Blue-winged Teal  (Female/juvenile),Female/juvenile,Blue-winged Teal
+618,618,Cinnamon Teal (Female/juvenile),Female/juvenile,Cinnamon Teal
+619,619,Northern Shoveler (Female/Eclipse male),Female/Eclipse male,Northern Shoveler
+620,620,Northern Pintail (Female/Eclipse male),Female/Eclipse male,Northern Pintail
+621,621,Green-winged Teal  (Female/juvenile),Female/juvenile,Green-winged Teal
+622,622,Canvasback (Female/Eclipse male),Female/Eclipse male,Canvasback
+623,623,Redhead (Female/Eclipse male),Female/Eclipse male,Redhead
+624,624,Ring-necked Duck (Female/Eclipse male),Female/Eclipse male,Ring-necked Duck
+625,625,Greater Scaup (Female/Eclipse male),Female/Eclipse male,Greater Scaup
+626,626,Lesser Scaup (Female/Eclipse male),Female/Eclipse male,Lesser Scaup
+627,627,Harlequin Duck (Female/juvenile),Female/juvenile,Harlequin Duck
+628,628,Surf Scoter (Female/immature),Female/immature,Surf Scoter
+629,629,White-winged Scoter (Female/juvenile),Female/juvenile,White-winged Scoter
+630,630,Black Scoter (Female/juvenile),Female/juvenile,Black Scoter
+631,631,Bufflehead (Female/immature male),Female/immature male,Bufflehead
+632,632,Common Goldeneye (Female/Eclipse male),Female/Eclipse male,Common Goldeneye
+633,633,Barrow's Goldeneye (Female/Eclipse male),Female/Eclipse male,Barrow's Goldeneye
+634,634,Hooded Merganser (Female/immature male),Female/immature male,Hooded Merganser
+635,635,Common Merganser (Female/immature male),Female/immature male,Common Merganser
+636,636,Red-breasted Merganser (Female/immature male),Female/immature male,Red-breasted Merganser
+637,637,California Quail (Female/juvenile),Female/juvenile,California Quail
+638,638,Gambel's Quail (Female/juvenile),Female/juvenile,Gambel's Quail
+639,639,Ring-necked Pheasant (Female/juvenile),Female/juvenile,Ring-necked Pheasant
+640,640,Red-throated Loon (Nonbreeding/juvenile),Nonbreeding/juvenile,Red-throated Loon
+641,641,Pacific Loon (Nonbreeding/juvenile),Nonbreeding/juvenile,Pacific Loon
+642,642,Common Loon (Nonbreeding/juvenile),Nonbreeding/juvenile,Common Loon
+643,643,Horned Grebe (Nonbreeding/juvenile),Nonbreeding/juvenile,Horned Grebe
+644,644,Red-necked Grebe (Nonbreeding/juvenile),Nonbreeding/juvenile,Red-necked Grebe
+645,645,Eared Grebe (Nonbreeding/juvenile),Nonbreeding/juvenile,Eared Grebe
+646,646,Northern Gannet (Immature/Juvenile),Immature/Juvenile,Northern Gannet
+647,647,Double-crested Cormorant (Adult),Adult,Double-crested Cormorant
+648,648,Great Cormorant (Immature),Immature,Great Cormorant
+649,649,Little Blue Heron (Immature),Immature,Little Blue Heron
+650,650,Reddish Egret (White morph),White morph,Reddish Egret
+651,651,Black-crowned Night-Heron (Immature),Immature,Black-crowned Night-Heron
+652,652,Yellow-crowned Night-Heron (Immature),Immature,Yellow-crowned Night-Heron
+653,653,White Ibis (Immature),Immature,White Ibis
+654,654,"Bald Eagle (Immature, juvenile)","Immature, juvenile",Bald Eagle
+655,655,"Northern Harrier (Female, immature)","Female, immature",Northern Harrier
+656,656,Sharp-shinned Hawk (Immature),Immature,Sharp-shinned Hawk
+657,657,Cooper's Hawk (Immature),Immature,Cooper's Hawk
+658,658,Red-shouldered Hawk (Immature),Immature,Red-shouldered Hawk
+659,659,Broad-winged Hawk (Immature),Immature,Broad-winged Hawk
+660,660,Rough-legged Hawk (Light morph),Light morph,Rough-legged Hawk
+661,661,Golden Eagle (Immature),Immature,Golden Eagle
+662,662,"American Kestrel (Female, immature)","Female, immature",American Kestrel
+663,663,Peregrine Falcon (Immature),Immature,Peregrine Falcon
+664,664,Purple Gallinule (Immature),Immature,Purple Gallinule
+665,665,Common Gallinule (Immature),Immature,Common Gallinule
+666,666,Black-bellied Plover (Nonbreeding/juvenile),Nonbreeding/juvenile,Black-bellied Plover
+667,667,Spotted Sandpiper (Nonbreeding/juvenile),Nonbreeding/juvenile,Spotted Sandpiper
+668,668,Sanderling (Nonbreeding/juvenile),Nonbreeding/juvenile,Sanderling
+669,669,Dunlin (Nonbreeding/juvenile),Nonbreeding/juvenile,Dunlin
+670,670,"Wilson's Phalarope (Nonbreeding, juvenile)","Nonbreeding, juvenile",Wilson's Phalarope
+671,671,"Broad-billed Hummingbird (Female, immature)","Female, immature",Broad-billed Hummingbird
+672,672,"Ruby-throated Hummingbird (Female, immature)","Female, immature",Ruby-throated Hummingbird
+673,673,"Black-chinned Hummingbird (Female, immature)","Female, immature",Black-chinned Hummingbird
+674,674,"Anna's Hummingbird (Female, immature)","Female, immature",Anna's Hummingbird
+675,675,"Costa's Hummingbird (Female, immature)","Female, immature",Costa's Hummingbird
+676,676,"Calliope Hummingbird (Female, immature)","Female, immature",Calliope Hummingbird
+677,677,"Broad-tailed Hummingbird (Female, immature)","Female, immature",Broad-tailed Hummingbird
+678,678,"Rufous Hummingbird (Female, immature)","Female, immature",Rufous Hummingbird
+679,679,"Allen's Hummingbird (Female, immature)","Female, immature",Allen's Hummingbird
+680,680,Red-headed Woodpecker (Immature),Immature,Red-headed Woodpecker
+681,681,Northern Flicker (Red-shafted),Red-shafted,Northern Flicker
+696,696,Common Eider (Immature/Eclipse male),Immature/Eclipse male,Common Eider
+697,697,Long-tailed Duck (Female/juvenile),Female/juvenile,Long-tailed Duck
+698,698,Ruddy Duck (Female/juvenile),Female/juvenile,Ruddy Duck
+699,699,Swainson's Hawk (Immature),Immature,Swainson's Hawk
+700,700,Red-tailed Hawk (Light morph immature),Light morph immature,Red-tailed Hawk
+746,746,Dark-eyed Junco (Slate-colored),Slate-colored,Dark-eyed Junco
+747,747,Yellow-rumped Warbler (Breeding Myrtle),Breeding Myrtle,Yellow-rumped Warbler
+748,748,European Starling (Breeding Adult),Breeding Adult,European Starling
+749,749,Fox Sparrow (Red),Red,Fox Sparrow
+750,750,Summer Tanager (Adult Male),Adult Male,Summer Tanager
+751,751,Orchard Oriole (Adult Male),Adult Male,Orchard Oriole
+752,752,Purple Martin (Adult male),Adult male,Purple Martin
+753,753,American Robin (Adult),Adult,American Robin
+754,754,Phainopepla (Female/juvenile),Female/juvenile,Phainopepla
+755,755,Snow Bunting (Breeding adult),Breeding adult,Snow Bunting
+756,756,Common Yellowthroat (Adult Male),Adult Male,Common Yellowthroat
+757,757,American Redstart (Adult Male),Adult Male,American Redstart
+758,758,Magnolia Warbler (Breeding male),Breeding male,Magnolia Warbler
+759,759,Bay-breasted Warbler (Breeding male),Breeding male,Bay-breasted Warbler
+760,760,Chestnut-sided Warbler (Breeding male),Breeding male,Chestnut-sided Warbler
+761,761,Blackpoll Warbler (Breeding male),Breeding male,Blackpoll Warbler
+762,762,Black-throated Blue Warbler (Adult Male),Adult Male,Black-throated Blue Warbler
+763,763,Lark Bunting (Breeding male),Breeding male,Lark Bunting
+764,764,White-throated Sparrow (White-striped),White-striped,White-throated Sparrow
+765,765,Harris's Sparrow (Adult),Adult,Harris's Sparrow
+766,766,White-crowned Sparrow (Adult),Adult,White-crowned Sparrow
+767,767,Golden-crowned Sparrow (Adult),Adult,Golden-crowned Sparrow
+768,768,Dark-eyed Junco (Oregon),Oregon,Dark-eyed Junco
+769,769,Chipping Sparrow (Breeding),Breeding,Chipping Sparrow
+770,770,Scarlet Tanager (Breeding Male),Breeding Male,Scarlet Tanager
+771,771,Western Tanager (Breeding Male),Breeding Male,Western Tanager
+772,772,Northern Cardinal (Adult Male),Adult Male,Northern Cardinal
+773,773,Rose-breasted Grosbeak (Adult Male),Adult Male,Rose-breasted Grosbeak
+774,774,Black-headed Grosbeak (Adult Male),Adult Male,Black-headed Grosbeak
+775,775,Blue Grosbeak (Adult Male),Adult Male,Blue Grosbeak
+776,776,Lazuli Bunting (Adult Male),Adult Male,Lazuli Bunting
+777,777,Indigo Bunting (Adult Male),Adult Male,Indigo Bunting
+778,778,Painted Bunting (Adult Male),Adult Male,Painted Bunting
+779,779,Bobolink (Breeding male),Breeding male,Bobolink
+780,780,Red-winged Blackbird (Male),Male,Red-winged Blackbird
+781,781,Yellow-headed Blackbird (Adult Male),Adult Male,Yellow-headed Blackbird
+782,782,Brewer's Blackbird (Female/Juvenile),Female/Juvenile,Brewer's Blackbird
+783,783,Brown-headed Cowbird (Male),Male,Brown-headed Cowbird
+784,784,Hooded Oriole (Adult male),Adult male,Hooded Oriole
+785,785,Bullock's Oriole (Adult male),Adult male,Bullock's Oriole
+786,786,Baltimore Oriole (Adult male),Adult male,Baltimore Oriole
+787,787,Pine Grosbeak (Adult Male),Adult Male,Pine Grosbeak
+788,788,Purple Finch (Adult Male),Adult Male,Purple Finch
+789,789,Cassin's Finch (Adult Male),Adult Male,Cassin's Finch
+790,790,House Finch (Adult Male),Adult Male,House Finch
+791,791,Red Crossbill (Adult Male),Adult Male,Red Crossbill
+792,792,White-winged Crossbill (Adult Male),Adult Male,White-winged Crossbill
+793,793,Lesser Goldfinch (Adult Male),Adult Male,Lesser Goldfinch
+794,794,American Goldfinch (Breeding Male),Breeding Male,American Goldfinch
+795,795,Evening Grosbeak (Adult Male),Adult Male,Evening Grosbeak
+796,796,House Sparrow (Male),Male,House Sparrow
+797,797,Vermilion Flycatcher (Adult male),Adult male,Vermilion Flycatcher
+798,798,Yellow-rumped Warbler (Winter/juvenile Myrtle),Winter/juvenile Myrtle,Yellow-rumped Warbler
+799,799,Northwestern Crow,,Northwestern Crow
+800,800,Fish Crow,,Fish Crow
+801,801,Chihuahuan Raven,,Chihuahuan Raven
+802,802,Common Raven,,Common Raven
+803,803,Horned Lark,,Horned Lark
+804,804,Tree Swallow,,Tree Swallow
+805,805,Violet-green Swallow,,Violet-green Swallow
+806,806,Northern Rough-winged Swallow,,Northern Rough-winged Swallow
+807,807,Bank Swallow,,Bank Swallow
+808,808,Cliff Swallow,,Cliff Swallow
+809,809,Cave Swallow,,Cave Swallow
+810,810,Barn Swallow,,Barn Swallow
+811,811,Carolina Chickadee,,Carolina Chickadee
+812,812,Black-capped Chickadee,,Black-capped Chickadee
+813,813,Mountain Chickadee,,Mountain Chickadee
+814,814,Chestnut-backed Chickadee,,Chestnut-backed Chickadee
+815,815,Boreal Chickadee,,Boreal Chickadee
+816,816,Bridled Titmouse,,Bridled Titmouse
+817,817,Oak Titmouse,,Oak Titmouse
+818,818,Juniper Titmouse,,Juniper Titmouse
+819,819,Tufted Titmouse,,Tufted Titmouse
+820,820,Black-crested Titmouse,,Black-crested Titmouse
+821,821,Verdin,,Verdin
+822,822,Bushtit,,Bushtit
+823,823,Red-breasted Nuthatch,,Red-breasted Nuthatch
+824,824,White-breasted Nuthatch,,White-breasted Nuthatch
+825,825,Pygmy Nuthatch,,Pygmy Nuthatch
+826,826,Brown-headed Nuthatch,,Brown-headed Nuthatch
+827,827,Brown Creeper,,Brown Creeper
+828,828,Cactus Wren,,Cactus Wren
+829,829,Canyon Wren,,Canyon Wren
+830,830,Carolina Wren,,Carolina Wren
+831,831,Bewick's Wren,,Bewick's Wren
+832,832,House Wren,,House Wren
+833,833,Pacific Wren,,Pacific Wren
+834,834,Winter Wren,,Winter Wren
+835,835,Marsh Wren,,Marsh Wren
+836,836,Blue-gray Gnatcatcher,,Blue-gray Gnatcatcher
+837,837,Black-tailed Gnatcatcher,,Black-tailed Gnatcatcher
+838,838,American Dipper,,American Dipper
+839,839,Golden-crowned Kinglet,,Golden-crowned Kinglet
+840,840,Ruby-crowned Kinglet,,Ruby-crowned Kinglet
+841,841,Wrentit,,Wrentit
+842,842,Eastern Bluebird,,Eastern Bluebird
+843,843,Western Bluebird,,Western Bluebird
+844,844,Mountain Bluebird,,Mountain Bluebird
+845,845,Townsend's Solitaire,,Townsend's Solitaire
+846,846,Veery,,Veery
+847,847,Swainson's Thrush,,Swainson's Thrush
+848,848,Hermit Thrush,,Hermit Thrush
+849,849,Wood Thrush,,Wood Thrush
+850,850,Varied Thrush,,Varied Thrush
+851,851,Gray Catbird,,Gray Catbird
+852,852,Northern Mockingbird,,Northern Mockingbird
+853,853,Brown Thrasher,,Brown Thrasher
+854,854,Curve-billed Thrasher,,Curve-billed Thrasher
+855,855,California Thrasher,,California Thrasher
+856,856,European Starling (Nonbreeding Adult),Nonbreeding Adult,European Starling
+857,857,American Pipit,,American Pipit
+858,858,Bohemian Waxwing,,Bohemian Waxwing
+859,859,Cedar Waxwing,,Cedar Waxwing
+860,860,Ovenbird,,Ovenbird
+861,861,Louisiana Waterthrush,,Louisiana Waterthrush
+862,862,Northern Waterthrush,,Northern Waterthrush
+863,863,Blue-winged Warbler,,Blue-winged Warbler
+864,864,Black-and-white Warbler,,Black-and-white Warbler
+865,865,Prothonotary Warbler,,Prothonotary Warbler
+866,866,Tennessee Warbler,,Tennessee Warbler
+867,867,Orange-crowned Warbler,,Orange-crowned Warbler
+868,868,Nashville Warbler,,Nashville Warbler
+869,869,MacGillivray's Warbler,,MacGillivray's Warbler
+870,870,Mourning Warbler,,Mourning Warbler
+871,871,Hooded Warbler,,Hooded Warbler
+872,872,Cape May Warbler,,Cape May Warbler
+873,873,Northern Parula,,Northern Parula
+874,874,Blackburnian Warbler,,Blackburnian Warbler
+875,875,Yellow Warbler,,Yellow Warbler
+876,876,Palm Warbler,,Palm Warbler
+877,877,Pine Warbler,,Pine Warbler
+878,878,Yellow-throated Warbler,,Yellow-throated Warbler
+879,879,Prairie Warbler,,Prairie Warbler
+880,880,Black-throated Gray Warbler,,Black-throated Gray Warbler
+881,881,Townsend's Warbler,,Townsend's Warbler
+882,882,Hermit Warbler,,Hermit Warbler
+883,883,Black-throated Green Warbler,,Black-throated Green Warbler
+884,884,Canada Warbler,,Canada Warbler
+885,885,Wilson's Warbler,,Wilson's Warbler
+886,886,Yellow-breasted Chat,,Yellow-breasted Chat
+887,887,Green-tailed Towhee,,Green-tailed Towhee
+888,888,Spotted Towhee,,Spotted Towhee
+889,889,Eastern Towhee,,Eastern Towhee
+890,890,Rufous-crowned Sparrow,,Rufous-crowned Sparrow
+891,891,Canyon Towhee,,Canyon Towhee
+892,892,California Towhee,,California Towhee
+893,893,Abert's Towhee,,Abert's Towhee
+894,894,American Tree Sparrow,,American Tree Sparrow
+895,895,Clay-colored Sparrow,,Clay-colored Sparrow
+896,896,Brewer's Sparrow,,Brewer's Sparrow
+897,897,Field Sparrow,,Field Sparrow
+898,898,Vesper Sparrow,,Vesper Sparrow
+899,899,Lark Sparrow,,Lark Sparrow
+900,900,Savannah Sparrow,,Savannah Sparrow
+901,901,Fox Sparrow (Sooty),Sooty,Fox Sparrow
+902,902,Song Sparrow,,Song Sparrow
+903,903,Lincoln's Sparrow,,Lincoln's Sparrow
+904,904,Swamp Sparrow,,Swamp Sparrow
+905,905,Dark-eyed Junco (Pink-sided),Pink-sided,Dark-eyed Junco
+906,906,Summer Tanager (Female),Female,Summer Tanager
+907,907,Pyrrhuloxia,,Pyrrhuloxia
+908,908,Dickcissel,,Dickcissel
+909,909,Eastern Meadowlark,,Eastern Meadowlark
+910,910,Western Meadowlark,,Western Meadowlark
+911,911,Rusty Blackbird,,Rusty Blackbird
+912,912,Common Grackle,,Common Grackle
+913,913,Boat-tailed Grackle,,Boat-tailed Grackle
+914,914,Great-tailed Grackle,,Great-tailed Grackle
+915,915,Bronzed Cowbird,,Bronzed Cowbird
+916,916,Orchard Oriole (Immature Male),Immature Male,Orchard Oriole
+917,917,Gray-crowned Rosy-Finch,,Gray-crowned Rosy-Finch
+918,918,Black Rosy-Finch,,Black Rosy-Finch
+919,919,Brown-capped Rosy-Finch,,Brown-capped Rosy-Finch
+920,920,Common Redpoll,,Common Redpoll
+921,921,Hoary Redpoll,,Hoary Redpoll
+922,922,Pine Siskin,,Pine Siskin
+923,923,Western Wood-Pewee,,Western Wood-Pewee
+924,924,Eastern Wood-Pewee,,Eastern Wood-Pewee
+925,925,Least Flycatcher,,Least Flycatcher
+926,926,Pacific-slope Flycatcher,,Pacific-slope Flycatcher
+927,927,Cordilleran Flycatcher,,Cordilleran Flycatcher
+928,928,Black Phoebe,,Black Phoebe
+929,929,Eastern Phoebe,,Eastern Phoebe
+930,930,Say's Phoebe,,Say's Phoebe
+931,931,Ash-throated Flycatcher,,Ash-throated Flycatcher
+932,932,Great Crested Flycatcher,,Great Crested Flycatcher
+933,933,Cassin's Kingbird,,Cassin's Kingbird
+934,934,Western Kingbird,,Western Kingbird
+935,935,Eastern Kingbird,,Eastern Kingbird
+936,936,Scissor-tailed Flycatcher,,Scissor-tailed Flycatcher
+937,937,Loggerhead Shrike,,Loggerhead Shrike
+938,938,Northern Shrike,,Northern Shrike
+939,939,White-eyed Vireo,,White-eyed Vireo
+940,940,Bell's Vireo,,Bell's Vireo
+941,941,Yellow-throated Vireo,,Yellow-throated Vireo
+942,942,Plumbeous Vireo,,Plumbeous Vireo
+943,943,Cassin's Vireo,,Cassin's Vireo
+944,944,Blue-headed Vireo,,Blue-headed Vireo
+945,945,Hutton's Vireo,,Hutton's Vireo
+946,946,Warbling Vireo,,Warbling Vireo
+947,947,Red-eyed Vireo,,Red-eyed Vireo
+948,948,Gray Jay,,Gray Jay
+949,949,Steller's Jay,,Steller's Jay
+950,950,Blue Jay,,Blue Jay
+951,951,Florida Scrub-Jay,,Florida Scrub-Jay
+952,952,Western Scrub-Jay,,Western Scrub-Jay
+953,953,Mexican Jay,,Mexican Jay
+954,954,Clark's Nutcracker,,Clark's Nutcracker
+955,955,Black-billed Magpie,,Black-billed Magpie
+956,956,Yellow-billed Magpie,,Yellow-billed Magpie
+957,957,American Crow,,American Crow
+958,958,Yellow-rumped Warbler (Breeding Audubon's),Breeding Audubon's,Yellow-rumped Warbler
+959,959,Purple Martin (Female/juvenile),Female/juvenile,Purple Martin
+960,960,American Robin (Juvenile),Juvenile,American Robin
+961,961,Phainopepla (Male),Male,Phainopepla
+962,962,Snow Bunting (Nonbreeding),Nonbreeding,Snow Bunting
+963,963,Common Yellowthroat (Female/immature male),Female/immature male,Common Yellowthroat
+964,964,American Redstart (Female/juvenile),Female/juvenile,American Redstart
+965,965,Magnolia Warbler (Female/immature male),Female/immature male,Magnolia Warbler
+966,966,"Bay-breasted Warbler (Female, Nonbreeding male, Immature)","Female, Nonbreeding male, Immature",Bay-breasted Warbler
+967,967,Chestnut-sided Warbler (Female/immature male),Female/immature male,Chestnut-sided Warbler
+968,968,Blackpoll Warbler (Female/juvenile),Female/juvenile,Blackpoll Warbler
+969,969,Black-throated Blue Warbler (Female/Immature male),Female/Immature male,Black-throated Blue Warbler
+970,970,Lark Bunting (Female/Nonbreeding male),Female/Nonbreeding male,Lark Bunting
+971,971,White-throated Sparrow (Tan-striped/immature),Tan-striped/immature,White-throated Sparrow
+972,972,Harris's Sparrow (Immature),Immature,Harris's Sparrow
+973,973,White-crowned Sparrow (Immature),Immature,White-crowned Sparrow
+974,974,Golden-crowned Sparrow (Immature),Immature,Golden-crowned Sparrow
+975,975,Dark-eyed Junco (White-winged),White-winged,Dark-eyed Junco
+976,976,Chipping Sparrow (Immature/nonbreeding adult),Immature/nonbreeding adult,Chipping Sparrow
+977,977,Scarlet Tanager (Female/Nonbreeding Male),Female/Nonbreeding Male,Scarlet Tanager
+978,978,Western Tanager (Female/Nonbreeding Male),Female/Nonbreeding Male,Western Tanager
+979,979,Northern Cardinal (Female/Juvenile),Female/Juvenile,Northern Cardinal
+980,980,Rose-breasted Grosbeak (Female/immature male),Female/immature male,Rose-breasted Grosbeak
+981,981,Black-headed Grosbeak (Female/immature male),Female/immature male,Black-headed Grosbeak
+982,982,Blue Grosbeak (Female/juvenile),Female/juvenile,Blue Grosbeak
+983,983,Lazuli Bunting (Female/juvenile),Female/juvenile,Lazuli Bunting
+984,984,Indigo Bunting (Female/juvenile),Female/juvenile,Indigo Bunting
+985,985,Painted Bunting (Female/juvenile),Female/juvenile,Painted Bunting
+986,986,Bobolink (Female/juvenile/nonbreeding male),Female/juvenile/nonbreeding male,Bobolink
+987,987,Red-winged Blackbird (Female/juvenile),Female/juvenile,Red-winged Blackbird
+988,988,Yellow-headed Blackbird (Female/Immature Male),Female/Immature Male,Yellow-headed Blackbird
+989,989,Brewer's Blackbird (Male),Male,Brewer's Blackbird
+990,990,Brown-headed Cowbird (Female/Juvenile),Female/Juvenile,Brown-headed Cowbird
+991,991,Hooded Oriole (Female/Immature male),Female/Immature male,Hooded Oriole
+992,992,Bullock's Oriole (Female/Immature male),Female/Immature male,Bullock's Oriole
+993,993,Baltimore Oriole (Female/Immature male),Female/Immature male,Baltimore Oriole
+994,994,Pine Grosbeak (Female/juvenile),Female/juvenile,Pine Grosbeak
+995,995,Purple Finch (Female/immature),Female/immature,Purple Finch
+996,996,Cassin's Finch (Female/immature),Female/immature,Cassin's Finch
+997,997,House Finch (Female/immature),Female/immature,House Finch
+998,998,Red Crossbill (Female/juvenile),Female/juvenile,Red Crossbill
+999,999,White-winged Crossbill (Female/juvenile),Female/juvenile,White-winged Crossbill
+1000,1000,Lesser Goldfinch (Female/juvenile),Female/juvenile,Lesser Goldfinch
+1001,1001,American Goldfinch (Female/Nonbreeding Male),Female/Nonbreeding Male,American Goldfinch
+1002,1002,Evening Grosbeak (Female/Juvenile),Female/Juvenile,Evening Grosbeak
+1003,1003,House Sparrow (Female/Juvenile),Female/Juvenile,House Sparrow
+1004,1004,"Vermilion Flycatcher (Female, immature)","Female, immature",Vermilion Flycatcher
+1005,1005,European Starling (Juvenile),Juvenile,European Starling
+1006,1006,Fox Sparrow (Thick-billed/Slate-colored),Thick-billed/Slate-colored,Fox Sparrow
+1007,1007,Summer Tanager (Immature Male),Immature Male,Summer Tanager
+1008,1008,Orchard Oriole (Female/Juvenile),Female/Juvenile,Orchard Oriole
+1009,1009,Yellow-rumped Warbler (Winter/juvenile Audubon's),Winter/juvenile Audubon's,Yellow-rumped Warbler
+1010,1010,Dark-eyed Junco (Red-backed/Gray-headed),Red-backed/Gray-headed,Dark-eyed Junco

@@ -64,7 +64,8 @@ if RunningParams.MODEL2_FINETUNING is True:
     val_dataset = '/home/giang/Downloads/Final_RN50_dataset_CUB_HP/final_val'
     if RunningParams.UNBALANCED_TRAINING is True:
         # train_dataset = '/home/giang/Downloads/datasets/CUB_train'
-        train_dataset = '/home/giang/Downloads/datasets/CUB_train_all_backup2'
+        # train_dataset = '/home/giang/Downloads/datasets/CUB_train_all_backup2'
+        train_dataset = '/home/giang/Downloads/datasets/CUB_train_all_top5'
         # train_dataset = '/home/giang/Downloads/datasets/CUB_train_aug'
         val_dataset = '/home/giang/Downloads/datasets/CUB_val'
 else:
@@ -125,6 +126,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                 for param in MODEL2.module.branch3.parameters():
                     param.requires_grad_(True)
+
                 if RunningParams.THREE_BRANCH is True:
                     # for param in MODEL2.module.quality_branch.parameters():
                     #     param.requires_grad_(True)
@@ -236,7 +238,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, yes_ratio.item() * 100, true_ratio.item() * 100))
 
             # deep copy the model
-            if phase == 'val' and epoch_acc > best_acc:
+            if phase == 'val' and epoch_acc >= best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
 
@@ -294,8 +296,8 @@ if RunningParams.CONTINUE_TRAINING:
     print('Pretrained model accuracy: {:.2f}'.format(checkpoint['val_acc']))
 
 if RunningParams.UNBALANCED_TRAINING is True:
-    # pos_weight = torch.tensor([5.41/94.59])  # the cost of misclassifying a positive sample
-    criterion = nn.BCEWithLogitsLoss().cuda()
+    pos_weight = torch.tensor([4.0])  # the cost of misclassifying a positive sample
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).cuda()
 
 # Observe all parameters that are being optimized
 optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)
