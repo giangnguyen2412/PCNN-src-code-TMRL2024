@@ -64,7 +64,7 @@ class RunningParams(object):
             self.HIGHPERFORMANCE_MODEL1 = True
             self.CONTINUE_TRAINING = True
 
-            self.batch_size = 50
+            self.batch_size = 100
             self.epochs = 300
             self.learning_rate = 1e-3
 
@@ -95,8 +95,8 @@ class RunningParams(object):
         self.ALBUM = False
 
         # Infer
-        self.MODEL2_ADVISING = True
-        self.advising_steps = 3
+        self.MODEL2_ADVISING = False
+        self.advising_steps = 5
 
         # Visualization
         self.M2_VISUALIZATION = False

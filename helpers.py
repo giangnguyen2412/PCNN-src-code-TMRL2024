@@ -12,11 +12,11 @@ import glob
 class HelperFunctions(object):
     def __init__(self):
         # Some Helper functions
-        self.id_map = self.load_imagenet_id_map()
-        self.label_map = self.load_imagenet_label_map()
-        self.key_list = list(self.id_map.keys())
-        self.val_list = list(self.id_map.values())
-
+        # self.id_map = self.load_imagenet_id_map()
+        # self.label_map = self.load_imagenet_label_map()
+        # self.key_list = list(self.id_map.keys())
+        # self.val_list = list(self.id_map.values())
+        pass
     def concat(self, x):
         return np.concatenate(x, axis=0)
 

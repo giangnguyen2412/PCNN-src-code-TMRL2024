@@ -67,7 +67,8 @@ if RunningParams.MODEL2_FINETUNING is True:
         # train_dataset = '/home/giang/Downloads/datasets/CUB_train_all_backup2'
         train_dataset = '/home/giang/Downloads/datasets/CUB_train_all_top5'
         # train_dataset = '/home/giang/Downloads/datasets/CUB_train_aug'
-        val_dataset = '/home/giang/Downloads/datasets/CUB_val'
+        # val_dataset = '/home/giang/Downloads/datasets/CUB_val'
+        val_dataset = '/home/giang/Downloads/datasets/CUB_val_top5'
 else:
     train_dataset = '/home/giang/Downloads/datasets/CUB_pre_train'
     val_dataset = '/home/giang/Downloads/datasets/CUB_pre_val'
@@ -126,7 +127,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                 for param in MODEL2.module.branch3.parameters():
                     param.requires_grad_(True)
-
                 if RunningParams.THREE_BRANCH is True:
                     # for param in MODEL2.module.quality_branch.parameters():
                     #     param.requires_grad_(True)
@@ -179,8 +179,9 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 model2_gt = (predicted_ids == gts) * 1  # 0 and 1
                 labels = model2_gt
 
-                if phase == 'train':
-                    labels = data[2].cuda()
+                ################################################################
+                labels = data[2].cuda()
+                ################################################################
 
                 #####################################################
 
@@ -270,30 +271,30 @@ MODEL2 = Transformer_AdvisingNetwork()
 MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
-if RunningParams.CONTINUE_TRAINING:
-    model_path = 'best_models/best_model_twilight-elevator-1955.pt'  # bottleneck false
-    # model_path = 'best_models/best_model_legendary-lake-1956.pt'  # bottleneck false
-    checkpoint = torch.load(model_path)
-    MODEL2.load_state_dict(checkpoint['model_state_dict'])
+# if RunningParams.CONTINUE_TRAINING:
+#     model_path = 'best_models/best_model_twilight-elevator-1955.pt'  # bottleneck false
+#     # model_path = 'best_models/best_model_legendary-lake-1956.pt'  # bottleneck false
+#     checkpoint = torch.load(model_path)
+#     MODEL2.load_state_dict(checkpoint['model_state_dict'])
 
-    if RunningParams.EXP_TOKEN is True:
-        MODEL2.module.branch3 = BinaryMLP(
-            RunningParams.conv_layer_size[RunningParams.conv_layer] * 2 + 2, 32).cuda()
-        MODEL2.module.agg_branch = nn.Linear(6, 1).cuda()
+if RunningParams.EXP_TOKEN is True:
+    MODEL2.module.branch3 = BinaryMLP(
+        RunningParams.conv_layer_size[RunningParams.conv_layer] * 2 + 2, 32).cuda()
+    MODEL2.module.agg_branch = nn.Linear(6, 1).cuda()
 
-    ######################
-    # initialize all fc layers to xavier
-    for m in MODEL2.module.branch3.modules():
-        if isinstance(m, nn.Linear):
-            torch.nn.init.xavier_normal_(m.weight, gain=1)
+######################
+# initialize all fc layers to xavier
+for m in MODEL2.module.branch3.modules():
+    if isinstance(m, nn.Linear):
+        torch.nn.init.xavier_normal_(m.weight, gain=1)
 
-    for m in MODEL2.module.agg_branch.modules():
-        if isinstance(m, nn.Linear):
-            torch.nn.init.xavier_normal_(m.weight, gain=1)
-    ######################
+for m in MODEL2.module.agg_branch.modules():
+    if isinstance(m, nn.Linear):
+        torch.nn.init.xavier_normal_(m.weight, gain=1)
+######################
 
-    print('Continue training from ckpt {}'.format(model_path))
-    print('Pretrained model accuracy: {:.2f}'.format(checkpoint['val_acc']))
+# print('Continue training from ckpt {}'.format(model_path))
+# print('Pretrained model accuracy: {:.2f}'.format(checkpoint['val_acc']))
 
 if RunningParams.UNBALANCED_TRAINING is True:
     pos_weight = torch.tensor([4.0])  # the cost of misclassifying a positive sample

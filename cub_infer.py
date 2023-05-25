@@ -96,7 +96,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
                         # default='best_model_eager-pine-2791.pt',
-                        default='best_model_apricot-paper-2768.pt',
+                        default='best_model_lemon-elevator-2804.pt',
+                        # default='best_model_tough-firefly-2805.pt',
                         # default='best_model_hopeful-cloud-2789.pt',
                         # default='best_model_olive-field-2793.pt',
                         # default='best_model_rosy-violet-2795.pt',
@@ -136,6 +137,8 @@ if __name__ == '__main__':
     model.eval()
 
     test_dir = '/home/giang/Downloads/datasets/CUB_test'  ##################################
+    # test_dir = '/home/giang/Downloads/datasets/CUB_val_top5'  ##################################
+    # test_dir = '/home/giang/Downloads/datasets/CUB_val'  ##################################
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'])
@@ -276,6 +279,9 @@ if __name__ == '__main__':
             # Get the idx of wrong predictions
             idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
 
+            if 'train' in test_dir or 'val' in test_dir:
+                labels = data[2].cuda()
+
             # Generate explanations
             if RunningParams.XAI_method == RunningParams.GradCAM:
                 explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
@@ -334,13 +340,13 @@ if __name__ == '__main__':
 
                 optimal_T = 85
                 ##################################
-                conf_list = []
-                confidences = model1_score
-                for j, confidence in enumerate(confidences):
-                    confidence = confidence.item() * 100
-                    # if confidence >= checkpoint['best_conf']:
-                    if confidence >= optimal_T:
-                        preds[j] = 1
+                # conf_list = []
+                # confidences = model1_score
+                # for j, confidence in enumerate(confidences):
+                #     confidence = confidence.item() * 100
+                #     # if confidence >= checkpoint['best_conf']:
+                #     if confidence >= optimal_T:
+                #         preds[j] = 1
                 ###############################
 
                 results = (preds == labels)
@@ -393,7 +399,7 @@ if __name__ == '__main__':
 
                 # Running ADVISING process
                 start_from = 1
-                LOWEST_CONFIDENCE_PATH = True
+                LOWEST_CONFIDENCE_PATH = False
                 if RunningParams.MODEL2_ADVISING is True:
                     # TODO: Reduce compute overhead by only running on disagreed samples
                     advising_steps = RunningParams.advising_steps
@@ -734,8 +740,8 @@ if __name__ == '__main__':
             print('{} - Binary Acc: {:.2f} - MODEL2 Yes Ratio: {:.2f} - Orig. accuracy: {:.2f}'.format(
                 ds, epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
 
-        print(category_record)
         if CATEGORY_ANALYSIS is True:
+            print(category_record)
             for c in correctness_bins:
                 print("{} - {:.2f}".format(c, category_record[c]['crt'] * 100 / category_record[c]['total']))
 

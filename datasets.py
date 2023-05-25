@@ -10,7 +10,6 @@ from albumentations.pytorch.transforms import ToTensorV2
 from albumentations.augmentations.transforms import Normalize
 import cv2
 import torchvision.transforms as T
-from PIL import Image
 
 # Define the TrivialAugmentWide transform
 trivial_augmenter = T.TrivialAugmentWide()
@@ -111,7 +110,8 @@ class ImageFolderForNNs(ImageFolder):
                     else:
                         if RunningParams.MODEL2_FINETUNING is True:
                             if 'val' in os.path.basename(root):
-                                file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy'
+                                # file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy'
+                                file_name = 'faiss/cub/top5_NeurIPS_Finetuning_faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy'
                             else:
                                 file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_test_top1_HP_MODEL1_HP_FE.npy'
                         else:  # Pretraining
@@ -175,39 +175,45 @@ class ImageFolderForNNs(ImageFolder):
         query_path, target = self.samples[index]
         base_name = os.path.basename(query_path)
         if RunningParams.XAI_method == RunningParams.NNs:
-            if 'train' in os.path.basename(self.root):
+            # nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
+            # model2_target = self.faiss_nn_dict[base_name]['label']
+
+            if 'train' in os.path.basename(self.root) or 'val' in os.path.basename(self.root):
                 nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
                 model2_target = self.faiss_nn_dict[base_name]['label']
             else:
                 nns = self.faiss_nn_dict[base_name]  # 6NNs here
 
-            # Transform NNs
-            explanations = list()
-            dup = False
-            for pth in nns:
-                sample = self.loader(pth)
-                nn_base_name = os.path.basename(pth)
-                if nn_base_name in base_name:
-                    dup = True
-                    continue
-                sample = self.transform(sample)
-                explanations.append(sample)
-            # If query is the same with any of NNs --> duplicate the last element
-            if dup is True:
-                explanations += [explanations[-1]]
-            explanations = torch.stack(explanations)
+        # Transform NNs
+        explanations = list()
+        dup = False
+        for pth in nns:
+            sample = self.loader(pth)
+            nn_base_name = os.path.basename(pth)
+            if nn_base_name in base_name:
+                dup = True
+                continue
+            sample = self.transform(sample)
+            explanations.append(sample)
+        # If query is the same with any of NNs --> duplicate the last element
+        if dup is True:
+            explanations += [explanations[-1]]
+        explanations = torch.stack(explanations)
 
-            # Transform query
-            sample = self.loader(query_path)
-            query = self.transform(sample)
+        # Transform query
+        sample = self.loader(query_path)
+        query = self.transform(sample)
 
-            # make a new tuple that includes original and the path
-            if 'train' in os.path.basename(self.root):
-                tuple_with_path = ((query, explanations, model2_target), target, query_path)
-            else:
-                tuple_with_path = ((query, explanations), target, query_path)
+        # # make a new tuple that includes original and the path
+        # tuple_with_path = ((query, explanations, model2_target), target, query_path)
 
-            return tuple_with_path
+        # make a new tuple that includes original and the path
+        if 'train' in os.path.basename(self.root) or 'val' in os.path.basename(self.root):
+            tuple_with_path = ((query, explanations, model2_target), target, query_path)
+        else:
+            tuple_with_path = ((query, explanations), target, query_path)
+
+        return tuple_with_path
 
 
 class ImageFolderForZeroshot(ImageFolder):

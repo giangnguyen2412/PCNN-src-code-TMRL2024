@@ -167,15 +167,26 @@ image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms
 train_loader = torch.utils.data.DataLoader(
     image_datasets['train'],
     batch_size=128,
-    shuffle=True,  # Don't turn shuffle to False --> model works wrongly
+    shuffle=False,  # Don't turn shuffle to False --> model works wrongly
     num_workers=16,
     pin_memory=True,
 )
 
 depth_of_pred = 5
+correct_cnt = 0
+total_cnt = 0
+
+MODEL1.eval()
 
 faiss_nn_dict = dict()
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
+    if len(train_loader.dataset.classes) < 200:
+        for sample_idx in range(data.shape[0]):
+            tgt = label[sample_idx].item()
+            class_name = train_loader.dataset.classes[tgt]
+            id = faiss_dataset.class_to_idx[class_name]
+            label[sample_idx] = id
+
     embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
     embeddings = torch.flatten(embeddings, start_dim=1)
     embeddings = embeddings.cpu().detach().numpy()
@@ -186,6 +197,9 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
     for sample_idx in range(data.shape[0]):
         base_name = os.path.basename(paths[sample_idx])
         gt_id = label[sample_idx]
+
+        # correct_cnt += torch.sum(index.squeeze() == label.cuda())
+        # total_cnt += data.shape[0]
 
         for i in range(depth_of_pred):
             # Get the top-k predicted label
@@ -210,6 +224,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
             faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
 
+# print("Top-1 Accuracy: {}".format(correct_cnt * 100 / total_cnt))
 
 if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
     if HIGHPERFORMANCE_MODEL1 is True:

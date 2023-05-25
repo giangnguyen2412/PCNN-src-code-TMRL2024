@@ -122,7 +122,7 @@ if RunningParams.CUB_TRAINING is True:
                 self.agg_branch = nn.Linear(6, 1).cuda()
             else:
                 self.branch3 = BinaryMLP(RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] +
-                                 RunningParams.k_value, 32)
+                             RunningParams.k_value, 32)
 
             self.dropout = nn.Dropout(p=RunningParams.dropout)
 

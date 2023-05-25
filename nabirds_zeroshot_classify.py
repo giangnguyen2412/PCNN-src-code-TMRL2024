@@ -28,7 +28,7 @@ ModelExplainer = ModelExplainer()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -37,6 +37,7 @@ if __name__ == '__main__':
                         # default='best_model_apricot-paper-2768.pt',
                         # default='best_model_hopeful-cloud-2789.pt',
                         default='best_model_olive-field-2793.pt',
+                        # default='best_model_lemon-elevator-2804.pt',
                         # default='best_model_rosy-violet-2795.pt',
                         # default='best_model_hopeful-totem-2790.pt',
                         # default='best_model_fragrant-sea-2785.pt',
@@ -76,7 +77,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=16,
+            batch_size=8,
             shuffle=False,  # turn shuffle to False
             num_workers=4,
             pin_memory=True,

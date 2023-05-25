@@ -17,7 +17,7 @@ from tqdm import tqdm
 from helpers import HelperFunctions
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
 
 RunningParams = RunningParams()
 HelperFunctions = HelperFunctions()
