@@ -1,8 +1,8 @@
 import numpy as np
 
 # Set the paths and filenames
-folder_path = "/home/giang/Downloads/datasets/CUB_val_top5"
-dict_path = "../faiss/cub/top5_NeurIPS_Finetuning_faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy"
+folder_path = "/home/giang/Downloads/datasets/train_5k9_top5"
+dict_path = "../faiss/cub/top5_NeurIPS_Finetuning_faiss_train_5k9_top1_HP_MODEL1_HP_FE.npy"
 
 # Load the dictionary
 file_dict = np.load(dict_path, allow_pickle=True).item()

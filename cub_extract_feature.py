@@ -68,7 +68,7 @@ feature_extractor = nn.DataParallel(feature_extractor)
 in_features = 2048
 print("Building FAISS index...! Training set is the knowledge base.")
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB_pre_train',
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/train_5k9',
                                      transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -81,7 +81,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
 )
 
 if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-    INDEX_FILE = 'faiss/cub/NeurIPS22_faiss_CUB200_class_idx_dict_HP_extractor.npy'
+    INDEX_FILE = 'faiss/cub/train_5k9_HP_extractor.npy'
     print(INDEX_FILE)
 
 if os.path.exists(INDEX_FILE):
@@ -159,7 +159,7 @@ else:
 
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-set = 'CUB_val'
+set = 'test_4k7'
 data_dir = '/home/giang/Downloads/datasets/{}'.format(set)
 
 image_datasets = dict()
@@ -172,7 +172,7 @@ train_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-depth_of_pred = 5
+depth_of_pred = 1
 correct_cnt = 0
 total_cnt = 0
 
@@ -214,11 +214,14 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             for id in range(indices.shape[1]):
                 id = loader.dataset.indices[indices[0, id]]
                 nn_list.append(loader.dataset.dataset.imgs[id][0])
+            ################################
+            # if predicted_idx == gt_id:
+            #     key = 'Correct_{}_'.format(i) + base_name
+            # else:
+            #     key = 'Wrong_{}_'.format(i) + base_name
 
-            if predicted_idx == gt_id:
-                key = 'Correct_{}_'.format(i) + base_name
-            else:
-                key = 'Wrong_{}_'.format(i) + base_name
+            key = base_name
+            ################################
             faiss_nn_dict[key] = dict()
             faiss_nn_dict[key]['NNs'] = nn_list
             faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)

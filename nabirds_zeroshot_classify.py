@@ -28,7 +28,7 @@ ModelExplainer = ModelExplainer()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -37,7 +37,6 @@ if __name__ == '__main__':
                         # default='best_model_apricot-paper-2768.pt',
                         # default='best_model_hopeful-cloud-2789.pt',
                         default='best_model_olive-field-2793.pt',
-                        # default='best_model_lemon-elevator-2804.pt',
                         # default='best_model_rosy-violet-2795.pt',
                         # default='best_model_hopeful-totem-2790.pt',
                         # default='best_model_fragrant-sea-2785.pt',
@@ -126,4 +125,3 @@ if __name__ == '__main__':
 
             print("Top-1 Accuracy: {}".format(running_corrects*100/total_cnt))
             print("Top-5 Accuracy: {}".format(running_corrects_top5*100/total_cnt))
-

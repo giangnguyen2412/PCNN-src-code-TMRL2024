@@ -28,7 +28,7 @@ ModelExplainer = ModelExplainer()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
 
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
@@ -45,7 +45,7 @@ abm_transform = A.Compose(
                         'image2': 'image', 'image3': 'image', 'image4': 'image'}
 )
 
-CATEGORY_ANALYSIS = True
+CATEGORY_ANALYSIS = False
 
 if RunningParams.MODEL2_ADVISING is True:
     in_features = 2048
@@ -136,7 +136,8 @@ if __name__ == '__main__':
 
     model.eval()
 
-    test_dir = '/home/giang/Downloads/datasets/CUB_test'  ##################################
+    test_dir = '/home/giang/Downloads/datasets/CUB_test_top5'  ##################################
+    # test_dir = '/home/giang/Downloads/datasets/CUB_test'  ##################################
     # test_dir = '/home/giang/Downloads/datasets/CUB_val_top5'  ##################################
     # test_dir = '/home/giang/Downloads/datasets/CUB_val'  ##################################
 
@@ -209,6 +210,8 @@ if __name__ == '__main__':
         running_corrects = 0
         advising_crt_cnt = 0
 
+        top1_cnt, top1_crt_cnt = 0, 0
+
         MODEL_BAGGING = True
         if MODEL_BAGGING is True:
             running_corrects_conf_dict = {key: 0 for key in range(0, 96, 5)}
@@ -279,7 +282,7 @@ if __name__ == '__main__':
             # Get the idx of wrong predictions
             idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
 
-            if 'train' in test_dir or 'val' in test_dir:
+            if 'train' in test_dir or 'val' in test_dir or 'top5' in test_dir:
                 labels = data[2].cuda()
 
             # Generate explanations
@@ -350,6 +353,15 @@ if __name__ == '__main__':
                 ###############################
 
                 results = (preds == labels)
+                for j in range(x.shape[0]):
+                    pth = pths[j]
+
+                    if '_0_' in pth:
+                        top1_cnt += 1
+
+                        if results[j] == True:
+                            top1_crt_cnt += 1
+
                 VISUALIZE_TRANSFORMER_ATTN = False
                 if VISUALIZE_TRANSFORMER_ATTN is True:
                     i2e_attn = i2e_attn.mean(dim=1)  # bsx8x3x50
@@ -618,7 +630,7 @@ if __name__ == '__main__':
 
                 running_corrects += torch.sum(preds == labels.data)
 
-                AI_DELEGATE = True
+                AI_DELEGATE = False
                 if AI_DELEGATE is True:
                     for sample_idx in range(x.shape[0]):
                         result = results[sample_idx].item()
@@ -746,3 +758,5 @@ if __name__ == '__main__':
                 print("{} - {:.2f}".format(c, category_record[c]['crt'] * 100 / category_record[c]['total']))
 
         np.save('confidence.npy', confidence_dict)
+
+        print('Top1 acc: {:.2f}'.format(top1_crt_cnt*100/top1_cnt))

@@ -116,12 +116,12 @@ if RunningParams.CUB_TRAINING is True:
             self.cross_transformer = CrossTransformer(sm_dim=feat_dim, lg_dim=feat_dim, depth=2, heads=2,
                                                       dim_head=64, dropout=0.0)
 
-            if RunningParams.EXP_TOKEN is True:
-                self.branch3 = BinaryMLP(
-                    2 * RunningParams.conv_layer_size[RunningParams.conv_layer] + 2, 32)
-                self.agg_branch = nn.Linear(6, 1).cuda()
-            else:
-                self.branch3 = BinaryMLP(RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] +
+            # if RunningParams.EXP_TOKEN is True:
+            #     self.branch3 = BinaryMLP(
+            #         2 * RunningParams.conv_layer_size[RunningParams.conv_layer] + 2, 32)
+            #     self.agg_branch = nn.Linear(6, 1).cuda()
+            # else:
+            self.branch3 = BinaryMLP(RunningParams.k_value * RunningParams.conv_layer_size[RunningParams.conv_layer] +
                              RunningParams.k_value, 32)
 
             self.dropout = nn.Dropout(p=RunningParams.dropout)
