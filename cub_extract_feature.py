@@ -37,7 +37,7 @@ if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
-        'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+        'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
     resnet.load_state_dict(my_model_state_dict, strict=True)
     # Freeze backbone (for training only)
     for param in list(resnet.parameters())[:-2]:
@@ -68,7 +68,7 @@ feature_extractor = nn.DataParallel(feature_extractor)
 in_features = 2048
 print("Building FAISS index...! Training set is the knowledge base.")
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/train_5k9',
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB_pre_train',
                                      transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -81,7 +81,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
 )
 
 if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-    INDEX_FILE = 'faiss/cub/train_5k9_HP_extractor.npy'
+    INDEX_FILE = 'faiss/cub/NeurIPS22_faiss_CUB200_class_idx_dict_HP_extractor.npy'
     print(INDEX_FILE)
 
 if os.path.exists(INDEX_FILE):
@@ -133,7 +133,7 @@ if HIGHPERFORMANCE_MODEL1 is True:
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
-        'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+        'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
     resnet.load_state_dict(my_model_state_dict, strict=True)
     # Freeze backbone (for training only)
     for param in list(resnet.parameters())[:-2]:
@@ -159,7 +159,7 @@ else:
 
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-set = 'test_4k7'
+set = 'CUB_train_all'
 data_dir = '/home/giang/Downloads/datasets/{}'.format(set)
 
 image_datasets = dict()
@@ -172,7 +172,7 @@ train_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-depth_of_pred = 1
+depth_of_pred = 5
 correct_cnt = 0
 total_cnt = 0
 
@@ -208,29 +208,51 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             # Dataloader and knowledge base upon the predicted class
             loader = faiss_loader_dict[predicted_idx]
             faiss_index = faiss_nns_class_dict[predicted_idx]
-            _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 6)
             nn_list = list()
 
-            for id in range(indices.shape[1]):
-                id = loader.dataset.indices[indices[0, id]]
-                nn_list.append(loader.dataset.dataset.imgs[id][0])
-            ################################
-            # if predicted_idx == gt_id:
-            #     key = 'Correct_{}_'.format(i) + base_name
-            # else:
-            #     key = 'Wrong_{}_'.format(i) + base_name
+            if i == 0:  # top-1 predictions --> Enrich top-1 prediction samples
+                _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), faiss_index.ntotal)
 
-            key = base_name
-            ################################
-            faiss_nn_dict[key] = dict()
-            faiss_nn_dict[key]['NNs'] = nn_list
-            faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
-            faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
+                for j in range(5): # Make up 5 NN sets from top-1 predictions
+                    nn_list = list()
+
+                    min_id = j*4  # 4 NNs for one NN set
+                    max_id = (j+1)*4
+                    for id in range(min_id, max_id):
+                        id = loader.dataset.indices[indices[0, id]]
+                        nn_list.append(loader.dataset.dataset.imgs[id][0])
+
+                    if predicted_idx == gt_id:
+                        key = 'Correct_{}_{}_'.format(i, j) + base_name
+                    else:
+                        key = 'Wrong_{}_{}_'.format(i, j) + base_name
+
+                    faiss_nn_dict[key] = dict()
+                    faiss_nn_dict[key]['NNs'] = nn_list
+                    faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
+                    faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
+
+            else:
+                _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 4)
+
+                for id in range(indices.shape[1]):
+                    id = loader.dataset.indices[indices[0, id]]
+                    nn_list.append(loader.dataset.dataset.imgs[id][0])
+
+                if predicted_idx == gt_id:
+                    key = 'Correct_{}_'.format(i) + base_name
+                else:
+                    key = 'Wrong_{}_'.format(i) + base_name
+
+                faiss_nn_dict[key] = dict()
+                faiss_nn_dict[key]['NNs'] = nn_list
+                faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
+                faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
 
 # print("Top-1 Accuracy: {}".format(correct_cnt * 100 / total_cnt))
 
 if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
     if HIGHPERFORMANCE_MODEL1 is True:
         print("Here")
-        np.save('faiss/cub/top{}_NeurIPS_Finetuning_faiss_{}_top1_HP_MODEL1_HP_FE.npy'.format(depth_of_pred, set), faiss_nn_dict)
+        np.save('faiss/cub/top{}_enriched_NeurIPS_Finetuning_faiss_{}_top1_HP_MODEL1_HP_FE.npy'.format(depth_of_pred, set), faiss_nn_dict)
 
