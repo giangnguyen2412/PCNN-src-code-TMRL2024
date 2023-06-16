@@ -14,8 +14,8 @@ class RunningParams(object):
         self.feat_map_size = {4: 49, 3: 196, 2: 784}
         self.CONTINUE_TRAINING = False
         self.TOP1_NN = True  # ----------------------------------------- IMPORTANT PARAM --------
-        self.CUB_TRAINING = True  # ----------------------------------------- IMPORTANT PARAM --------
-        self.DOGS_TRAINING = False
+        self.CUB_TRAINING = False  # ----------------------------------------- IMPORTANT PARAM --------
+        self.DOGS_TRAINING = True
         self.IMAGENET_TRAINING = False
 
         if self.DOGS_TRAINING is True:
@@ -64,13 +64,12 @@ class RunningParams(object):
             self.HIGHPERFORMANCE_MODEL1 = True
             self.CONTINUE_TRAINING = True
 
-            self.batch_size = 100
-            self.epochs = 300
+            self.batch_size = 96
+            self.epochs = 100
             self.learning_rate = 1e-3
 
         self.USING_SOFTMAX = False  # ----------------------------------------- IMPORTANT PARAM --------
         self.UNBALANCED_TRAINING = True
-        self.pos_w = 0.3
         self.EXP_TOKEN = True
 
         self.THREE_BRANCH = False
@@ -83,7 +82,7 @@ class RunningParams(object):
         # Training NNs
         self.embedding_loss = False
         if self.DOGS_TRAINING is True:
-            self.k_value = 5
+            self.k_value = 1
         elif self.CUB_TRAINING is True:
             self.k_value = 3  # ----------------------------------------- IMPORTANT PARAM --------
         self.PRECOMPUTED_NN = True

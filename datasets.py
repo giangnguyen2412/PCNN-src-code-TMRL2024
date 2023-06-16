@@ -20,6 +20,134 @@ trivial_augmenter = T.RandomApply(torch.nn.ModuleList([trivial_augmenter, jitter
 
 RunningParams = RunningParams()
 
+class ImageFolderForZeroshot(ImageFolder):
+    """Custom dataset that includes image file paths. Extends
+    torchvision.datasets.ImageFolder
+    """
+
+    def __init__(self, root, transform=None):
+        super(ImageFolderForZeroshot, self).__init__(root, transform=transform)
+
+        self.root = root
+        # Load the pre-computed NNs
+        if 'test' in os.path.basename(root):
+            file_name = 'faiss/NN_dict_NA-Birds.npy'
+        else:
+            print('Wrong test directory')
+            exit(-1)
+
+        print(file_name)
+        self.faiss_nn_dict = np.load(file_name, allow_pickle=True, ).item()
+
+        original_len = len(self.imgs)
+        imgs = []
+        samples = []
+        targets = []
+        for sample_idx in range(original_len):
+            imgs.append(self.imgs[sample_idx])
+            samples.append(self.samples[sample_idx])
+            targets.append(self.targets[sample_idx])
+
+        self.imgs = imgs
+        self.samples = samples
+        self.targets = targets
+
+    def __getitem__(self, index):
+        query_path, target = self.samples[index]
+
+        # Transform query
+        sample = self.loader(query_path)
+        query = self.transform(sample)
+
+        base_name = os.path.basename(query_path)
+
+        nns = self.faiss_nn_dict[base_name]  # a dict of C classes, each class has 6 NNs
+
+        # Initialize an empty tensor to store the transformed images
+        tensor_images = torch.empty((len(nns), RunningParams.k_value, 3, 224, 224))
+
+        # Iterate over the dictionary entries and transform the images
+        for i, key in enumerate(nns):
+            file_paths = nns[key][:RunningParams.k_value]
+            for j, file_path in enumerate(file_paths):
+                # Load the image using the loader function
+                image = self.loader(file_path)  # Replace `loader` with your actual loader function
+
+                # Apply the transformation to the image
+                transformed_image = self.transform(image)
+
+                # Assign the transformed image to the tensor
+                tensor_images[i, j] = transformed_image
+
+        tuple_with_path = ((query, tensor_images), target, query_path)
+
+        return tuple_with_path
+
+class ImageFolderForAdvisingProcess(ImageFolder):
+    """Custom dataset that includes image file paths. Extends
+    torchvision.datasets.ImageFolder
+    """
+
+    def __init__(self, root, transform=None):
+        super(ImageFolderForAdvisingProcess, self).__init__(root, transform=transform)
+
+        self.root = root
+        # Load the pre-computed NNs
+        if 'test' in os.path.basename(root):
+            file_name = 'faiss/advising_process_CUB_test_top1_HP_MODEL1_HP_FE.npy'
+        else:
+            file_name = 'faiss/advising_process_CUB_val_top1_HP_MODEL1_HP_FE.npy'
+            # exit(-1)
+
+        print(file_name)
+        self.faiss_nn_dict = np.load(file_name, allow_pickle=True, ).item()
+
+        original_len = len(self.imgs)
+        imgs = []
+        samples = []
+        targets = []
+        for sample_idx in range(original_len):
+            imgs.append(self.imgs[sample_idx])
+            samples.append(self.samples[sample_idx])
+            targets.append(self.targets[sample_idx])
+
+        self.imgs = imgs
+        self.samples = samples
+        self.targets = targets
+
+    def __getitem__(self, index):
+        query_path, target = self.samples[index]
+
+        # Transform query
+        sample = self.loader(query_path)
+        query = self.transform(sample)
+
+        base_name = os.path.basename(query_path)
+
+        nns = self.faiss_nn_dict[base_name]  # a dict of C classes, each class has 6 NNs
+
+        # Initialize an empty tensor to store the transformed images
+        tensor_images = torch.empty((len(nns), RunningParams.k_value, 3, 224, 224))
+        labels = []
+
+        # Iterate over the dictionary entries and transform the images
+        for i, val in nns.items():
+            file_paths = val['NNs'][:RunningParams.k_value]
+            labels.append(val['Label'])
+            for j, file_path in enumerate(file_paths):
+                # Load the image using the loader function
+                image = self.loader(file_path)  # Replace `loader` with your actual loader function
+
+                # Apply the transformation to the image
+                transformed_image = self.transform(image)
+
+                # Assign the transformed image to the tensor
+                tensor_images[i, j] = transformed_image
+
+        labels = torch.tensor(labels)
+        tuple_with_path = ((query, tensor_images, labels), target, query_path)
+
+        return tuple_with_path
 
 class ImageFolderWithPaths(ImageFolder):
     """Custom dataset that includes image file paths. Extends
@@ -100,21 +228,18 @@ class ImageFolderForNNs(ImageFolder):
                 if RunningParams.TOP1_NN is True:
                     if 'train' in os.path.basename(root):
                         if RunningParams.MODEL2_FINETUNING is True:
-                            # file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_train_top1_HP_MODEL1_HP_FE.npy'
-                            # file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_train_aug_top1_HP_MODEL1_HP_FE.npy'
-                            # file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_train_all_top1_HP_MODEL1_HP_FE.npy'
-                            file_name = 'faiss/cub/top5_NeurIPS_Finetuning_faiss_train_5k9_top1_HP_MODEL1_HP_FE.npy'
+                            # file_name = 'faiss/cub/top5_k{}_enriched_NeurIPS_Finetuning_faiss_CUB_train_all_top1_HP_MODEL1_HP_FE.npy'\
+                            #     .format(1)
+                            file_name = 'faiss/cub/top5_enriched_NeurIPS_Finetuning_faiss_CUB_train_all_top1_HP_MODEL1_HP_FE.npy'
                         else:  # Pretraining
                             if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
                                 file_name = 'faiss/cub/NeurIPS_Pretraining_faiss_CUB_CUB_pre_train_top1_LP_MODEL1_HP_FE.npy'
                     else:
                         if RunningParams.MODEL2_FINETUNING is True:
                             if 'val' in os.path.basename(root):
-                                # file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy'
-                                file_name = 'faiss/cub/top1_NeurIPS_Finetuning_faiss_val_1k_top1_HP_MODEL1_HP_FE.npy'
+                                file_name = 'faiss/cub/top1_enriched_NeurIPS_Finetuning_faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy'
                             else:
-                                # file_name = 'faiss/cub/NeurIPS_Finetuning_faiss_CUB_test_top1_HP_MODEL1_HP_FE.npy'
-                                file_name = 'faiss/cub/top1_NeurIPS_Finetuning_faiss_test_4k7_top1_HP_MODEL1_HP_FE.npy'
+                                file_name = 'faiss/cub/top1_enriched_NeurIPS_Finetuning_faiss_CUB_test_top1_HP_MODEL1_HP_FE.npy'
                         else:  # Pretraining
                             if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
                                 if 'val' in os.path.basename(root):
@@ -176,14 +301,11 @@ class ImageFolderForNNs(ImageFolder):
         query_path, target = self.samples[index]
         base_name = os.path.basename(query_path)
         if RunningParams.XAI_method == RunningParams.NNs:
-            # nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
-            # model2_target = self.faiss_nn_dict[base_name]['label']
-
-            # if 'train' in os.path.basename(self.root) or 'val' in os.path.basename(self.root) or 'top5' in os.path.basename(self.root):
-            nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
-            model2_target = self.faiss_nn_dict[base_name]['label']
-            # else:
-            #     nns = self.faiss_nn_dict[base_name]  # 6NNs here
+            if 'train' in os.path.basename(self.root):
+                nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
+                model2_target = self.faiss_nn_dict[base_name]['label']
+            else:
+                nns = self.faiss_nn_dict[base_name]  # 6NNs here
 
         # Transform NNs
         explanations = list()
@@ -193,6 +315,10 @@ class ImageFolderForNNs(ImageFolder):
             nn_base_name = os.path.basename(pth)
             if nn_base_name in base_name:
                 dup = True
+                # print('Something wrong here!!!!!!!!!')
+                # print(pth)
+                # print(query_path)
+                # exit(-1)
                 continue
             sample = self.transform(sample)
             explanations.append(sample)
@@ -205,77 +331,11 @@ class ImageFolderForNNs(ImageFolder):
         sample = self.loader(query_path)
         query = self.transform(sample)
 
-        # # make a new tuple that includes original and the path
-        # tuple_with_path = ((query, explanations, model2_target), target, query_path)
-
         # make a new tuple that includes original and the path
-        # if 'train' in os.path.basename(self.root) or 'val' in os.path.basename(self.root) or 'top5' in os.path.basename(self.root):
-        tuple_with_path = ((query, explanations, model2_target), target, query_path)
-        # else:
-        #     tuple_with_path = ((query, explanations), target, query_path)
-
-        return tuple_with_path
-
-
-class ImageFolderForZeroshot(ImageFolder):
-    """Custom dataset that includes image file paths. Extends
-    torchvision.datasets.ImageFolder
-    """
-
-    def __init__(self, root, transform=None):
-        super(ImageFolderForZeroshot, self).__init__(root, transform=transform)
-
-        self.root = root
-        # Load the pre-computed NNs
-        if 'test' in os.path.basename(root):
-            file_name = 'faiss/NN_dict_NA-Birds-small-zero-shot_test.npy'
+        if 'train' in os.path.basename(self.root):
+            tuple_with_path = ((query, explanations, model2_target), target, query_path)
         else:
-            exit(-1)
-
-        print(file_name)
-        self.faiss_nn_dict = np.load(file_name, allow_pickle=True, ).item()
-
-        original_len = len(self.imgs)
-        imgs = []
-        samples = []
-        targets = []
-        for sample_idx in range(original_len):
-            imgs.append(self.imgs[sample_idx])
-            samples.append(self.samples[sample_idx])
-            targets.append(self.targets[sample_idx])
-
-        self.imgs = imgs
-        self.samples = samples
-        self.targets = targets
-
-    def __getitem__(self, index):
-        query_path, target = self.samples[index]
-
-        # Transform query
-        sample = self.loader(query_path)
-        query = self.transform(sample)
-
-        base_name = os.path.basename(query_path)
-
-        nns = self.faiss_nn_dict[base_name]  # 6NNs here
-
-        # Initialize an empty tensor to store the transformed images
-        tensor_images = torch.empty((len(nns), RunningParams.k_value, 3, 224, 224))
-
-        # Iterate over the dictionary entries and transform the images
-        for i, key in enumerate(nns):
-            file_paths = nns[key][:RunningParams.k_value]
-            for j, file_path in enumerate(file_paths):
-                # Load the image using the loader function
-                image = self.loader(file_path)  # Replace `loader` with your actual loader function
-
-                # Apply the transformation to the image
-                transformed_image = self.transform(image)
-
-                # Assign the transformed image to the tensor
-                tensor_images[i, j] = transformed_image
-
-        tuple_with_path = ((query, tensor_images), target, query_path)
+            tuple_with_path = ((query, explanations), target, query_path)
 
         return tuple_with_path
 

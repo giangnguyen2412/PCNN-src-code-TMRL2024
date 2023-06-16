@@ -1,8 +1,8 @@
 import numpy as np
 
 # Set the paths and filenames
-folder_path = "/home/giang/Downloads/datasets/train_5k9_top5"
-dict_path = "../faiss/cub/top5_NeurIPS_Finetuning_faiss_train_5k9_top1_HP_MODEL1_HP_FE.npy"
+folder_path = "/home/giang/Downloads/datasets/CUB_train_all_top10"
+dict_path = "../faiss/cub/top10_enriched_NeurIPS_Finetuning_faiss_CUB_train_all_top1_HP_MODEL1_HP_FE.npy"
 
 # Load the dictionary
 file_dict = np.load(dict_path, allow_pickle=True).item()
@@ -17,20 +17,36 @@ for root, dirs, files in os.walk(folder_path):
         if file.lower().endswith(".jpg"):
             file_path = os.path.join(root, file)
 
-            for i in range(5):
-                crt_file = 'Correct_{}_'.format(i) + file
-                if crt_file in file_dict:
-                    src_path = file_path
-                    dst_path = os.path.join(root, crt_file)
-                    copyfile(src_path, dst_path)
-                    cnt +=1
+            for i in range(10):
+                if i == 0:
+                    for j in range(10):  # Make up 5 NN sets from top-1 predictions
+                        crt_file = 'Correct_{}_{}_'.format(i, j) + file
+                        if crt_file in file_dict:
+                            src_path = file_path
+                            dst_path = os.path.join(root, crt_file)
+                            copyfile(src_path, dst_path)
+                            cnt += 1
 
-                wrong_file = 'Wrong_{}_'.format(i) + file
-                if wrong_file in file_dict:
-                    src_path = file_path
-                    dst_path = os.path.join(root, wrong_file)
-                    copyfile(src_path, dst_path)
-                    cnt +=1
+                        wrong_file = 'Wrong_{}_{}_'.format(i, j) + file
+                        if wrong_file in file_dict:
+                            src_path = file_path
+                            dst_path = os.path.join(root, wrong_file)
+                            copyfile(src_path, dst_path)
+                            cnt += 1
+                else:
+                    crt_file = 'Correct_{}_'.format(i) + file
+                    if crt_file in file_dict:
+                        src_path = file_path
+                        dst_path = os.path.join(root, crt_file)
+                        copyfile(src_path, dst_path)
+                        cnt +=1
+
+                    wrong_file = 'Wrong_{}_'.format(i) + file
+                    if wrong_file in file_dict:
+                        src_path = file_path
+                        dst_path = os.path.join(root, wrong_file)
+                        copyfile(src_path, dst_path)
+                        cnt +=1
 
             os.remove(file_path)
 

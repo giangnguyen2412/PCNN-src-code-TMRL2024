@@ -97,23 +97,25 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             if phase == 'train':
                 shuffle = True
                 model.train()  # Training mode
-                for param in MODEL2.parameters():
-                    param.requires_grad = False
 
-                for param in MODEL2.module.transformer_feat_embedder.parameters():
+                for param in model.module.conv_layers.parameters():
                     param.requires_grad_(True)
 
-                for param in MODEL2.module.conv_layers.parameters():
+                for param in model.module.transformer_feat_embedder.parameters():
                     param.requires_grad_(True)
 
-                for param in MODEL2.module.transformer.parameters():
+                for param in model.module.transformer.parameters():
                     param.requires_grad_(True)
 
-                for param in MODEL2.module.cross_transformer.parameters():
+                for param in model.module.cross_transformer.parameters():
                     param.requires_grad_(True)
 
-                for param in MODEL2.module.branch3.parameters():
+                for param in model.module.branch3.parameters():
                     param.requires_grad_(True)
+
+                for param in model.module.agg_branch.parameters():
+                    param.requires_grad_(True)
+
             else:
                 shuffle = False
                 model.eval()  # Evaluation mode
@@ -124,14 +126,10 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 shuffle=shuffle,  # turn shuffle to True
                 num_workers=16,
                 pin_memory=True,
-                drop_last=True
             )
 
             running_loss = 0.0
             running_corrects = 0
-
-            running_label_loss = 0.0
-            running_embedding_loss = 0.0
 
             yes_cnt = 0
             true_cnt = 0
@@ -146,9 +144,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     for sample_idx in range(x.shape[0]):
                         wnid = data_loader.dataset.classes[gt[sample_idx]]
                         gt[sample_idx] = imagenet_dataset.class_to_idx[wnid]
-
-                        # wnid = imagenet_dataset.classes[predicted_ids[sample_idx]]
-                        # predicted_ids[sample_idx] = data_loader.dataset.class_to_idx[wnid]
 
                 gts = gt.cuda()
 
@@ -173,7 +168,11 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                 else:
                     model2_gt = (predicted_ids == gts) * 1  # 0 and 1
+
                 labels = model2_gt
+
+                if phase == 'train':
+                    labels = data[2].cuda()
 
                 #####################################################
 
@@ -182,9 +181,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 elif RunningParams.XAI_method == RunningParams.NNs:
                     if RunningParams.PRECOMPUTED_NN is True:
                         explanation = data[1]
-                        # if phase == 'train':
-                        #     explanation = explanation[:, 1:RunningParams.k_value + 1, :, :, :]  # ignore 1st NN = query
-                        # else:
                         explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
                 # zero the parameter gradients
@@ -192,23 +188,20 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                 with torch.set_grad_enabled(phase == 'train'):
                     if RunningParams.XAI_method == RunningParams.NO_XAI:
-                        output, _, _ = model(images=x, explanations=None, scores=model1_p, prototype_class_id_list=prototype_class_id_list)
+                        output, _, _ = model(images=x, explanations=None, scores=model1_p)
                     else:
-                        output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=model1_p)
+                        output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
 
-                        # convert logits to probabilities using sigmoid function
-                        p = torch.sigmoid(output)
+                    p = torch.sigmoid(output)
 
-                        # classify inputs as 0 or 1 based on the threshold of 0.5
-                        preds = (p >= 0.5).long().squeeze()
-
-                        loss = loss_func(output.squeeze(), labels.float())
+                    # classify inputs as 0 or 1 based on the threshold of 0.5
+                    preds = (p >= 0.5).long().squeeze()
+                    loss = loss_func(output.squeeze(), labels.float())
 
                     # backward + optimize only if in training phase
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
-
 
                 # statistics
                 running_loss += loss.item() * x.size(0)
@@ -225,30 +218,25 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             if phase == 'train':
                 scheduler.step()
 
-            wandb.log({'{}_accuracy'.format(phase): epoch_acc*100, '{}_loss'.format(phase): epoch_loss})
-
+            wandb.log({'{}_accuracy'.format(phase): epoch_acc * 100, '{}_loss'.format(phase): epoch_loss})
             print('{} - {} - Loss: {:.4f} - Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
                 wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, yes_ratio.item() * 100,
                                                    true_ratio.item() * 100))
-
             # deep copy the model
-            if phase == 'val' and epoch_acc > best_acc:
+            if phase == 'val' and epoch_acc >= best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
-
-                ckpt_path = '/home/giang/Downloads/advising_network/best_models/best_model_{}.pt'\
+                ckpt_path = '/home/giang/Downloads/advising_network/best_models/best_model_{}.pt' \
                     .format(wandb.run.name)
-
                 torch.save({
-                    'epoch': epoch+1,
+                    'epoch': epoch + 1,
                     'model_state_dict': best_model_wts,
                     'optimizer_state_dict': optimizer.state_dict(),
                     'val_loss': epoch_loss,
-                    'val_acc': epoch_acc*100,
+                    'val_acc': epoch_acc * 100,
                     'val_yes_ratio': yes_ratio * 100,
                     'running_params': RunningParams,
                 }, ckpt_path)
-
         print()
 
     time_elapsed = time.time() - since
@@ -265,19 +253,18 @@ MODEL2 = Transformer_AdvisingNetwork()
 MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
-
-pos_weight = torch.tensor([20 / 80])
-# define the loss function with weight for the positive class
-criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).cuda()
-
+if RunningParams.UNBALANCED_TRAINING is True:
+    # pos_weight = torch.tensor([4.0])  # the cost of misclassifying a positive sample
+    # criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).cuda()
+    criterion = nn.BCEWithLogitsLoss().cuda()
 
 # Observe all parameters that are being optimized
 optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)
 
-max_lr = RunningParams.learning_rate*10
+max_lr = RunningParams.learning_rate * 10
 oneLR_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     optimizer_ft, max_lr=max_lr,
-    steps_per_epoch=dataset_sizes['train']//RunningParams.batch_size,
+    steps_per_epoch=dataset_sizes['train'] // RunningParams.batch_size,
     epochs=RunningParams.epochs)
 
 config = {"train": train_dataset,

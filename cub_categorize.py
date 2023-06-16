@@ -142,7 +142,7 @@ if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
 
     inat_resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
-        'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+        'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
     inat_resnet.load_state_dict(my_model_state_dict, strict=True)
     # to CUDA
     inat_resnet.cuda()

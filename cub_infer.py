@@ -28,7 +28,7 @@ ModelExplainer = ModelExplainer()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
@@ -50,15 +50,7 @@ CATEGORY_ANALYSIS = False
 if RunningParams.MODEL2_ADVISING is True:
     in_features = 2048
     print("Building FAISS index...! Training set is the knowledge base.")
-    # TODO: Anytime you change the database in extracting features, you also need to put the same path here
-    if RunningParams.UNBALANCED_TRAINING is True:
-        faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB_train',
-                                             transform=Dataset.data_transforms['train'])
-    else:
-        faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/NeurIPS_Pretraining_CUB/train',
-                                             transform=Dataset.data_transforms['train'])
-
-    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB_pre_train',
+    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB_train_all',
                                          transform=Dataset.data_transforms['train'])
 
     faiss_data_loader = torch.utils.data.DataLoader(
@@ -95,19 +87,8 @@ full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combine
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        # default='best_model_eager-pine-2791.pt',
-                        default='best_model_lemon-elevator-2804.pt',
-                        # default='best_model_tough-firefly-2805.pt',
-                        # default='best_model_hopeful-cloud-2789.pt',
-                        # default='best_model_olive-field-2793.pt',
-                        # default='best_model_rosy-violet-2795.pt',
-                        # default='best_model_hopeful-totem-2790.pt',
-                        # default='best_model_fragrant-sea-2785.pt',
-                        # default='best_model_ancient-plant-2777.pt',
-                        # default='best_model_eternal-dawn-2771.pt',
-                        # default='best_model_fragrant-moon-2605.pt',
-                        # default='best_model_wild-water-2279.pt',
-                        # default='best_model_autumn-rain-1993.pt',
+                        # default='best_model_divine-snowflake-2832.pt',
+                        default='best_model_vague-rain-2946.pt',
                         help='Model check point')
 
     args = parser.parse_args()
@@ -136,10 +117,11 @@ if __name__ == '__main__':
 
     model.eval()
 
-    test_dir = '/home/giang/Downloads/datasets/CUB_test_top5'  ##################################
-    # test_dir = '/home/giang/Downloads/datasets/CUB_test'  ##################################
+    # test_dir = '/home/giang/Downloads/datasets/CUB_test_top5'  ##################################
+    # test_dir = '/home/giang/Downloads/datasets/CUB_train_all_top5_enriched'  ##################################
     # test_dir = '/home/giang/Downloads/datasets/CUB_val_top5'  ##################################
     # test_dir = '/home/giang/Downloads/datasets/CUB_val'  ##################################
+    test_dir = '/home/giang/Downloads/datasets/CUB_test'  ##################################
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'])
@@ -151,7 +133,7 @@ if __name__ == '__main__':
 
         resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
         my_model_state_dict = torch.load(
-            'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+            'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
         resnet.load_state_dict(my_model_state_dict, strict=True)
         MODEL1 = resnet.cuda()
         MODEL1.eval()
@@ -200,7 +182,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=50,
+            batch_size=RunningParams.batch_size,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -282,7 +264,7 @@ if __name__ == '__main__':
             # Get the idx of wrong predictions
             idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
 
-            if 'train' in test_dir or 'val' in test_dir or 'top5' in test_dir:
+            if 'train' in test_dir:
                 labels = data[2].cuda()
 
             # Generate explanations
@@ -300,7 +282,7 @@ if __name__ == '__main__':
                 if SAME is True:
                     model1_score.fill_(0.999)
 
-                    explanation = x.clone().unsqueeze(1).repeat(1, 3, 1, 1, 1)
+                    explanation = x.clone().unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1, 1)
                 if RAND is True:
                     explanation = torch.rand_like(explanation) * (
                                 explanation.max() - explanation.min()) + explanation.min()
@@ -343,13 +325,13 @@ if __name__ == '__main__':
 
                 optimal_T = 85
                 ##################################
-                # conf_list = []
-                # confidences = model1_score
-                # for j, confidence in enumerate(confidences):
-                #     confidence = confidence.item() * 100
-                #     # if confidence >= checkpoint['best_conf']:
-                #     if confidence >= optimal_T:
-                #         preds[j] = 1
+                conf_list = []
+                confidences = model1_score
+                for j, confidence in enumerate(confidences):
+                    confidence = confidence.item() * 100
+                    # if confidence >= checkpoint['best_conf']:
+                    if confidence >= optimal_T:
+                        preds[j] = 1
                 ###############################
 
                 results = (preds == labels)
@@ -411,7 +393,7 @@ if __name__ == '__main__':
 
                 # Running ADVISING process
                 start_from = 1
-                LOWEST_CONFIDENCE_PATH = False
+                LOWEST_CONFIDENCE_PATH = True
                 if RunningParams.MODEL2_ADVISING is True:
                     # TODO: Reduce compute overhead by only running on disagreed samples
                     advising_steps = RunningParams.advising_steps
@@ -496,6 +478,10 @@ if __name__ == '__main__':
                                     advising_explanation = abm_transform(image=nn_list[0], image0=nn_list[1],
                                                                          image1=nn_list[2],
                                                                          image2=nn_list[3], image3=nn_list[4])
+
+                                elif RunningParams.k_value == 1:
+                                    advising_explanation = abm_transform(image=nn_list[0])
+
                                 advising_explanation = torch.stack(list(advising_explanation.values()))
 
                             post_explanaton.append(advising_explanation)
@@ -552,7 +538,7 @@ if __name__ == '__main__':
                                         # Change the predicted id to top-1 if MODEL2 disagrees
                                         model1_predicted_ids[pred_idx] = model1_top1[pred_idx]
 
-                    print("After advising: MODEL 2 agrees {}/{}".format(tmp_preds.sum(), 10))
+                    print("After advising: MODEL 2 agrees {}/{}".format(tmp_preds.sum(), x.shape[0]))
 
                 if CATEGORY_ANALYSIS is True:
                     for sample_idx in range(x.shape[0]):
@@ -759,4 +745,4 @@ if __name__ == '__main__':
 
         np.save('confidence.npy', confidence_dict)
 
-        print('Top1 acc: {:.2f}'.format(top1_crt_cnt*100/top1_cnt))
+        # print('Top1 acc: {:.2f}'.format(top1_crt_cnt*100/top1_cnt))

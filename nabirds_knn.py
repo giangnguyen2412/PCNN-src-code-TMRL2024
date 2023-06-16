@@ -23,13 +23,13 @@ RunningParams = RunningParams()
 HelperFunctions = HelperFunctions()
 Dataset = Dataset()
 
-ORIGINAL_FE = False
+ORIGINAL_FE = True
 if ORIGINAL_FE is True:
     from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
-        'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+        'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
     resnet.load_state_dict(my_model_state_dict, strict=True)
     MODEL1 = resnet.cuda()
     MODEL1.eval()
@@ -42,7 +42,7 @@ else:
     model = Transformer_AdvisingNetwork()
     model = nn.DataParallel(model).cuda()
 
-    model_path = 'best_models/best_model_olive-field-2793.pt'
+    # model_path = 'best_models/best_model_olive-field-2793.pt'
     checkpoint = torch.load(model_path)
     running_params = checkpoint['running_params']
     RunningParams.XAI_method = running_params.XAI_method

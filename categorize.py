@@ -130,7 +130,7 @@ if TRAIN_DOG == True:
     def load_imagenet_dog_label():
         count = 0
         dog_id_list = list()
-        input_f = open("/home/giang/Downloads/SDogs_dataset/dog_type.txt")
+        input_f = open("/home/giang/Downloads/ImageNet_Dogs_dataset/dog_type.txt")
         for line in input_f:
             dog_id = (line.split('-')[0])
             dog_id_list.append(dog_id)

@@ -24,7 +24,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
 
 Dataset = Dataset()
@@ -35,7 +35,7 @@ from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
 resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    'Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+    'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
 resnet.load_state_dict(my_model_state_dict, strict=True)
 # Freeze backbone (for training only)
 for param in list(resnet.parameters())[:-2]:
@@ -52,7 +52,7 @@ feature_extractor = nn.DataParallel(feature_extractor)
 in_features = 2048
 print("Building FAISS index...! Training set is the knowledge base.")
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/nabirds_split_small/train',
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/nabirds_scs_split_small_50/train',
                                      transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -64,51 +64,39 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-INDEX_FILE = 'faiss/cub/NA-Birds-small-zero-shot.npy'
+INDEX_FILE = 'faiss/cub/NA-Birds-zero-shot.npy'
 print(INDEX_FILE)
 
-if os.path.exists(INDEX_FILE):
-    print("FAISS class index exists!")
-    faiss_nns_class_dict = np.load(INDEX_FILE, allow_pickle="False", ).item()
-    targets = faiss_data_loader.dataset.targets
-    faiss_data_loader_ids_dict = dict()
-    faiss_loader_dict = dict()
-    for class_id in tqdm(range(len(faiss_data_loader.dataset.class_to_idx))):
-        faiss_data_loader_ids_dict[class_id] = [x for x in range(len(targets)) if targets[x] == class_id] # check this value
-        class_id_subset = torch.utils.data.Subset(faiss_dataset, faiss_data_loader_ids_dict[class_id])
-        class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
-        faiss_loader_dict[class_id] = class_id_loader
-else:
-    print("FAISS class index NOT exists! Creating class index.........")
-    targets = faiss_data_loader.dataset.targets
-    faiss_data_loader_ids_dict = dict()
-    faiss_nns_class_dict = dict()
-    faiss_loader_dict = dict()
-    for class_id in tqdm(range(len(faiss_data_loader.dataset.class_to_idx))):
-        faiss_data_loader_ids_dict[class_id] = [x for x in range(len(targets)) if targets[x] == class_id]
-        class_id_subset = torch.utils.data.Subset(faiss_dataset, faiss_data_loader_ids_dict[class_id])
-        class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
-        stack_embeddings = []
-        for batch_idx, (data, label) in enumerate(class_id_loader):
-            input_data = data.detach()
-            embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
-            embeddings = torch.flatten(embeddings, start_dim=1)
+print("FAISS class index NOT exists! Creating class index.........")
+targets = faiss_data_loader.dataset.targets
+faiss_data_loader_ids_dict = dict()
+faiss_nns_class_dict = dict()
+faiss_loader_dict = dict()
+for class_id in tqdm(range(len(faiss_data_loader.dataset.class_to_idx))):
+    faiss_data_loader_ids_dict[class_id] = [x for x in range(len(targets)) if targets[x] == class_id]
+    class_id_subset = torch.utils.data.Subset(faiss_dataset, faiss_data_loader_ids_dict[class_id])
+    class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
+    stack_embeddings = []
+    for batch_idx, (data, label) in enumerate(class_id_loader):
+        input_data = data.detach()
+        embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
+        embeddings = torch.flatten(embeddings, start_dim=1)
 
-            stack_embeddings.append(embeddings.cpu().detach().numpy())
-        stack_embeddings = np.concatenate(stack_embeddings, axis=0)
-        descriptors = np.vstack(stack_embeddings)
+        stack_embeddings.append(embeddings.cpu().detach().numpy())
+    stack_embeddings = np.concatenate(stack_embeddings, axis=0)
+    descriptors = np.vstack(stack_embeddings)
 
-        cpu_index = faiss.IndexFlatL2(in_features)
+    cpu_index = faiss.IndexFlatL2(in_features)
 
-        faiss_gpu_index = cpu_index
+    faiss_gpu_index = cpu_index
 
-        faiss_gpu_index.add(descriptors)
-        faiss_nns_class_dict[class_id] = faiss_gpu_index
-        faiss_loader_dict[class_id] = class_id_loader
-    np.save(INDEX_FILE, faiss_nns_class_dict)
+    faiss_gpu_index.add(descriptors)
+    faiss_nns_class_dict[class_id] = faiss_gpu_index
+    faiss_loader_dict[class_id] = class_id_loader
+np.save(INDEX_FILE, faiss_nns_class_dict)
 
 set = 'test'
-data_dir = '/home/giang/Downloads/nabirds_split_small/{}'.format(set)
+data_dir = '/home/giang/Downloads/nabirds_scs_split_small_50/{}'.format(set)
 
 image_datasets = dict()
 image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
@@ -143,5 +131,5 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                 faiss_nn_dict[base_name] = dict()
             faiss_nn_dict[base_name][key] = nn_list
 
-np.save('faiss/NN_dict_NA-Birds-small-zero-shot_{}.npy'.format(set), faiss_nn_dict)
+np.save('faiss/NN_dict_NA-Birds.npy', faiss_nn_dict)
 
