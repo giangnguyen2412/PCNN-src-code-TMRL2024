@@ -110,43 +110,112 @@ else:
     np.save(INDEX_FILE, faiss_nns_class_dict)
 
 
-from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+# from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+#
+# resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+# my_model_state_dict = torch.load(
+#     'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+# resnet.load_state_dict(my_model_state_dict, strict=True)
+# # Freeze backbone (for training only)
+# for param in list(resnet.parameters())[:-2]:
+#     param.requires_grad = False
+# # to CUDA
+# inat_resnet = resnet.cuda()
+# MODEL1 = inat_resnet
+# MODEL1.eval()
+#
+# MODEL1 = nn.DataParallel(MODEL1).eval()
 
-resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-my_model_state_dict = torch.load(
-    'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
-resnet.load_state_dict(my_model_state_dict, strict=True)
-# Freeze backbone (for training only)
-for param in list(resnet.parameters())[:-2]:
-    param.requires_grad = False
-# to CUDA
-inat_resnet = resnet.cuda()
-MODEL1 = inat_resnet
-MODEL1.eval()
+################################################################
+import os
+from torch.autograd import Variable
+import torch.utils.data
+from torch.nn import DataParallel
+from core import model, dataset
+from torch import nn
+from datasets import Dataset
+from torchvision.datasets import ImageFolder
+from tqdm import tqdm
+net = model.attention_net(topN=6)
+ckpt = torch.load('/home/giang/Downloads/NTS-Net/model.ckpt')
 
-MODEL1 = nn.DataParallel(MODEL1).eval()
+net.load_state_dict(ckpt['net_state_dict'])
 
-set = 'CUB_val'
+# feature_extractor = nn.Sequential(*list(net.children())[:-1])  # avgpool feature
+# print(net)
+
+net.eval()
+net = net.cuda()
+net = DataParallel(net)
+MODEL1 = net
+
+Dataset = Dataset()
+
+from torchvision import transforms
+from PIL import Image
+
+data_transforms = transforms.Compose([
+    transforms.Resize((600, 600), interpolation=Image.BILINEAR),
+    transforms.CenterCrop((448, 448)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
+
+set = 'CUB_test'
+depth_of_pred = 10
+
 data_dir = '/home/giang/Downloads/datasets/{}'.format(set)
-
-image_datasets = dict()
-image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
-train_loader = torch.utils.data.DataLoader(
-    image_datasets['train'],
-    batch_size=128,
-    shuffle=False,  # Don't turn shuffle to False --> model works wrongly
-    num_workers=16,
-    pin_memory=True,
+val_data = ImageFolderWithPaths(
+    # ImageNet train folder
+    root=data_dir, transform=data_transforms
 )
 
-depth_of_pred = 10
+std_val_data = ImageFolderWithPaths(
+    # ImageNet train folder
+    root=data_dir, transform=Dataset.data_transforms['val']
+)
+
+train_loader = torch.utils.data.DataLoader(
+    val_data,
+    batch_size=8,
+    shuffle=False,
+    num_workers=8,
+    pin_memory=True,
+    drop_last=False
+)
+
+std_train_loader = torch.utils.data.DataLoader(
+    std_val_data,
+    batch_size=8,
+    shuffle=False,
+    num_workers=8,
+    pin_memory=True,
+    drop_last=False
+)
+
+########################################################################
+
+# set = 'CUB_val'
+# data_dir = '/home/giang/Downloads/datasets/{}'.format(set)
+#
+# image_datasets = dict()
+# image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
+# train_loader = torch.utils.data.DataLoader(
+#     image_datasets['train'],
+#     batch_size=128,
+#     shuffle=False,  # Don't turn shuffle to False --> model works wrongly
+#     num_workers=16,
+#     pin_memory=True,
+# )
+
 correct_cnt = 0
 total_cnt = 0
 
 MODEL1.eval()
 
 faiss_nn_dict = dict()
-for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
+# for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
+for (data, label, paths), (data2, label2, paths2) in zip(train_loader, std_train_loader):
     if len(train_loader.dataset.classes) < 200:
         for sample_idx in range(data.shape[0]):
             tgt = label[sample_idx].item()
@@ -154,11 +223,12 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             id = faiss_dataset.class_to_idx[class_name]
             label[sample_idx] = id
 
-    embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
+    embeddings = feature_extractor(data2.cuda())  # 512x1 for RN 18
     embeddings = torch.flatten(embeddings, start_dim=1)
     embeddings = embeddings.cpu().detach().numpy()
 
-    out = MODEL1(data.cuda())
+    # out = MODEL1(data.cuda())
+    _, out, _, _, _ = MODEL1(data.cuda())
     model1_p = torch.nn.functional.softmax(out, dim=1)
     score, index = torch.topk(model1_p, depth_of_pred, dim=1)
     for sample_idx in range(data.shape[0]):
