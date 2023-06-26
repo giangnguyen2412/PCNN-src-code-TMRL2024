@@ -17,7 +17,7 @@ from tqdm import tqdm
 from helpers import HelperFunctions
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "6"
 
 RunningParams = RunningParams()
 HelperFunctions = HelperFunctions()
@@ -43,6 +43,7 @@ else:
     model = nn.DataParallel(model).cuda()
 
     # model_path = 'best_models/best_model_olive-field-2793.pt'
+    model_path = 'best_models/best_model_vague-rain-2946.pt'
     checkpoint = torch.load(model_path)
     running_params = checkpoint['running_params']
     RunningParams.XAI_method = running_params.XAI_method
@@ -63,7 +64,7 @@ else:
 
 train_data = ImageFolder(
     # ImageNet train folder
-    root="/home/giang/Downloads/nabirds_split_small/train", transform=Dataset.data_transforms['train']
+    root="/home/giang/Downloads/nabirds_exact-match_split_small_50/train", transform=Dataset.data_transforms['train']
 )
 
 train_loader = torch.utils.data.DataLoader(
@@ -76,7 +77,7 @@ train_loader = torch.utils.data.DataLoader(
 
 val_data = ImageFolder(
     # ImageNet train folder
-    root="/home/giang/Downloads/nabirds_split_small/test", transform=Dataset.data_transforms['val']
+    root="/home/giang/Downloads/nabirds_exact-match_split_small_50/test", transform=Dataset.data_transforms['val']
 )
 
 test_loader = torch.utils.data.DataLoader(
@@ -121,8 +122,8 @@ if True:
 
     with torch.no_grad():
         for batch_idx, (data, target) in enumerate(tqdm(train_loader)):
-            if batch_idx == 2:
-                break
+            # if batch_idx == 2:
+            #     break
             data = data.cuda()
             labels = HelperFunctions.to_np(target)
 
@@ -153,7 +154,6 @@ if True:
         for i in tqdm(range(N_test)):
             concat_ts = saved_results[i].cuda()
             sorted_ts = torch.argsort(concat_ts).cuda()
-            sorted_1k = sorted_ts[-50:].cuda()
             sorted_topk = sorted_ts[-K:]
             scores[i] = torch.flip(
                 sorted_topk, dims=[0]

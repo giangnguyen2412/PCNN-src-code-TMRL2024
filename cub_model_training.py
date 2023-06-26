@@ -23,7 +23,7 @@ from helpers import HelperFunctions
 from explainers import ModelExplainer
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -186,7 +186,10 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     if RunningParams.XAI_method == RunningParams.NO_XAI:
                         output, _, _ = model(images=x, explanations=None, scores=model1_p)
                     else:
-                        output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
+                        if phase == 'train':
+                            output, query, nns, emb_cos_sim = model(images=data[-1], explanations=explanation, scores=score)
+                        else:
+                            output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
 
                     p = torch.sigmoid(output)
 

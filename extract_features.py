@@ -108,7 +108,7 @@ if RunningParams.DOGS_TRAINING is True:
     dogs_id = load_imagenet_dog_label()
 
 
-set = 'train'
+set = 'test'
 data_dir = '/home/giang/Downloads/datasets/'
 
 image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
@@ -127,7 +127,7 @@ dataset_sizes = {x: len(image_datasets[x]) for x in ['Dogs_{}'.format(set)]}
 
 ###########################################################################
 
-depth_of_pred = 4
+depth_of_pred = 1
 correct_cnt = 0
 total_cnt = 0
 

@@ -24,7 +24,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 Dataset = Dataset()
@@ -147,7 +147,8 @@ else:
 
     inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
     inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
-    my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
+    # my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
+    my_model_state_dict = torch.load('resnet50_inat_pretrained_0.841.pth')
     inat_resnet.load_state_dict(my_model_state_dict, strict=True)
     # Freeze backbone (for training only)
     for param in list(inat_resnet.parameters())[:-2]:

@@ -44,7 +44,8 @@ if __name__ == '__main__':
 
     model.eval()
 
-    test_dir = '/home/giang/Downloads/nabirds_scs_split_small_50/test'  ##################################
+    # test_dir = '/home/giang/Downloads/nabirds_exclusive_split_small_50/test'  ##################################
+    test_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset-reduced/test'
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForZeroshot(test_dir, Dataset.data_transforms['val'])

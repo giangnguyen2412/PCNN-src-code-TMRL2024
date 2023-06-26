@@ -12,7 +12,7 @@ RunningParams = RunningParams()
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 torch.manual_seed(42)
 
@@ -23,7 +23,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
                         # default='best_model_divine-snowflake-2832.pt',
-                        default='best_model_vague-rain-2946.pt',
+                        # default='best_model_vague-rain-2946.pt',
+                        # default='best_model_northern-sun-2992.pt',
+                        # default='best_model_driven-morning-2993.pt',
+                        default='best_model_atomic-microwave-2996.pt',
                         help='Model check point')
 
     args = parser.parse_args()
@@ -46,7 +49,7 @@ if __name__ == '__main__':
 
     model.eval()
 
-    test_dir = '/home/giang/Downloads/datasets/CUB_val'  ##################################
+    test_dir = '/home/giang/Downloads/datasets/CUB_test'  ##################################
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])
@@ -105,13 +108,6 @@ if __name__ == '__main__':
             index = labels[torch.arange(len(index)), index.flatten()]
 
             running_corrects += torch.sum(index.squeeze() == gt.cuda())
-
-            # Compute top-5 predictions and accuracy
-            # score_top5, index_top5 = torch.topk(logits, 5, dim=1)
-            # gt_expanded = gt.cuda().unsqueeze(1).expand_as(index_top5)
-            # running_corrects_top5 += torch.sum(index_top5 == gt_expanded)
-
             total_cnt += data[0].shape[0]
 
-        print("Top-1 Accuracy: {}".format(running_corrects*100/total_cnt))
-            # print("Top-5 Accuracy: {}".format(running_corrects_top5*100/total_cnt))
+            print("Top-1 Accuracy: {}".format(running_corrects * 100 / total_cnt))

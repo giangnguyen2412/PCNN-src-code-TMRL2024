@@ -9,6 +9,7 @@ import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 from albumentations.augmentations.transforms import Normalize
 import cv2
+from PIL import Image
 import torchvision.transforms as T
 
 # Define the TrivialAugmentWide transform
@@ -16,7 +17,7 @@ trivial_augmenter = T.TrivialAugmentWide()
 jitter = T.ColorJitter(brightness=.5, hue=.3)
 
 # Define the RandomApply transform to apply the TrivialAugmentWide transform with a probability of 0.5
-trivial_augmenter = T.RandomApply(torch.nn.ModuleList([trivial_augmenter, jitter]), p=0.5)
+trivial_augmenter = T.RandomApply(torch.nn.ModuleList([trivial_augmenter]), p=0.5)
 
 RunningParams = RunningParams()
 
@@ -32,6 +33,7 @@ class ImageFolderForZeroshot(ImageFolder):
         # Load the pre-computed NNs
         if 'test' in os.path.basename(root):
             file_name = 'faiss/NN_dict_NA-Birds.npy'
+            # file_name = 'faiss/NN_dict_Dogs.npy'
         else:
             print('Wrong test directory')
             exit(-1)
@@ -93,10 +95,10 @@ class ImageFolderForAdvisingProcess(ImageFolder):
 
         self.root = root
         # Load the pre-computed NNs
-        if 'test' in os.path.basename(root):
-            file_name = 'faiss/advising_process_CUB_test_top1_HP_MODEL1_HP_FE.npy'
-        else:
-            file_name = 'faiss/advising_process_CUB_val_top1_HP_MODEL1_HP_FE.npy'
+        # if 'test' in os.path.basename(root):
+        #     file_name = 'faiss/advising_process_CUB_test_top1_HP_MODEL1_HP_FE.npy'
+        # else:
+        file_name = 'faiss/advising_process_CUB_val_top1_HP_MODEL1_HP_FE.npy'
             # exit(-1)
 
         print(file_name)
@@ -211,6 +213,13 @@ class ImageFolderWithPaths(ImageFolder):
         return tuple_with_path
 
 
+no_crop_data_transforms = transforms.Compose([
+    transforms.Resize((224, 224), interpolation=Image.BILINEAR),
+    transforms.CenterCrop(224),
+    transforms.ToTensor(),
+    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+])
+
 class ImageFolderForNNs(ImageFolder):
     """Custom dataset that includes image file paths. Extends
     torchvision.datasets.ImageFolder
@@ -250,12 +259,11 @@ class ImageFolderForNNs(ImageFolder):
             else:
                 if RunningParams.TOP1_NN is True:
                     if 'train' in os.path.basename(root):
-                        # file_name = 'faiss/faiss_SDogs_train_RN34_top1.npy'
-                        file_name = 'faiss/faiss_SDogs_train_augment_RN34_top1.npy'
+                        file_name = 'faiss/dogs/faiss_SDogs_train_RN34_top1.npy'
                     elif 'val' in os.path.basename(root):
-                        file_name = 'faiss/faiss_SDogs_val_RN34_top1.npy'
+                        file_name = 'faiss/dogs/faiss_SDogs_val_RN34_top1.npy'
                     elif 'test' in os.path.basename(root):
-                        file_name = 'faiss/faiss_SDogs_test_RN34_top1.npy'
+                        file_name = 'faiss/dogs/faiss_SDogs_test_RN34_top1.npy'
                     else:
                         exit(-1)
 
@@ -315,11 +323,10 @@ class ImageFolderForNNs(ImageFolder):
             nn_base_name = os.path.basename(pth)
             if nn_base_name in base_name:
                 dup = True
-                # print('Something wrong here!!!!!!!!!')
-                # print(pth)
-                # print(query_path)
-                # exit(-1)
                 continue
+            if 'train' in os.path.basename(self.root):
+                sample = trivial_augmenter(sample)
+
             sample = self.transform(sample)
             explanations.append(sample)
         # If query is the same with any of NNs --> duplicate the last element
@@ -331,11 +338,14 @@ class ImageFolderForNNs(ImageFolder):
         sample = self.loader(query_path)
         query = self.transform(sample)
 
+        no_crop = trivial_augmenter(sample)
+        no_crop = self.transform(no_crop)
+
         # make a new tuple that includes original and the path
         if 'train' in os.path.basename(self.root):
-            tuple_with_path = ((query, explanations, model2_target), target, query_path)
+            tuple_with_path = ((query, explanations, model2_target, no_crop), target, query_path)
         else:
-            tuple_with_path = ((query, explanations), target, query_path)
+            tuple_with_path = ((query, explanations, no_crop), target, query_path)
 
         return tuple_with_path
 

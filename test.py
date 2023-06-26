@@ -2,13 +2,13 @@ import torch
 import multiprocessing
 
 # set the GPUs to use
-gpu_ids = [7]
+gpu_ids = [0,1]
 
 # define a function to allocate memory on the specified GPU
 def allocate_memory(gpu_id):
     torch.cuda.set_device(gpu_id)
     while True:
-        tensor = torch.randn((100000, 40000), device=f"cuda:{gpu_id}")
+        tensor = torch.randn((100000, 10000), device=f"cuda:{gpu_id}")
         torch.cuda.empty_cache()
 
 # start a process to allocate memory on each GPU

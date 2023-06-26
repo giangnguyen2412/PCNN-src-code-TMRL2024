@@ -14,8 +14,8 @@ class RunningParams(object):
         self.feat_map_size = {4: 49, 3: 196, 2: 784}
         self.CONTINUE_TRAINING = False
         self.TOP1_NN = True  # ----------------------------------------- IMPORTANT PARAM --------
-        self.CUB_TRAINING = False  # ----------------------------------------- IMPORTANT PARAM --------
-        self.DOGS_TRAINING = True
+        self.CUB_TRAINING = True  # ----------------------------------------- IMPORTANT PARAM --------
+        self.DOGS_TRAINING = False
         self.IMAGENET_TRAINING = False
 
         if self.DOGS_TRAINING is True:
@@ -48,8 +48,8 @@ class RunningParams(object):
                 self.epochs = 300
 
         elif self.DOGS_TRAINING:
-            self.batch_size = 50  # ----------------------------------------- IMPORTANT PARAM --------
-            self.epochs = 500
+            self.batch_size = 8  # ----------------------------------------- IMPORTANT PARAM --------
+            self.epochs = 100
 
             self.WEIGHTED_LOSS_DOGS = True
 
@@ -84,7 +84,7 @@ class RunningParams(object):
         if self.DOGS_TRAINING is True:
             self.k_value = 1
         elif self.CUB_TRAINING is True:
-            self.k_value = 3  # ----------------------------------------- IMPORTANT PARAM --------
+            self.k_value = 1  # ----------------------------------------- IMPORTANT PARAM --------
         self.PRECOMPUTED_NN = True
         self.CrossCorrelation = True  # ----------------------------------------- IMPORTANT PARAM --------
 

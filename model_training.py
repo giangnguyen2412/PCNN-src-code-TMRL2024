@@ -22,11 +22,11 @@ from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
 from explainers import ModelExplainer
 
-torch.backends.cudnn.benchmark = True
-plt.ion()   # interactive mode
+# torch.backends.cudnn.benchmark = True
+# plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "7"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -66,7 +66,7 @@ val_dataset = '/home/giang/Downloads/datasets/balanced_val_dataset_6k'
 
 TRAIN_DOG = RunningParams.DOGS_TRAINING
 if TRAIN_DOG is True:
-    train_dataset = '/home/giang/Downloads/datasets/Dogs_train'
+    train_dataset = '/home/giang/Downloads/datasets/Dogs_train_top4'
     val_dataset = '/home/giang/Downloads/datasets/Dogs_val'
 
 imagenet_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/imagenet1k-val', Dataset.data_transforms['train'])

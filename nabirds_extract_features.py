@@ -52,8 +52,11 @@ feature_extractor = nn.DataParallel(feature_extractor)
 in_features = 2048
 print("Building FAISS index...! Training set is the knowledge base.")
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/nabirds_scs_split_small_50/train',
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/Cars/Stanford-Cars-dataset-reduced/train',
                                      transform=Dataset.data_transforms['train'])
+
+# faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/ZSL_Dogs/ZSL_Dogs_train',
+#                                      transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
@@ -65,6 +68,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
 )
 
 INDEX_FILE = 'faiss/cub/NA-Birds-zero-shot.npy'
+# INDEX_FILE = 'faiss/cub/Dogs-zero-shot.npy'
 print(INDEX_FILE)
 
 print("FAISS class index NOT exists! Creating class index.........")
@@ -96,7 +100,8 @@ for class_id in tqdm(range(len(faiss_data_loader.dataset.class_to_idx))):
 np.save(INDEX_FILE, faiss_nns_class_dict)
 
 set = 'test'
-data_dir = '/home/giang/Downloads/nabirds_scs_split_small_50/{}'.format(set)
+# data_dir = '/home/giang/Downloads/nabirds_exclusive_split_small_50/{}'.format(set)
+data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset-reduced/test'
 
 image_datasets = dict()
 image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
@@ -132,4 +137,5 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             faiss_nn_dict[base_name][key] = nn_list
 
 np.save('faiss/NN_dict_NA-Birds.npy', faiss_nn_dict)
+# np.save('faiss/NN_dict_Dogs.npy', faiss_nn_dict)
 
