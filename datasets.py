@@ -240,15 +240,19 @@ class ImageFolderForNNs(ImageFolder):
                             # file_name = 'faiss/cub/top5_k{}_enriched_NeurIPS_Finetuning_faiss_CUB_train_all_top1_HP_MODEL1_HP_FE.npy'\
                             #     .format(1)
                             file_name = 'faiss/cub/top5_enriched_NeurIPS_Finetuning_faiss_CUB_train_all_top1_HP_MODEL1_HP_FE.npy'
+                            file_name = 'faiss/cub/NTSNet_5_1_CUB_train_all.npy'
                         else:  # Pretraining
                             if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
                                 file_name = 'faiss/cub/NeurIPS_Pretraining_faiss_CUB_CUB_pre_train_top1_LP_MODEL1_HP_FE.npy'
                     else:
                         if RunningParams.MODEL2_FINETUNING is True:
                             if 'val' in os.path.basename(root):
-                                file_name = 'faiss/cub/top1_enriched_NeurIPS_Finetuning_faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy'
+                                # file_name = 'faiss/cub/top1_enriched_NeurIPS_Finetuning_faiss_CUB_val_top1_HP_MODEL1_HP_FE.npy'
+                                file_name = 'faiss/cub/NTSNet_1_1_CUB_val.npy'
                             else:
-                                file_name = 'faiss/cub/top1_enriched_NeurIPS_Finetuning_faiss_CUB_test_top1_HP_MODEL1_HP_FE.npy'
+                                # file_name = 'faiss/cub/top1_enriched_NeurIPS_Finetuning_faiss_CUB_test_top1_HP_MODEL1_HP_FE.npy'
+                                file_name = 'faiss/cub/NTSNet_1_1_CUB_test.npy'
+
                         else:  # Pretraining
                             if RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
                                 if 'val' in os.path.basename(root):

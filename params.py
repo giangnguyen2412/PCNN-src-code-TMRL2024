@@ -11,7 +11,8 @@ class RunningParams(object):
         # self.conv_layer_size = {4: 512, 3: 256, 2: 128, 1: 64}
         # if self.SIMCLR_MODEL is True:
         self.conv_layer_size = {4: 2048, 3: 1024, 2: 512, 1: 256}
-        self.feat_map_size = {4: 49, 3: 196, 2: 784}
+        # self.feat_map_size = {4: 49, 3: 196, 2: 784}
+        self.feat_map_size = {4: 196, 3: 196, 2: 784}
         self.CONTINUE_TRAINING = False
         self.TOP1_NN = True  # ----------------------------------------- IMPORTANT PARAM --------
         self.CUB_TRAINING = True  # ----------------------------------------- IMPORTANT PARAM --------

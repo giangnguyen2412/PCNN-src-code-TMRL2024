@@ -2,12 +2,17 @@ import numpy as np
 import os
 
 cnt = 0
-filename = 'faiss/advising_process_CUB_val_top1_HP_MODEL1_HP_FE.npy'
+crt_cnt = 0
+filename = 'faiss/cub/NTSNet_1_1_CUB_val.npy'
 cnt_dict = {}
 kbc = np.load(filename, allow_pickle=True, ).item()
 for k, v in kbc.items():
-    if v['Label'] == 1:
+    if v['label'] == 1:
         cnt+=1
+
+    if '_0_0_' in k:
+        if v['label'] == 1:
+            crt_cnt += 1
 
     k_base_name = k.split('_')
     k_base_name = ('_').join(k_base_name[3:])
@@ -22,7 +27,7 @@ for k, v in kbc.items():
 print(cnt)
 print(len(kbc))
 print(cnt*100/len(kbc))
-
+print(crt_cnt*100/9788)
 
 # pass
 # import os
