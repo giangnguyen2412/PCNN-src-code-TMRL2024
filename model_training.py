@@ -26,7 +26,7 @@ from explainers import ModelExplainer
 # plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -66,8 +66,8 @@ val_dataset = '/home/giang/Downloads/datasets/balanced_val_dataset_6k'
 
 TRAIN_DOG = RunningParams.DOGS_TRAINING
 if TRAIN_DOG is True:
-    train_dataset = '/home/giang/Downloads/datasets/Dogs_train_top4'
-    val_dataset = '/home/giang/Downloads/datasets/Dogs_val'
+    train_dataset = '/home/giang/Downloads/RN34_SDogs_train_top5_{}NNs'.format(RunningParams.k_value)
+    val_dataset = '/home/giang/Downloads/RN34_SDogs_val'
 
 imagenet_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/imagenet1k-val', Dataset.data_transforms['train'])
 
@@ -96,6 +96,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
         for phase in ['train', 'val']:
             if phase == 'train':
                 shuffle = True
+                drop_last = True
                 model.train()  # Training mode
 
                 for param in model.module.conv_layers.parameters():
@@ -119,6 +120,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             else:
                 shuffle = False
                 model.eval()  # Evaluation mode
+                drop_last = False
 
             data_loader = torch.utils.data.DataLoader(
                 image_datasets[phase],
@@ -126,6 +128,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 shuffle=shuffle,  # turn shuffle to True
                 num_workers=16,
                 pin_memory=True,
+                drop_last=drop_last
             )
 
             running_loss = 0.0
@@ -191,6 +194,10 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                         output, _, _ = model(images=x, explanations=None, scores=model1_p)
                     else:
                         output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
+                        # if phase == 'train':
+                        #     output, query, nns, emb_cos_sim = model(images=data[-1], explanations=explanation, scores=score)
+                        # else:
+                        #     output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
 
                     p = torch.sigmoid(output)
 
@@ -253,10 +260,8 @@ MODEL2 = Transformer_AdvisingNetwork()
 MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
-if RunningParams.UNBALANCED_TRAINING is True:
-    # pos_weight = torch.tensor([4.0])  # the cost of misclassifying a positive sample
-    # criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).cuda()
-    criterion = nn.BCEWithLogitsLoss().cuda()
+
+criterion = nn.BCEWithLogitsLoss().cuda()
 
 # Observe all parameters that are being optimized
 optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)

@@ -145,13 +145,8 @@ dataset_path = "/home/giang/Downloads/RN34_SDogs_train"
 check_and_rm(dataset_path)
 check_and_mkdir(dataset_path)
 check_and_mkdir("{}/Correct".format(dataset_path))
-# check_and_mkdir("{}/Correct/Medium".format(dataset_path))
-# check_and_mkdir("{}/Correct/Easy".format(dataset_path))
-# check_and_mkdir("{}/Correct/Hard".format(dataset_path))
 check_and_mkdir("{}/Wrong".format(dataset_path))
-# check_and_mkdir("{}/Wrong/Medium".format(dataset_path))
-# check_and_mkdir("{}/Wrong/Easy".format(dataset_path))
-# check_and_mkdir("{}/Wrong/Hard".format(dataset_path))
+
 
 if IMAGENET_REAL:
     real_json = open("reassessed-imagenet/real.json")
@@ -165,9 +160,6 @@ correct, wrong, easy, medium, hard = 0,0,0,0,0
 RN_dict = {}
 
 for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
-    # print(i)
-    # print([correct, wrong])
-    # print([easy, medium, hard])
 
     imagenet_id = os.path.basename(imagenet_folder)
     wnid = imagenet_id
@@ -207,8 +199,6 @@ for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
             else:
                 correctness = False
 
-        #         print(prediction_id, imagenet_id)
-
         RN_dict[img_name] = {}
         RN_dict[img_name]['Output'] = correctness
         RN_dict[img_name]['confidence_score'] = confidence_score
@@ -222,30 +212,11 @@ for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
         if correctness is True:
             correct += 1
             output = 'Correct'
-            # if confidence_score < 0.35:
-            #     harness = 'Hard'
-            #     hard += 1
-            # elif 0.35 <= confidence_score < 0.75:
-            #     harness = 'Medium'
-            #     medium += 1
-            # elif confidence_score >= 0.75:
-            #     harness = 'Easy'
-            #     easy += 1
 
         else:
             wrong += 1
             output = 'Wrong'
-            # if confidence_score < 0.35:
-            #     harness = 'Easy'
-            #     easy += 1
-            # elif 0.35 <= confidence_score < 0.75:
-            #     harness = 'Medium'
-            #     medium += 1
-            # elif confidence_score >= 0.75:
-            #     harness = 'Hard'
-            #     hard += 1
 
-        # img_dir = os.path.join(dataset_path, output, harness, wnid)
         img_dir = os.path.join(dataset_path, output, wnid)
         check_and_mkdir(img_dir)
         dst_file = os.path.join(img_dir, img_name)

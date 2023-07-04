@@ -16,19 +16,13 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 torch.manual_seed(42)
 
-full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
+full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/RN34_SDogs_train',
                                      Dataset.data_transforms['train'])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        # default='best_model_divine-snowflake-2832.pt',
-                        # default='best_model_vague-rain-2946.pt',
-                        # default='best_model_northern-sun-2992.pt',
-                        # default='best_model_driven-morning-2993.pt',
-                        # default='best_model_atomic-microwave-2996.pt',
-                        default='best_model_lilac-thunder-3015.pt',
-                        # default='best_model_chocolate-silence-3044.pt',
+                        default='best_model_glorious-frost-3028.pt',
                         help='Model check point')
 
     args = parser.parse_args()
@@ -51,7 +45,7 @@ if __name__ == '__main__':
 
     model.eval()
 
-    test_dir = '/home/giang/Downloads/datasets/CUB/advnet/test'  ##################################
+    test_dir = '/home/giang/Downloads/RN34_SDogs_val'  ##################################
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])
@@ -81,7 +75,7 @@ if __name__ == '__main__':
             x = data[0].cuda()
             labels = data[-1].cuda()
 
-            if len(data_loader.dataset.classes) < 200:
+            if len(data_loader.dataset.classes) < 120:
                 for sample_idx in range(x.shape[0]):
                     tgt = gt[sample_idx].item()
                     class_name = data_loader.dataset.classes[tgt]

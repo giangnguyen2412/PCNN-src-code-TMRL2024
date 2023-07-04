@@ -2,10 +2,13 @@ import numpy as np
 import os
 
 cnt = 0
+overlap = 0
 crt_cnt = 0
-filename = 'faiss/cub/NTSNet_1_1_CUB_val.npy'
+filename = '/home/giang/Downloads/advising_network/faiss/cars/top10_k1_enriched_NeurIPS_Finetuning_faiss_train_top1.npy'
 cnt_dict = {}
+
 kbc = np.load(filename, allow_pickle=True, ).item()
+new_kbc = dict()
 for k, v in kbc.items():
     if v['label'] == 1:
         cnt+=1
@@ -21,13 +24,18 @@ for k, v in kbc.items():
         base_name = os.path.basename(nn)
         if base_name in k:
             print("sth wrong")
-            print(v)
-            print(k)
-            # exit(-1)
+            # print(v)
+            # print(k)
+            overlap += 1
+            break
+        else:
+            new_kbc[k] = v
 print(cnt)
-print(len(kbc))
 print(cnt*100/len(kbc))
-print(crt_cnt*100/9788)
+print(len(kbc))
+print(overlap)
+print(len(new_kbc))
+# np.save(filename, new_kbc)
 
 # pass
 # import os

@@ -68,7 +68,7 @@ feature_extractor = nn.DataParallel(feature_extractor)
 in_features = 2048
 print("Building FAISS index...! Training set is the knowledge base.")
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB_train_all',
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB/advnet/train',
                                      transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -160,8 +160,8 @@ else:
 
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-set = 'CUB_train_all'
-data_dir = '/home/giang/Downloads/datasets/{}'.format(set)
+set = 'train'
+data_dir = '/home/giang/Downloads/datasets/CUB/advnet/{}'.format(set)
 
 image_datasets = dict()
 image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
@@ -173,7 +173,7 @@ train_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-depth_of_pred = 5
+depth_of_pred = 10
 correct_cnt = 0
 total_cnt = 0
 
@@ -262,7 +262,6 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                     faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
                     faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
 
-# print("Top-1 Accuracy: {}".format(correct_cnt * 100 / total_cnt))
 
 if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
     if HIGHPERFORMANCE_MODEL1 is True:

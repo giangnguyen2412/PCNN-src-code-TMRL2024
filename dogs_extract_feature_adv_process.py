@@ -17,8 +17,6 @@ from tqdm import tqdm
 from torchvision import datasets, models, transforms
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
-from helpers import HelperFunctions
-from explainers import ModelExplainer
 
 torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
@@ -29,63 +27,24 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-RN50_FEAT_EXT = True
-MODEL1_RN50 = True
-depth_of_pred = 3
-set = 'test'
+depth_of_pred = 10
+set = 'RN34_SDogs_val'
 
-if RN50_FEAT_EXT is True:
-    ################################################################################
-    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
-
-    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-    my_model_state_dict = torch.load(
-        'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
-    resnet.load_state_dict(my_model_state_dict, strict=True)
-    # Freeze backbone (for training only)
-    for param in list(resnet.parameters())[:-2]:
-        param.requires_grad = False
-    # to CUDA
-    inat_resnet = resnet.cuda()
-    MODEL1 = inat_resnet
-    MODEL1.eval()
-
-    feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
-    feature_extractor.cuda()
-    feature_extractor = nn.DataParallel(feature_extractor)
-
-else:
-
-    import os
-    import torch.utils.data
-    from torch.nn import DataParallel
-    from core import model, dataset
-    from torch import nn
-    from tqdm import tqdm
-    net = model.attention_net(topN=6)
-    ckpt = torch.load('/home/giang/Downloads/NTS-Net/model.ckpt')
-
-    net.load_state_dict(ckpt['net_state_dict'])
-
-    net.eval()
-    net = net.cuda()
-    net = DataParallel(net)
-    MODEL1 = net
-    MODEL1.eval()
-
-    attention_net = list(MODEL1.children())
-    components = list(attention_net[0].children())
-    resnet = components[0]
-    feature_extractor = nn.Sequential(*list(resnet.children())[:-1])  # avgpool feature
-    feature_extractor.cuda()
-    feature_extractor = nn.DataParallel(feature_extractor)
+import torchvision
+MODEL1 = torchvision.models.resnet34(pretrained=True).cuda()
+MODEL1.eval()
+feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
+feature_extractor = nn.DataParallel(feature_extractor)
+fc = MODEL1.fc
 
 ################################################################
+imagenet_dataset = ImageFolderWithPaths('/home/giang/Downloads/datasets/imagenet1k-val',
+                                         Dataset.data_transforms['train'])
 
-in_features = 2048
+in_features = 512
 print("Building FAISS index...! Training set is the knowledge base.")
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB/advnet/train',
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN34_SDogs_train',
                                      transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -97,7 +56,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-INDEX_FILE = 'faiss/cub/INDEX_file_adv_process.npy'
+INDEX_FILE = 'faiss/cub/INDEX_file_adv_process_for_Dogs.npy'
 print(INDEX_FILE)
 
 if os.path.exists(INDEX_FILE):
@@ -142,115 +101,49 @@ else:
         faiss_loader_dict[class_id] = class_id_loader
     np.save(INDEX_FILE, faiss_nns_class_dict)
 
-if MODEL1_RN50 is True:
-    ################################################################
-    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
-    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-    my_model_state_dict = torch.load(
-        'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
-    resnet.load_state_dict(my_model_state_dict, strict=True)
-    # Freeze backbone (for training only)
-    for param in list(resnet.parameters())[:-2]:
-        param.requires_grad = False
-    # to CUDA
-    inat_resnet = resnet.cuda()
-    MODEL1 = inat_resnet
-    MODEL1.eval()
+# Use RN34 to determine whether an image is correct or wrong
+resnet34 = models.resnet34(pretrained=True).eval().cuda()
+resnet34.eval()
+resnet34 = nn.DataParallel(resnet34)
+MODEL1 = resnet34
 
-    MODEL1 = nn.DataParallel(MODEL1).eval()
+if RunningParams.DOGS_TRAINING is True:
+    def load_imagenet_dog_label():
+        dog_id_list = list()
+        input_f = open("/home/giang/Downloads/ImageNet_Dogs_dataset/dog_type.txt")
+        for line in input_f:
+            dog_id = (line.split('-')[0])
+            dog_id_list.append(dog_id)
+        return dog_id_list
 
-    data_dir = '/home/giang/Downloads/datasets/CUB/advnet/{}'.format(set)
-
-    image_datasets = dict()
-    image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
-    train_loader = torch.utils.data.DataLoader(
-        image_datasets['train'],
-        batch_size=128,
-        shuffle=False,  # Don't turn shuffle to False --> model works wrongly
-        num_workers=16,
-        pin_memory=True,
-    )
-    print('Running MODEL1 being RN50!!!')
-
-else:
-    ################################################################
-    import os
-    from torch.autograd import Variable
-    import torch.utils.data
-    from torch.nn import DataParallel
-    from core import model, dataset
-    from torch import nn
-    from datasets import Dataset
-    from torchvision.datasets import ImageFolder
-    from tqdm import tqdm
-    net = model.attention_net(topN=6)
-    ckpt = torch.load('/home/giang/Downloads/NTS-Net/model.ckpt')
-
-    net.load_state_dict(ckpt['net_state_dict'])
-
-    # feature_extractor = nn.Sequential(*list(net.children())[:-1])  # avgpool feature
-    # print(net)
-
-    net.eval()
-    net = net.cuda()
-    net = DataParallel(net)
-    MODEL1 = net
-
-    Dataset = Dataset()
-
-    from torchvision import transforms
-    from PIL import Image
-
-    data_transforms = transforms.Compose([
-        transforms.Resize((600, 600), interpolation=Image.BILINEAR),
-        transforms.CenterCrop((448, 448)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
-
-    data_dir = '/home/giang/Downloads/datasets/CUB/advnet/{}'.format(set)
-    val_data = ImageFolderWithPaths(
-        # ImageNet train folder
-        root=data_dir, transform=data_transforms
-    )
-
-    std_val_data = ImageFolderWithPaths(
-        # ImageNet train folder
-        root=data_dir, transform=Dataset.data_transforms['val']
-    )
-
-    train_loader = torch.utils.data.DataLoader(
-        val_data,
-        batch_size=8,
-        shuffle=False,
-        num_workers=8,
-        pin_memory=True,
-        drop_last=False
-    )
-
-    std_train_loader = torch.utils.data.DataLoader(
-        std_val_data,
-        batch_size=8,
-        shuffle=False,
-        num_workers=8,
-        pin_memory=True,
-        drop_last=False
-    )
-    print('Running MODEL1 being NTS-NET!!!')
-
+    dogs_id = load_imagenet_dog_label()
 
 ########################################################################
 
+data_dir = '/home/giang/Downloads/'
+
+image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
+                                      Dataset.data_transforms['train'])
+              for x in [set]}
+
+train_loader = torch.utils.data.DataLoader(
+    image_datasets[set],
+    batch_size=RunningParams.batch_size,
+    shuffle=False,  # turn shuffle to True
+    num_workers=16,
+    pin_memory=True,
+)
+
 correct_cnt = 0
 total_cnt = 0
+nondog = 0
 
 MODEL1.eval()
 
 faiss_nn_dict = dict()
 
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
-# for (data, label, paths), (data2, label2, paths2) in tqdm(zip(train_loader, std_train_loader)):
     if len(train_loader.dataset.classes) < 200:
         for sample_idx in range(data.shape[0]):
             tgt = label[sample_idx].item()
@@ -258,18 +151,11 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             id = faiss_dataset.class_to_idx[class_name]
             label[sample_idx] = id
 
-    if MODEL1_RN50 is True:
-        embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
-    else:
-        embeddings = feature_extractor(data2.cuda())  # 512x1 for RN 18
-
+    embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
     embeddings = torch.flatten(embeddings, start_dim=1)
     embeddings = embeddings.cpu().detach().numpy()
 
-    if MODEL1_RN50 is True:
-        out = MODEL1(data.cuda())
-    else:
-        _, out, _, _, _ = MODEL1(data.cuda())
+    out = MODEL1(data.cuda())
 
     model1_p = torch.nn.functional.softmax(out, dim=1)
     score, index = torch.topk(model1_p, depth_of_pred, dim=1)
@@ -282,6 +168,16 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
         for i in range(depth_of_pred):
             # Get the top-k predicted label
             predicted_idx = index[sample_idx][i].item()
+
+            if RunningParams.DOGS_TRAINING is True:
+                # If the predicted ID is not a DOG ... then we randomize it to a Dog wnid
+                dog_wnid = imagenet_dataset.classes[predicted_idx]
+                if dog_wnid not in dogs_id:
+                    dog_wnid = random.choice([wnid for wnid in dogs_id if wnid != dog_wnid])
+                    nondog += 1
+
+                # convert to Dog id
+                predicted_idx = faiss_dataset.class_to_idx[dog_wnid]
 
             # Dataloader and knowledge base upon the predicted class
             loader = faiss_loader_dict[predicted_idx]

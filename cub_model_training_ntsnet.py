@@ -23,7 +23,7 @@ from helpers import HelperFunctions
 from explainers import ModelExplainer
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "6,7,0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -54,8 +54,8 @@ MODEL1 = net
 MODEL1.eval()
 ################################################################
 
-train_dataset = '/home/giang/Downloads/datasets/CUB_train_all_NTSNet'
-val_dataset = '/home/giang/Downloads/datasets/CUB_val'
+train_dataset = '/home/giang/Downloads/datasets/CUB/advnet/CUB_train_all_NTSNet'
+val_dataset = '/home/giang/Downloads/datasets/CUB/advnet/val'
 full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
                                      Dataset.data_transforms['train'])
 
@@ -114,8 +114,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             else:
                 shuffle = False
                 model.eval()  # Evaluation mode
-                # MODEL1.eval()
-                # torch.manual_seed(42)
 
             data_loader = torch.utils.data.DataLoader(
                 image_datasets[phase],
@@ -245,8 +243,6 @@ MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
 if RunningParams.UNBALANCED_TRAINING is True:
-    # pos_weight = torch.tensor([4.0])  # the cost of misclassifying a positive sample
-    # criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).cuda()
     criterion = nn.BCEWithLogitsLoss().cuda()
 
 # Observe all parameters that are being optimized

@@ -23,7 +23,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 import torchvision
 MODEL1 = torchvision.models.resnet34(pretrained=True).cuda()
@@ -43,7 +43,8 @@ imagenet_dataset = ImageFolderWithPaths('/home/giang/Downloads/datasets/imagenet
                                          Dataset.data_transforms['train'])
 
 if RunningParams.DOGS_TRAINING == True:
-    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/Dogs_train', transform=Dataset.data_transforms['train'])
+    # faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/Dogs_train', transform=Dataset.data_transforms['train'])
+    faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/RN34_SDogs_train', transform=Dataset.data_transforms['train'])
 else:
     faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/train', transform=Dataset.data_transforms['train'])
 
@@ -56,42 +57,52 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
+
 if RETRIEVE_TOP1_NEAREST is True:
     INDEX_FILE = 'faiss/faiss_Dogs_class_idx_dict_RN34.npy'
 
-    print("Building FAISS index........................................")
-    targets = faiss_data_loader.dataset.targets
-    faiss_data_loader_ids_dict = dict()
-    faiss_nns_class_dict = dict()
-    faiss_loader_dict = dict()
-    for class_id in tqdm(range(len(faiss_data_loader.dataset.class_to_idx))):
-        faiss_data_loader_ids_dict[class_id] = [x for x in range(len(targets)) if targets[x] == class_id]
-        class_id_subset = torch.utils.data.Subset(faiss_dataset, faiss_data_loader_ids_dict[class_id])
-        class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
-        stack_embeddings = []
-        for batch_idx, (data, label) in enumerate(class_id_loader):
-            input_data = data.detach()
-            embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
-            embeddings = torch.flatten(embeddings, start_dim=1)
+    if os.path.exists(INDEX_FILE):
+        print("FAISS class index exists!")
+        faiss_nns_class_dict = np.load(INDEX_FILE, allow_pickle="False", ).item()
+        targets = faiss_data_loader.dataset.targets
+        faiss_data_loader_ids_dict = dict()
+        faiss_loader_dict = dict()
+        for class_id in tqdm(range(len(faiss_data_loader.dataset.class_to_idx))):
+            faiss_data_loader_ids_dict[class_id] = [x for x in range(len(targets)) if targets[x] == class_id] # check this value
+            class_id_subset = torch.utils.data.Subset(faiss_dataset, faiss_data_loader_ids_dict[class_id])
+            class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
+            faiss_loader_dict[class_id] = class_id_loader
+    else:
+        print("Building FAISS index........................................")
+        targets = faiss_data_loader.dataset.targets
+        faiss_data_loader_ids_dict = dict()
+        faiss_nns_class_dict = dict()
+        faiss_loader_dict = dict()
+        for class_id in tqdm(range(len(faiss_data_loader.dataset.class_to_idx))):
+            faiss_data_loader_ids_dict[class_id] = [x for x in range(len(targets)) if targets[x] == class_id]
+            class_id_subset = torch.utils.data.Subset(faiss_dataset, faiss_data_loader_ids_dict[class_id])
+            class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
+            stack_embeddings = []
+            for batch_idx, (data, label) in enumerate(class_id_loader):
+                input_data = data.detach()
+                embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
+                embeddings = torch.flatten(embeddings, start_dim=1)
 
-            stack_embeddings.append(embeddings.cpu().detach().numpy())
-        stack_embeddings = np.concatenate(stack_embeddings, axis=0)
-        descriptors = np.vstack(stack_embeddings)
+                stack_embeddings.append(embeddings.cpu().detach().numpy())
+            stack_embeddings = np.concatenate(stack_embeddings, axis=0)
+            descriptors = np.vstack(stack_embeddings)
 
-        cpu_index = faiss.IndexFlatL2(in_features)
-        # faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
-        #     cpu_index
-        # )
-        faiss_gpu_index = cpu_index
+            cpu_index = faiss.IndexFlatL2(in_features)
+            faiss_gpu_index = cpu_index
 
-        faiss_gpu_index.add(descriptors)
-        faiss_nns_class_dict[class_id] = faiss_gpu_index
-        faiss_loader_dict[class_id] = class_id_loader
-    np.save(INDEX_FILE, faiss_nns_class_dict)
+            faiss_gpu_index.add(descriptors)
+            faiss_nns_class_dict[class_id] = faiss_gpu_index
+            faiss_loader_dict[class_id] = class_id_loader
+        np.save(INDEX_FILE, faiss_nns_class_dict)
 
 #####################################################################################
 
-# Use RN34 to determine whether an image or correct or wrong
+# Use RN34 to determine whether an image is correct or wrong
 resnet34 = models.resnet34(pretrained=True).eval().cuda()
 resnet34.eval()
 resnet34 = nn.DataParallel(resnet34)
@@ -108,22 +119,23 @@ if RunningParams.DOGS_TRAINING is True:
     dogs_id = load_imagenet_dog_label()
 
 
-set = 'test'
-data_dir = '/home/giang/Downloads/datasets/'
+set = 'RN34_SDogs_val'
+# data_dir = '/home/giang/Downloads/datasets/'
+data_dir = '/home/giang/Downloads'
 
 image_datasets = {x: ImageFolderWithPaths(os.path.join(data_dir, x),
                                       Dataset.data_transforms['train'])
-              for x in ['Dogs_{}'.format(set)]}
+              for x in [set]}
 
 train_loader = torch.utils.data.DataLoader(
-    image_datasets['Dogs_{}'.format(set)],
+    image_datasets[set],
     batch_size=RunningParams.batch_size,
     shuffle=False,  # turn shuffle to True
     num_workers=16,
     pin_memory=True,
 )
 
-dataset_sizes = {x: len(image_datasets[x]) for x in ['Dogs_{}'.format(set)]}
+dataset_sizes = {x: len(image_datasets[x]) for x in [set]}
 
 ###########################################################################
 
@@ -220,4 +232,5 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                         faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
 
 print("Non-dogs: {} files".format(nondog))
-np.save('faiss/dogs/faiss_SDogs_{}_RN34_top1.npy'.format(set), faiss_nn_dict)
+np.save('faiss/dogs/faiss_SDogs_{}_RN34_top{}_{}NNs.npy'.format(set, depth_of_pred, RunningParams.k_value),
+        faiss_nn_dict)

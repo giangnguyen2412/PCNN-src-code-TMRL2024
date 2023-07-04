@@ -12,7 +12,7 @@ import wandb
 import statistics
 import pdb
 import random
-import numpy as np
+
 
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
@@ -22,65 +22,45 @@ from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
 from explainers import ModelExplainer
 
+# torch.backends.cudnn.benchmark = True
+# plt.ion()   # interactive mode
+
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
 Explainer = ModelExplainer()
 
-assert (RunningParams.DOGS_TRAINING is False and RunningParams.IMAGENET_TRAINING is False)
+import torchvision
+normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+model = torchvision.models.resnet18(pretrained=True).cuda()
+model.fc = nn.Linear(model.fc.in_features, 196)
 
-if [RunningParams.IMAGENET_TRAINING, RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING].count(True) > 1:
-    print("There are more than one training datasets chosen, skipping training!!!")
-    exit(-1)
+my_model_state_dict = torch.load(
+    '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best.pth.tar')
+model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
+model.eval()
 
-if RunningParams.MODEL2_FINETUNING is True or RunningParams.UNBALANCED_TRAINING:
-    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+MODEL1 = model.cuda()
 
-    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-    my_model_state_dict = torch.load(
-        'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
-    resnet.load_state_dict(my_model_state_dict, strict=True)
-    MODEL1 = resnet.cuda()
-    MODEL1.eval()
-    fc = list(MODEL1.children())[-1].cuda()
-    fc = nn.DataParallel(fc)
-else:
-    import torchvision
+fc = MODEL1.fc
+fc = fc.cuda()
 
-    inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
-    inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
-    my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
-    inat_resnet.load_state_dict(my_model_state_dict, strict=True)
-    MODEL1 = inat_resnet
-    MODEL1.eval()
+train_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/train_top10'
+val_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
 
-    fc = MODEL1.fc
-    fc = fc.cuda()
-
-if RunningParams.MODEL2_FINETUNING is True:
-    train_dataset = '/home/giang/Downloads/Final_RN50_dataset_CUB_HP/final_train_aug'
-    val_dataset = '/home/giang/Downloads/Final_RN50_dataset_CUB_HP/final_val'
-    if RunningParams.UNBALANCED_TRAINING is True:
-        train_dataset = '/home/giang/Downloads/datasets/CUB/advnet/train_all_top10'
-        val_dataset = '/home/giang/Downloads/datasets/CUB/advnet/val'
-else:
-    train_dataset = '/home/giang/Downloads/datasets/CUB_pre_train'
-    val_dataset = '/home/giang/Downloads/datasets/CUB_pre_val'
+data_transform = transforms.Compose([transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            normalize,
+        ])
 
 
-full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
-                                     Dataset.data_transforms['train'])
-
-if RunningParams.XAI_method == RunningParams.NNs:
-    image_datasets = dict()
-    image_datasets['train'] = ImageFolderForNNs(train_dataset, Dataset.data_transforms['train'])
-    image_datasets['val'] = ImageFolderForNNs(val_dataset, Dataset.data_transforms['val'])
-else:
-    pass
-    # Not implemented
-
+image_datasets = dict()
+image_datasets['train'] = ImageFolderForNNs(train_dataset, data_transform)
+image_datasets['val'] = ImageFolderForNNs(val_dataset, data_transform)
 
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 
@@ -103,6 +83,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
         for phase in ['train', 'val']:
             if phase == 'train':
                 shuffle = True
+                drop_last = True
                 model.train()  # Training mode
 
                 for param in model.module.conv_layers.parameters():
@@ -126,6 +107,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             else:
                 shuffle = False
                 model.eval()  # Evaluation mode
+                drop_last = False
 
             data_loader = torch.utils.data.DataLoader(
                 image_datasets[phase],
@@ -133,6 +115,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 shuffle=shuffle,  # turn shuffle to True
                 num_workers=16,
                 pin_memory=True,
+                drop_last=drop_last
             )
 
             running_loss = 0.0
@@ -146,12 +129,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     x = data[0].cuda()
                 else:
                     x = data.cuda()
-                if len(data_loader.dataset.classes) < 200:
-                    for sample_idx in range(x.shape[0]):
-                        tgt = gt[sample_idx].item()
-                        class_name = data_loader.dataset.classes[tgt]
-                        id = full_cub_dataset.class_to_idx[class_name]
-                        gt[sample_idx] = id
 
                 gts = gt.cuda()
 
@@ -163,7 +140,20 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 predicted_ids = index.squeeze()
 
                 # MODEL1 Y/N label for input x
-                model2_gt = (predicted_ids == gts) * 1  # 0 and 1
+                if RunningParams.IMAGENET_REAL and phase == 'val' and RunningParams.IMAGENET_TRAINING:
+                    model2_gt = torch.zeros([x.shape[0]], dtype=torch.int64).cuda()
+                    for sample_idx in range(x.shape[0]):
+                        query = pths[sample_idx]
+                        base_name = os.path.basename(query)
+                        real_ids = Dataset.real_labels[base_name]
+                        if predicted_ids[sample_idx].item() in real_ids:
+                            model2_gt[sample_idx] = 1
+                        else:
+                            model2_gt[sample_idx] = 0
+
+                else:
+                    model2_gt = (predicted_ids == gts) * 1  # 0 and 1
+
                 labels = model2_gt
 
                 if phase == 'train':
@@ -176,7 +166,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 elif RunningParams.XAI_method == RunningParams.NNs:
                     if RunningParams.PRECOMPUTED_NN is True:
                         explanation = data[1]
-
                         explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
                 # zero the parameter gradients
@@ -186,6 +175,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     if RunningParams.XAI_method == RunningParams.NO_XAI:
                         output, _, _ = model(images=x, explanations=None, scores=model1_p)
                     else:
+                        # output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
                         if phase == 'train':
                             output, query, nns, emb_cos_sim = model(images=data[-1], explanations=explanation, scores=score)
                         else:
@@ -195,7 +185,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                     # classify inputs as 0 or 1 based on the threshold of 0.5
                     preds = (p >= 0.5).long().squeeze()
-
                     loss = loss_func(output.squeeze(), labels.float())
 
                     # backward + optimize only if in training phase
@@ -219,18 +208,15 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 scheduler.step()
 
             wandb.log({'{}_accuracy'.format(phase): epoch_acc * 100, '{}_loss'.format(phase): epoch_loss})
-
             print('{} - {} - Loss: {:.4f} - Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
-                wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, yes_ratio.item() * 100, true_ratio.item() * 100))
-
+                wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, yes_ratio.item() * 100,
+                                                   true_ratio.item() * 100))
             # deep copy the model
             if phase == 'val' and epoch_acc >= best_acc:
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
-
                 ckpt_path = '/home/giang/Downloads/advising_network/best_models/best_model_{}.pt' \
                     .format(wandb.run.name)
-
                 torch.save({
                     'epoch': epoch + 1,
                     'model_state_dict': best_model_wts,
@@ -240,7 +226,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     'val_yes_ratio': yes_ratio * 100,
                     'running_params': RunningParams,
                 }, ckpt_path)
-
         print()
 
     time_elapsed = time.time() - since
@@ -251,15 +236,14 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     model.load_state_dict(best_model_wts)
     return model, best_acc
 
+
 MODEL2 = Transformer_AdvisingNetwork()
 
 MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
-if RunningParams.UNBALANCED_TRAINING is True:
-    # pos_weight = torch.tensor([4.0])  # the cost of misclassifying a positive sample
-    # criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).cuda()
-    criterion = nn.BCEWithLogitsLoss().cuda()
+
+criterion = nn.BCEWithLogitsLoss().cuda()
 
 # Observe all parameters that are being optimized
 optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)
@@ -283,26 +267,22 @@ config = {"train": train_dataset,
           'USING_SOFTMAX': RunningParams.USING_SOFTMAX,
           'dropout_rate': RunningParams.dropout,
           'TOP1_NN': RunningParams.TOP1_NN,
-          'MODEL2_FINETUNING': RunningParams.MODEL2_FINETUNING,
-          'HIGHPERFORMANCE_FEATURE_EXTRACTOR': RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR,
-          'HIGHPERFORMANCE_MODEL1': RunningParams.HIGHPERFORMANCE_MODEL1,
           'CONTINUE_TRAINING': RunningParams.CONTINUE_TRAINING,
-          'BOTTLENECK': RunningParams.BOTTLENECK,
-          'EXP_TOKEN': RunningParams.EXP_TOKEN,
           }
 
 print(config)
 wandb.init(
     project="advising-network",
     entity="luulinh90s",
-    config=config
+    config=config,
 )
 
 wandb.save(os.path.basename(__file__), policy='now')
 wandb.save('params.py', policy='now')
 wandb.save('datasets.py', policy='now')
-wandb.save('cub_model_training.py', policy='now')
+wandb.save('model_training.py', policy='now')
 wandb.save('transformer.py', policy='now')
+
 
 _, best_acc = train_model(
     MODEL2,
@@ -310,5 +290,6 @@ _, best_acc = train_model(
     optimizer_ft,
     oneLR_scheduler,
     config["num_epochs"])
+
 
 wandb.finish()

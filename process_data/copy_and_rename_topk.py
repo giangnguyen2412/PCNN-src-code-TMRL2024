@@ -1,11 +1,11 @@
 import numpy as np
 
 # Set the paths and filenames
-folder_path = "/home/giang/Downloads/datasets/CUB_train_all_NTSNet"
-dict_path = "../faiss/cub/NTSNet_5_1_CUB_train_all.npy"
+# folder_path = "/home/giang/Downloads/datasets/CUB/advnet/CUB_train_all_NTSNet"
+# dict_path = "/home/giang/Downloads/advising_network/faiss/cub/NTSNet_10_1_train.npy"
 
-# folder_path = "/home/giang/Downloads/datasets/Dogs_train_top4"
-# dict_path = "../faiss/dogs/faiss_SDogs_train_RN34_top1.npy"
+folder_path = "/home/giang/Downloads/Cars/Stanford-Cars-dataset/train_top10_k3"
+dict_path = "/home/giang/Downloads/advising_network/faiss/cars/top10_k3_enriched_NeurIPS_Finetuning_faiss_train_top1.npy"
 
 
 # Load the dictionary
@@ -22,7 +22,7 @@ for root, dirs, files in os.walk(folder_path):
         # if file.lower().endswith(".jpeg"):
             file_path = os.path.join(root, file)
 
-            for i in range(5):
+            for i in range(10):
                 if i == 0:
                     for j in range(5):  # Make up 5 NN sets from top-1 predictions
                         crt_file = 'Correct_{}_{}_'.format(i, j) + file

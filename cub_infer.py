@@ -28,7 +28,7 @@ ModelExplainer = ModelExplainer()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2"
 
 import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
@@ -89,7 +89,8 @@ if __name__ == '__main__':
     parser.add_argument('--ckpt', type=str,
                         # default='best_model_divine-snowflake-2832.pt',
                         # default='best_model_driven-morning-2993.pt',
-                        default='best_model_atomic-microwave-2996.pt',
+                        # default='best_model_atomic-microwave-2996.pt',
+                        default='best_model_lilac-thunder-3015.pt',
                         help='Model check point')
 
     args = parser.parse_args()
@@ -117,8 +118,8 @@ if __name__ == '__main__':
     print(RunningParams.__dict__)
 
     model.eval()
-    test_dir = '/home/giang/Downloads/datasets/CUB_val'  ##################################
-    # test_dir = '/home/giang/Downloads/datasets/CUB_test'  ##################################
+    # test_dir = '/home/giang/Downloads/datasets/CUB/advnet/val'  ##################################
+    test_dir = '/home/giang/Downloads/datasets/CUB/advnet/test'  ##################################
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'])
@@ -134,8 +135,6 @@ if __name__ == '__main__':
         resnet.load_state_dict(my_model_state_dict, strict=True)
         MODEL1 = resnet.cuda()
         MODEL1.eval()
-        fc = list(MODEL1.children())[-1].cuda()
-        fc = nn.DataParallel(fc)
 
         categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_HIGH/combined'
     else:
@@ -147,9 +146,6 @@ if __name__ == '__main__':
         inat_resnet.load_state_dict(my_model_state_dict, strict=True)
         MODEL1 = inat_resnet
         MODEL1.eval()
-
-        fc = MODEL1.fc.cuda()
-        fc = nn.DataParallel(fc)
 
         categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_LOW/combined'
 
@@ -179,7 +175,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=RunningParams.batch_size,
+            batch_size=16,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -236,16 +232,15 @@ if __name__ == '__main__':
                     gt[sample_idx] = id
 
             gts = gt.cuda()
-
+            import pdb
             # Step 1: Forward pass input x through MODEL1 - Explainer
             embeddings = feature_extractor(x).flatten(start_dim=1)  # 512x1 for RN 18
-            out = fc(embeddings)
             out = MODEL1(x)
             model1_p = torch.nn.functional.softmax(out, dim=1)
             model1_score, index = torch.topk(model1_p, 1, dim=1)
             _, model1_ranks = torch.topk(model1_p, 200, dim=1)
             predicted_ids = index.squeeze()
-
+            # pdb.set_trace()
             # MODEL1 Y/N label for input x
             for sample_idx in range(x.shape[0]):
                 query = pths[sample_idx]
@@ -256,13 +251,17 @@ if __name__ == '__main__':
                     category_record[key]['total'] += 1
 
             model2_gt = (predicted_ids == gts) * 1  # 0 and 1
-
             labels = model2_gt
+
+            # print(labels.shape)
+
             # Get the idx of wrong predictions
             idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
 
             if 'train' in test_dir:
                 labels = data[2].cuda()
+
+            # print(labels.shape)
 
             # Generate explanations
             if RunningParams.XAI_method == RunningParams.GradCAM:

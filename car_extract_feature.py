@@ -1,10 +1,17 @@
 import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.optim import lr_scheduler
 import torch.backends.cudnn as cudnn
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 import os
+import copy
+import wandb
+import random
+import pdb
 import faiss
-from PIL import Image
 
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
@@ -21,42 +28,41 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-import os
-import torch.utils.data
-from torch.nn import DataParallel
-from core import model, dataset
-from torch import nn
-from tqdm import tqdm
-net = model.attention_net(topN=6)
-ckpt = torch.load('/home/giang/Downloads/NTS-Net/model.ckpt')
+import torchvision
+normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+model = torchvision.models.resnet18(pretrained=True).cuda()
+model.fc = nn.Linear(model.fc.in_features, 196)
 
-net.load_state_dict(ckpt['net_state_dict'])
+my_model_state_dict = torch.load(
+    '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best.pth.tar')
+model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
+model.eval()
 
-net.eval()
-net = net.cuda()
-net = DataParallel(net)
-MODEL1 = net
-MODEL1.eval()
+MODEL1 = model.cuda()
 
-attention_net = list(MODEL1.children())
-components = list(attention_net[0].children())
-resnet = components[0]
-feature_extractor = nn.Sequential(*list(resnet.children())[:-1])  # avgpool feature
+feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
 feature_extractor.cuda()
 feature_extractor = nn.DataParallel(feature_extractor)
 
-in_features = 2048
+in_features = 512
 print("Building FAISS index...! Training set is the knowledge base.")
 
-data_transforms = transforms.Compose([
-    transforms.Resize((600, 600), interpolation=Image.BILINEAR),
-    transforms.CenterCrop((448, 448)),
-    transforms.ToTensor(),
-    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-])
+# train_transform = transforms.Compose([
+#             transforms.RandomResizedCrop(224),
+#             transforms.RandomHorizontalFlip(),
+#             transforms.ToTensor(),
+#             normalize,
+#         ])
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB/advnet/train',
-                                     transform=data_transforms)
+train_transform = transforms.Compose([transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            normalize,
+        ])
+
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/Cars/Stanford-Cars-dataset/train',
+                                     transform=train_transform)
 
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
@@ -67,7 +73,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-INDEX_FILE = 'faiss/cub/NTS-NET.npy'
+INDEX_FILE = 'faiss/cars/NeurIPS22_faiss_Car196_class_idx_dict.npy'
 print(INDEX_FILE)
 
 if os.path.exists(INDEX_FILE):
@@ -112,32 +118,38 @@ else:
         faiss_loader_dict[class_id] = class_id_loader
     np.save(INDEX_FILE, faiss_nns_class_dict)
 
-
-net = model.attention_net(topN=6)
-ckpt = torch.load('/home/giang/Downloads/NTS-Net/model.ckpt')
-
-net.load_state_dict(ckpt['net_state_dict'])
-
-net.eval()
-net = net.cuda()
-net = DataParallel(net)
-MODEL1 = net
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-set = 'test'
-data_dir = '/home/giang/Downloads/datasets/CUB/advnet/{}'.format(set)
+set = 'train'
+data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/{}'.format(set)
+
+if set == 'train':
+    data_transform = train_transform
+elif set == 'test':
+    val_transform = transforms.Compose([transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            normalize,
+        ])
+    data_transform = val_transform
+else:
+    exit(-1)
 
 image_datasets = dict()
-image_datasets['train'] = ImageFolderWithPaths(data_dir, data_transforms)
+image_datasets['train'] = ImageFolderWithPaths(data_dir, data_transform)
 train_loader = torch.utils.data.DataLoader(
     image_datasets['train'],
-    batch_size=16,
+    batch_size=128,
     shuffle=False,  # Don't turn shuffle to False --> model works wrongly
     num_workers=16,
     pin_memory=True,
 )
 
-depth_of_pred = 1
+depth_of_pred = 10
+
+if set == 'test':
+    depth_of_pred = 1
+
 correct_cnt = 0
 total_cnt = 0
 
@@ -145,7 +157,7 @@ MODEL1.eval()
 
 faiss_nn_dict = dict()
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
-    if len(train_loader.dataset.classes) < 200:
+    if len(train_loader.dataset.classes) < 196:
         for sample_idx in range(data.shape[0]):
             tgt = label[sample_idx].item()
             class_name = train_loader.dataset.classes[tgt]
@@ -156,12 +168,13 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
     embeddings = torch.flatten(embeddings, start_dim=1)
     embeddings = embeddings.cpu().detach().numpy()
 
-    _, out, _, _, _ = MODEL1(data.cuda())
+    out = MODEL1(data.cuda())
     model1_p = torch.nn.functional.softmax(out, dim=1)
     score, index = torch.topk(model1_p, depth_of_pred, dim=1)
     for sample_idx in range(data.shape[0]):
         base_name = os.path.basename(paths[sample_idx])
         gt_id = label[sample_idx]
+
 
         for i in range(depth_of_pred):
             # Get the top-k predicted label
@@ -184,7 +197,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                 if i == 0:  # top-1 predictions --> Enrich top-1 prediction samples
                     _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), faiss_index.ntotal)
 
-                    for j in range(depth_of_pred):  # Make up x NN sets from top-1 predictions
+                    for j in range(5):  # Make up x NN sets from top-1 predictions
                         nn_list = list()
 
                         if predicted_idx == gt_id:
@@ -223,6 +236,9 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                     faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
                     faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
 
-# print("Top-1 Accuracy: {}".format(correct_cnt * 100 / total_cnt))
-np.save('faiss/cub/NTSNet_{}_{}_{}.npy'.format(depth_of_pred, RunningParams.k_value, set),
+
+print(len(faiss_nn_dict))
+np.save('faiss/cars/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1.npy'.format(depth_of_pred, RunningParams.k_value, set),
         faiss_nn_dict)
+
+

@@ -65,48 +65,48 @@ if RunningParams.CUB_TRAINING is True:
         def __init__(self):
             print("Using training network for Birds")
             super(Transformer_AdvisingNetwork, self).__init__()
+            import torch
+            if RunningParams.CUB_TRAINING is True:
+                from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+                resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+                my_model_state_dict = torch.load(
+                    'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+                resnet.load_state_dict(my_model_state_dict, strict=True)
+            elif RunningParams.DOGS_TRAINING is True:
+                resnet = torchvision.models.resnet50(pretrained=True).cuda()
 
-            # if RunningParams.CUB_TRAINING is True:
-            #     from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
-            #     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-            #     my_model_state_dict = torch.load(
-            #         'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
-            #     resnet.load_state_dict(my_model_state_dict, strict=True)
-            # elif RunningParams.DOGS_TRAINING is True:
-            #     resnet = torchvision.models.resnet50(pretrained=True).cuda()
-            #
-            #     if RunningParams.SIMCLR_MODEL is True:
-            #         from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
-            #         resnet = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
-            #
-            # if RunningParams.query_frozen is True:
-            #     for param in resnet.parameters():
-            #         param.requires_grad = False
-            # conv_features = list(resnet.children())[:RunningParams.conv_layer-6]  # delete the last fc layer
-            # self.conv_layers = nn.Sequential(*conv_features)
-
-            ################################################################
-
-            import torch.utils.data
-            from torch.nn import DataParallel
-            from core import model, dataset
-            net = model.attention_net(topN=6)
-            ckpt = torch.load('/home/giang/Downloads/NTS-Net/model.ckpt')
-
-            net.load_state_dict(ckpt['net_state_dict'])
-
-            net = net.cuda()
+                if RunningParams.SIMCLR_MODEL is True:
+                    from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
+                    resnet = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
 
             if RunningParams.query_frozen is True:
-                for param in net.parameters():
+                for param in resnet.parameters():
                     param.requires_grad = False
-
-            attention_net = list(net.children())
-            components = list(attention_net[0].children())
-
-            self.conv_layers = nn.Sequential(*list(components)[:-1])  # avgpool feature
+            conv_features = list(resnet.children())[:RunningParams.conv_layer-6]  # delete the last fc layer
+            self.conv_layers = nn.Sequential(*conv_features)
 
             ################################################################
+
+            # import torch.utils.data
+            # from core import model, dataset
+            # net = model.attention_net(topN=6)
+            # ckpt = torch.load('/home/giang/Downloads/NTS-Net/model.ckpt')
+            #
+            # net.load_state_dict(ckpt['net_state_dict'])
+            #
+            # net = net.cuda()
+            #
+            # if RunningParams.query_frozen is True:
+            #     for param in net.parameters():
+            #         param.requires_grad = False
+            #
+            # attention_net = list(net.children())
+            # components = list(attention_net[0].children())
+            #
+            # self.conv_layers = nn.Sequential(*list(components)[:-2])  # avgpool feature
+
+            ################################################################
+
             if RunningParams.BOTTLENECK is True:
                 self.bottleneck = nn.Conv2d(2048, 512, kernel_size=1)
 
@@ -302,16 +302,27 @@ elif RunningParams.DOGS_TRAINING is True:
             print("Using training network for Dogs")
             super(Transformer_AdvisingNetwork, self).__init__()
             if RunningParams.DOGS_TRAINING is True:
-                resnet = torchvision.models.resnet34(pretrained=True).cuda()
+                # resnet = torchvision.models.resnet34(pretrained=True).cuda()
+                #
+                # if RunningParams.SIMCLR_MODEL is True:
+                #     from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
+                #     resnet = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
+                #
+                # if RunningParams.query_frozen is True:
+                #     for param in resnet.parameters():
+                #         param.requires_grad = False
+                # conv_features = list(resnet.children())[:RunningParams.conv_layer - 6]  # delete the last fc layer
+                # self.conv_layers = nn.Sequential(*conv_features)
 
-                if RunningParams.SIMCLR_MODEL is True:
-                    from modelvshuman.models.pytorch.simclr import simclr_resnet50x1
-                    resnet = simclr_resnet50x1(pretrained=True, use_data_parallel=False)
+                import torchvision
+                model = torchvision.models.resnet18(pretrained=True).cuda()
+                model.fc = nn.Linear(model.fc.in_features, 196)
 
-                if RunningParams.query_frozen is True:
-                    for param in resnet.parameters():
-                        param.requires_grad = False
-                conv_features = list(resnet.children())[:RunningParams.conv_layer - 6]  # delete the last fc layer
+                my_model_state_dict = torch.load(
+                    '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best.pth.tar')
+                model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
+
+                conv_features = list(model.children())[:RunningParams.conv_layer - 6]  # delete the last fc layer
                 self.conv_layers = nn.Sequential(*conv_features)
 
                 if RunningParams.BOTTLENECK is True:
@@ -344,9 +355,9 @@ elif RunningParams.DOGS_TRAINING is True:
                     RunningParams.conv_layer_size[RunningParams.conv_layer])
 
                 feat_dim = RunningParams.conv_layer_size[RunningParams.conv_layer]
-                self.transformer = Transformer(dim=feat_dim, depth=2, heads=8, dim_head=64, mlp_dim=512,
+                self.transformer = Transformer(dim=feat_dim, depth=4, heads=8, dim_head=64, mlp_dim=512,
                                                dropout=0.0)
-                self.cross_transformer = CrossTransformer(sm_dim=feat_dim, lg_dim=feat_dim, depth=2, heads=2,
+                self.cross_transformer = CrossTransformer(sm_dim=feat_dim, lg_dim=feat_dim, depth=4, heads=8,
                                                           dim_head=64, dropout=0.0)
 
                 self.branch3 = BinaryMLP(
@@ -355,7 +366,7 @@ elif RunningParams.DOGS_TRAINING is True:
                 if RunningParams.k_value == 1:
                     self.agg_branch = nn.Linear(2, 1).cuda()
                 else:
-                    self.agg_branch = nn.Linear(6, 1).cuda()
+                    self.agg_branch = nn.Linear(RunningParams.k_value*2, 1).cuda()
 
                 # initialize all fc layers to xavier
                 for m in self.modules():

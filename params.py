@@ -11,12 +11,13 @@ class RunningParams(object):
         # self.conv_layer_size = {4: 512, 3: 256, 2: 128, 1: 64}
         # if self.SIMCLR_MODEL is True:
         self.conv_layer_size = {4: 2048, 3: 1024, 2: 512, 1: 256}
-        # self.feat_map_size = {4: 49, 3: 196, 2: 784}
-        self.feat_map_size = {4: 196, 3: 196, 2: 784}
+        self.conv_layer_size = {4: 512}
+        self.feat_map_size = {4: 49, 3: 196, 2: 784}
+        # self.feat_map_size = {4: 196, 3: 196, 2: 784}
         self.CONTINUE_TRAINING = False
         self.TOP1_NN = True  # ----------------------------------------- IMPORTANT PARAM --------
-        self.CUB_TRAINING = True  # ----------------------------------------- IMPORTANT PARAM --------
-        self.DOGS_TRAINING = False
+        self.CUB_TRAINING = False  # ----------------------------------------- IMPORTANT PARAM --------
+        self.DOGS_TRAINING = True
         self.IMAGENET_TRAINING = False
 
         if self.DOGS_TRAINING is True:
@@ -42,19 +43,19 @@ class RunningParams(object):
             self.CUB_200WAY = False
 
             if self.CUB_200WAY is True:
-                self.batch_size = 64  # ----------------------------------------- IMPORTANT PARAM --------
+                self.batch_size = 96  # ----------------------------------------- IMPORTANT PARAM --------
                 self.epochs = 50
             else:
                 self.batch_size = 100
                 self.epochs = 300
 
         elif self.DOGS_TRAINING:
-            self.batch_size = 8  # ----------------------------------------- IMPORTANT PARAM --------
+            self.batch_size = 256  # ----------------------------------------- IMPORTANT PARAM --------
             self.epochs = 100
 
             self.WEIGHTED_LOSS_DOGS = True
 
-        self.learning_rate = 1e-3
+        self.learning_rate = 1e-2
         self.query_frozen = True  # False = Trainable; True = Freeze? -------------------- IMPORTANT PARAM --------
         self.heatmap_frozen = False  # freeze?
         self.nns_frozen = False  # freeze?
@@ -65,7 +66,7 @@ class RunningParams(object):
             self.HIGHPERFORMANCE_MODEL1 = True
             self.CONTINUE_TRAINING = True
 
-            self.batch_size = 96
+            self.batch_size = 64
             self.epochs = 100
             self.learning_rate = 1e-3
 
