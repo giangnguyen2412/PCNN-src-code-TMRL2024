@@ -12,28 +12,17 @@ RunningParams = RunningParams()
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 torch.manual_seed(42)
 
-from torchvision import datasets, models, transforms
-
-normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-data_transform = transforms.Compose([transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            normalize,
-        ])
-full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/Cars/Stanford-Cars-dataset/train',
-                                     data_transform)
+full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
+                                     Dataset.data_transforms['train'])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        # default='best_model_glorious-frost-3028.pt',
-                        # default='best_model_neat-eon-3124.pt',
-                        default='best_model_happy-waterfall-3129.pt',
+                        default='best_model_genial-plasma-3125.pt',
                         help='Model check point')
 
     args = parser.parse_args()
@@ -51,14 +40,16 @@ if __name__ == '__main__':
     epoch = checkpoint['epoch']
     loss = checkpoint['val_loss']
     acc = checkpoint['val_acc']
+
     f1 = checkpoint['best_f1']
+    print(epoch)
 
     print('Validation accuracy: {:.4f}'.format(acc))
     print('F1 score: {:.4f}'.format(f1))
 
     model.eval()
 
-    test_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'  ##################################
+    test_dir = '/home/giang/Downloads/datasets/CUB/advnet/test'  ##################################
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])
@@ -67,7 +58,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=16,
+            batch_size=5,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -88,7 +79,7 @@ if __name__ == '__main__':
             x = data[0].cuda()
             labels = data[-1].cuda()
 
-            if len(data_loader.dataset.classes) < 120:
+            if len(data_loader.dataset.classes) < 200:
                 for sample_idx in range(x.shape[0]):
                     tgt = gt[sample_idx].item()
                     class_name = data_loader.dataset.classes[tgt]
@@ -104,7 +95,6 @@ if __name__ == '__main__':
                 explanation = data[1][:, class_idx, :, :, :, :]
                 explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
-                # print(explanation.shape)
                 output, _, _, _ = model(images=x, explanations=explanation, scores=model1_score)
                 output = output.squeeze()
                 output_tensors.append(output)

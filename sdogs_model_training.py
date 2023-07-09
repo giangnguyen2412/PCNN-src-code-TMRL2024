@@ -12,13 +12,13 @@ import wandb
 import statistics
 import pdb
 import random
-
+from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
 
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
 from transformer import *
 from params import RunningParams
-from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
+from datasets import Dataset, StanfordDogsDataset, ImageFolderForNNs
 from helpers import HelperFunctions
 from explainers import ModelExplainer
 
@@ -32,48 +32,64 @@ RunningParams = RunningParams()
 Dataset = Dataset()
 Explainer = ModelExplainer()
 
-assert (RunningParams.CUB_TRAINING is False)
+import torchvision.transforms as T
+import math
 
-if [RunningParams.IMAGENET_TRAINING, RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING].count(True) > 1:
-    print("There are more than one training datasets chosen, skipping training!!!")
-    exit(-1)
+def preprocess(image):
+    width, height = image.size
+    if width > height and width > 512:
+        height = math.floor(512 * height / width)
+        width = 512
+    elif width < height and height > 512:
+        width = math.floor(512 * width / height)
+        height = 512
+    pad_values = (
+        (512 - width) // 2 + (0 if width % 2 == 0 else 1),
+        (512 - height) // 2 + (0 if height % 2 == 0 else 1),
+        (512 - width) // 2,
+        (512 - height) // 2,
+    )
+    return T.Compose([
+        T.Resize((height, width)),
+        T.Pad(pad_values),
+        T.ToTensor(),
+        T.Lambda(lambda x: x[:3]),  # Remove the alpha channel if it's there
+    ])(image)
+
+model = models.resnet34(pretrained=True)
+
+# Parameters of newly constructed modules have requires_grad=True by default
+num_ftrs = model.fc.in_features
+model.fc = nn.Linear(num_ftrs, 120)
+
+from collections import OrderedDict
+new_ckpt = OrderedDict()
+ckpt = torch.load('/home/giang/Downloads/advising_network/stanford-dogs/HAL9002_RN34.pt')
+print(ckpt['val_acc']/100)
+
+for k, v in ckpt['model_state_dict'].items():
+    new_k = k.replace('module.', '')
+    new_ckpt[new_k] = v
+
+model.load_state_dict(new_ckpt)
+
+MODEL1 = model.cuda()
+MODEL1.eval()
+MODEL1 = nn.DataParallel(MODEL1)
 
 
-action = RunningParams.action
-if RunningParams.USING_CLASS_EMBEDDING is True:
-    learnable = RunningParams.optim
+train_dataset = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/train_top10'
+val_dataset = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/validation_top2'
 
-commit = "Run k={} Dogs advising network with pretrained model RN50 bs{}. {} class embeddings.".format(
-    RunningParams.k_value, RunningParams.batch_size, action
-)
+data_transform = preprocess
 
-print(commit)
-if len(commit) == 0:
-    print("Please commit before running!")
-    exit(-1)
-
-
-if RunningParams.DOGS_TRAINING is True:
-    MODEL1 = models.resnet34(pretrained=True).eval().cuda()
-else:
-    MODEL1 = models.resnet18(pretrained=True).eval().cuda()
-
-fc = MODEL1.fc
-fc = fc.cuda()
-
-train_dataset = '/home/giang/Downloads/datasets/balanced_train_dataset_180k'
-val_dataset = '/home/giang/Downloads/datasets/balanced_val_dataset_6k'
-
-TRAIN_DOG = RunningParams.DOGS_TRAINING
-if TRAIN_DOG is True:
-    train_dataset = '/home/giang/Downloads/RN34_SDogs_train_top5_{}NNs'.format(RunningParams.k_value)
-    val_dataset = '/home/giang/Downloads/RN34_SDogs_val'
-
-imagenet_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/imagenet1k-val', Dataset.data_transforms['train'])
+# Because it has a unique type of mapping the labels, we need reference_dataset to convert the predicted ids (StanfordDogsDataset) to ImageFolder ids
+reference_dataset = StanfordDogsDataset(
+    root=os.path.join('/home/giang/Downloads/advising_network/stanford-dogs', "data"), set_type="train", transform=preprocess)
 
 image_datasets = dict()
-image_datasets['train'] = ImageFolderForNNs(train_dataset, Dataset.data_transforms['train'])
-image_datasets['val'] = ImageFolderForNNs(val_dataset, Dataset.data_transforms['val'])
+image_datasets['train'] = ImageFolderForNNs(train_dataset, data_transform)
+image_datasets['val'] = ImageFolderForNNs(val_dataset, data_transform)
 
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 
@@ -88,6 +104,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
     best_loss = float('inf')
+    best_f1 = 0.0
 
     for epoch in range(num_epochs):
         print(f'Epoch {epoch + 1}/{num_epochs}')
@@ -120,8 +137,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
             else:
                 shuffle = False
-                model.eval()  # Evaluation mode
                 drop_last = False
+                model.eval()  # Evaluation mode
 
             data_loader = torch.utils.data.DataLoader(
                 image_datasets[phase],
@@ -138,44 +155,36 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             yes_cnt = 0
             true_cnt = 0
 
+            if phase == 'val':
+                labels_val = []
+                preds_val = []
+
             for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
                 if RunningParams.XAI_method == RunningParams.NNs:
                     x = data[0].cuda()
                 else:
                     x = data.cuda()
 
-                if TRAIN_DOG is True:
-                    for sample_idx in range(x.shape[0]):
-                        wnid = data_loader.dataset.classes[gt[sample_idx]]
-                        gt[sample_idx] = imagenet_dataset.class_to_idx[wnid]
-
                 gts = gt.cuda()
 
-                embeddings = feature_extractor(x).flatten(start_dim=1)  # 512x1 for RN 18
-
-                out = fc(embeddings)
+                out = MODEL1(x)
                 model1_p = torch.nn.functional.softmax(out, dim=1)
                 score, index = torch.topk(model1_p, 1, dim=1)
                 predicted_ids = index.squeeze()
 
                 # MODEL1 Y/N label for input x
-                if RunningParams.IMAGENET_REAL and phase == 'val' and RunningParams.IMAGENET_TRAINING:
-                    model2_gt = torch.zeros([x.shape[0]], dtype=torch.int64).cuda()
-                    for sample_idx in range(x.shape[0]):
-                        query = pths[sample_idx]
-                        base_name = os.path.basename(query)
-                        real_ids = Dataset.real_labels[base_name]
-                        if predicted_ids[sample_idx].item() in real_ids:
-                            model2_gt[sample_idx] = 1
-                        else:
-                            model2_gt[sample_idx] = 0
+                ########################################################################
+                for sample_idx in range(x.shape[0]):
+                    predicted_idx = predicted_ids[sample_idx]
+                    dog_name = reference_dataset.mapping[predicted_idx.item()]
+                    predicted_ids[sample_idx] = data_loader.dataset.class_to_idx[dog_name]
+                ########################################################################
 
-                else:
-                    model2_gt = (predicted_ids == gts) * 1  # 0 and 1
+                model2_gt = (predicted_ids == gts) * 1  # 0 and 1
 
                 labels = model2_gt
 
-                if phase == 'train':
+                if phase == 'train' or phase == 'val':
                     labels = data[2].cuda()
 
                 #####################################################
@@ -194,11 +203,10 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     if RunningParams.XAI_method == RunningParams.NO_XAI:
                         output, _, _ = model(images=x, explanations=None, scores=model1_p)
                     else:
-                        output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
-                        # if phase == 'train':
-                        #     output, query, nns, emb_cos_sim = model(images=data[-1], explanations=explanation, scores=score)
-                        # else:
-                        #     output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
+                        if phase == 'train':
+                            output, query, nns, emb_cos_sim = model(images=data[-1], explanations=explanation, scores=score)
+                        else:
+                            output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
 
                     p = torch.sigmoid(output)
 
@@ -210,6 +218,10 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     if phase == 'train':
                         loss.backward()
                         optimizer.step()
+
+                if phase == 'val':
+                    preds_val.append(preds)
+                    labels_val.append(labels)
 
                 # statistics
                 running_loss += loss.item() * x.size(0)
@@ -223,6 +235,28 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             yes_ratio = yes_cnt.double() / len(image_datasets[phase])
             true_ratio = true_cnt.double() / len(image_datasets[phase])
 
+            ################################################################
+
+            if phase == 'val':
+                # Calculate precision, recall, and F1 score
+                preds_val = torch.cat(preds_val, dim=0)
+                labels_val = torch.cat(labels_val, dim=0)
+
+                precision = precision_score(labels_val.cpu(), preds_val.cpu())
+                recall = recall_score(labels_val.cpu(), preds_val.cpu())
+                f1 = f1_score(labels_val.cpu(), preds_val.cpu())
+                confusion_matrix_ = confusion_matrix(labels_val.cpu(), preds_val.cpu())
+                print(confusion_matrix_)
+
+                wandb.log(
+                    {'{}_precision'.format(phase): precision, '{}_recall'.format(phase): recall,
+                     '{}_f1'.format(phase): f1})
+
+                print('{} - {} - Loss: {:.4f} - Acc: {:.2f} - Precision: {:.4f} - Recall: {:.4f} - F1: {:.4f}'.format(
+                    wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, precision, recall, f1))
+
+            ################################################################
+
             if phase == 'train':
                 scheduler.step()
 
@@ -231,7 +265,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, yes_ratio.item() * 100,
                                                    true_ratio.item() * 100))
             # deep copy the model
-            if phase == 'val' and epoch_loss <= best_loss:
+            if phase == 'val' and f1 >= best_f1:
+                best_f1 = f1
                 best_acc = epoch_acc
                 best_loss = epoch_loss
                 best_model_wts = copy.deepcopy(model.state_dict())
@@ -242,6 +277,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     'model_state_dict': best_model_wts,
                     'optimizer_state_dict': optimizer.state_dict(),
                     'val_loss': epoch_loss,
+                    'best_loss': best_loss,
+                    'best_f1': best_f1,
                     'val_acc': epoch_acc * 100,
                     'val_yes_ratio': yes_ratio * 100,
                     'running_params': RunningParams,
@@ -261,7 +298,6 @@ MODEL2 = Transformer_AdvisingNetwork()
 
 MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
-
 
 criterion = nn.BCEWithLogitsLoss().cuda()
 
@@ -291,7 +327,6 @@ wandb.init(
     project="advising-network",
     entity="luulinh90s",
     config=config,
-    notes=commit,
 )
 
 wandb.save(os.path.basename(__file__), policy='now')

@@ -22,12 +22,12 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
 
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-depth_of_pred = 1
+depth_of_pred = 10
 set = 'test'
 
 
@@ -68,7 +68,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-INDEX_FILE = 'faiss/cub/INDEX_file_adv_process_for_Cars.npy'
+INDEX_FILE = 'faiss/cars/INDEX_file_adv_process_for_Cars.npy'
 print(INDEX_FILE)
 
 if os.path.exists(INDEX_FILE):

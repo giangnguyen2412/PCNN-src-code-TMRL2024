@@ -12,7 +12,7 @@ import wandb
 import statistics
 import pdb
 import random
-
+from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
 
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
@@ -26,7 +26,7 @@ from explainers import ModelExplainer
 # plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -49,7 +49,7 @@ fc = MODEL1.fc
 fc = fc.cuda()
 
 train_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/train_top10'
-val_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
+val_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/val_top2'
 
 data_transform = transforms.Compose([transforms.Resize(256),
             transforms.CenterCrop(224),
@@ -74,6 +74,9 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
+    best_loss = float('inf')
+    best_f1 = 0.0
+
 
     for epoch in range(num_epochs):
         print(f'Epoch {epoch + 1}/{num_epochs}')
@@ -106,8 +109,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
             else:
                 shuffle = False
-                model.eval()  # Evaluation mode
                 drop_last = False
+                model.eval()  # Evaluation mode
 
             data_loader = torch.utils.data.DataLoader(
                 image_datasets[phase],
@@ -123,6 +126,10 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
             yes_cnt = 0
             true_cnt = 0
+
+            if phase == 'val':
+                labels_val = []
+                preds_val = []
 
             for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
                 if RunningParams.XAI_method == RunningParams.NNs:
@@ -156,7 +163,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                 labels = model2_gt
 
-                if phase == 'train':
+                if phase == 'train' or phase =='val':
                     labels = data[2].cuda()
 
                 #####################################################
@@ -175,7 +182,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     if RunningParams.XAI_method == RunningParams.NO_XAI:
                         output, _, _ = model(images=x, explanations=None, scores=model1_p)
                     else:
-                        # output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
                         if phase == 'train':
                             output, query, nns, emb_cos_sim = model(images=data[-1], explanations=explanation, scores=score)
                         else:
@@ -192,6 +198,10 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                         loss.backward()
                         optimizer.step()
 
+                if phase == 'val':
+                    preds_val.append(preds)
+                    labels_val.append(labels)
+
                 # statistics
                 running_loss += loss.item() * x.size(0)
                 running_corrects += torch.sum(preds == labels.data)
@@ -204,6 +214,28 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             yes_ratio = yes_cnt.double() / len(image_datasets[phase])
             true_ratio = true_cnt.double() / len(image_datasets[phase])
 
+            ################################################################
+
+            if phase == 'val':
+                # Calculate precision, recall, and F1 score
+                preds_val = torch.cat(preds_val, dim=0)
+                labels_val = torch.cat(labels_val, dim=0)
+
+                precision = precision_score(labels_val.cpu(), preds_val.cpu())
+                recall = recall_score(labels_val.cpu(), preds_val.cpu())
+                f1 = f1_score(labels_val.cpu(), preds_val.cpu())
+                confusion_matrix_ = confusion_matrix(labels_val.cpu(), preds_val.cpu())
+                print(confusion_matrix_)
+
+                wandb.log(
+                    {'{}_precision'.format(phase): precision, '{}_recall'.format(phase): recall,
+                     '{}_f1'.format(phase): f1})
+
+                print('{} - {} - Loss: {:.4f} - Acc: {:.2f} - Precision: {:.4f} - Recall: {:.4f} - F1: {:.4f}'.format(
+                    wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, precision, recall, f1))
+
+            ################################################################
+
             if phase == 'train':
                 scheduler.step()
 
@@ -212,8 +244,10 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, yes_ratio.item() * 100,
                                                    true_ratio.item() * 100))
             # deep copy the model
-            if phase == 'val' and epoch_acc >= best_acc:
+            if phase == 'val' and f1 >= best_f1:
+                best_f1 = f1
                 best_acc = epoch_acc
+                best_loss = epoch_loss
                 best_model_wts = copy.deepcopy(model.state_dict())
                 ckpt_path = '/home/giang/Downloads/advising_network/best_models/best_model_{}.pt' \
                     .format(wandb.run.name)
@@ -222,6 +256,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     'model_state_dict': best_model_wts,
                     'optimizer_state_dict': optimizer.state_dict(),
                     'val_loss': epoch_loss,
+                    'best_loss': best_loss,
+                    'best_f1': best_f1,
                     'val_acc': epoch_acc * 100,
                     'val_yes_ratio': yes_ratio * 100,
                     'running_params': RunningParams,
@@ -264,10 +300,6 @@ config = {"train": train_dataset,
           'explanation': RunningParams.XAI_method,
           'k_value': RunningParams.k_value,
           'conv_layer': RunningParams.conv_layer,
-          'USING_SOFTMAX': RunningParams.USING_SOFTMAX,
-          'dropout_rate': RunningParams.dropout,
-          'TOP1_NN': RunningParams.TOP1_NN,
-          'CONTINUE_TRAINING': RunningParams.CONTINUE_TRAINING,
           }
 
 print(config)

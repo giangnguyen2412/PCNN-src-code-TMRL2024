@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import ListedColormap
 from params import *
 from datasets import Dataset, ImageFolderWithPaths
+from torchvision import datasets, models, transforms
 
 RunningParams = RunningParams()
 HelperFunctions = HelperFunctions()

@@ -83,6 +83,8 @@ faiss_data_loader = torch.utils.data.DataLoader(
 if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
     INDEX_FILE = 'faiss/cub/NeurIPS22_faiss_CUB200_class_idx_dict_HP_extractor.npy'
     print(INDEX_FILE)
+else:
+    exit(-1)
 
 if os.path.exists(INDEX_FILE):
     print("FAISS class index exists!")
@@ -263,9 +265,6 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                     faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
 
 
-if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-    if HIGHPERFORMANCE_MODEL1 is True:
-        print("Here")
-        print(len(faiss_nn_dict))
-        np.save('faiss/cub/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1_HP_MODEL1_HP_FE.npy'.format(depth_of_pred, RunningParams.k_value, set),
-                faiss_nn_dict)
+print(len(faiss_nn_dict))
+np.save('faiss/cub/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1_HP_MODEL1_HP_FE.npy'.format(depth_of_pred, RunningParams.k_value, set),
+        faiss_nn_dict)

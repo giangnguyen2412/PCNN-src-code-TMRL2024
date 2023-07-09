@@ -13,6 +13,8 @@ import statistics
 import pdb
 import random
 import numpy as np
+from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
+
 
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
@@ -23,19 +25,17 @@ from helpers import HelperFunctions
 from explainers import ModelExplainer
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
 Explainer = ModelExplainer()
 
-assert (RunningParams.DOGS_TRAINING is False and RunningParams.IMAGENET_TRAINING is False)
-
 if [RunningParams.IMAGENET_TRAINING, RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING].count(True) > 1:
     print("There are more than one training datasets chosen, skipping training!!!")
     exit(-1)
 
-if RunningParams.MODEL2_FINETUNING is True or RunningParams.UNBALANCED_TRAINING:
+if RunningParams.UNBALANCED_TRAINING:
     from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
@@ -59,12 +59,10 @@ else:
     fc = MODEL1.fc
     fc = fc.cuda()
 
-if RunningParams.MODEL2_FINETUNING is True:
-    train_dataset = '/home/giang/Downloads/Final_RN50_dataset_CUB_HP/final_train_aug'
-    val_dataset = '/home/giang/Downloads/Final_RN50_dataset_CUB_HP/final_val'
-    if RunningParams.UNBALANCED_TRAINING is True:
-        train_dataset = '/home/giang/Downloads/datasets/CUB/advnet/train_all_top10'
-        val_dataset = '/home/giang/Downloads/datasets/CUB/advnet/val'
+
+if RunningParams.UNBALANCED_TRAINING is True:
+    train_dataset = '/home/giang/Downloads/datasets/CUB/advnet/train_all_top10'
+    val_dataset = '/home/giang/Downloads/datasets/CUB/advnet/val'
 else:
     train_dataset = '/home/giang/Downloads/datasets/CUB_pre_train'
     val_dataset = '/home/giang/Downloads/datasets/CUB_pre_val'
@@ -94,6 +92,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
+    best_loss = float('inf')
+    best_f1 = 0.0
 
     for epoch in range(num_epochs):
         print(f'Epoch {epoch + 1}/{num_epochs}')
@@ -104,6 +104,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             if phase == 'train':
                 shuffle = True
                 model.train()  # Training mode
+                drop_last = True
 
                 for param in model.module.conv_layers.parameters():
                     param.requires_grad_(True)
@@ -126,6 +127,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             else:
                 shuffle = False
                 model.eval()  # Evaluation mode
+                drop_last = False
 
             data_loader = torch.utils.data.DataLoader(
                 image_datasets[phase],
@@ -133,6 +135,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 shuffle=shuffle,  # turn shuffle to True
                 num_workers=16,
                 pin_memory=True,
+                drop_last=drop_last
             )
 
             running_loss = 0.0
@@ -140,6 +143,10 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
             yes_cnt = 0
             true_cnt = 0
+
+            if phase == 'val':
+                labels_val = []
+                preds_val = []
 
             for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
                 if RunningParams.XAI_method == RunningParams.NNs:
@@ -176,7 +183,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 elif RunningParams.XAI_method == RunningParams.NNs:
                     if RunningParams.PRECOMPUTED_NN is True:
                         explanation = data[1]
-
                         explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
                 # zero the parameter gradients
@@ -203,6 +209,10 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                         loss.backward()
                         optimizer.step()
 
+                if phase == 'val':
+                    preds_val.append(preds)
+                    labels_val.append(labels)
+
                 # statistics
                 running_loss += loss.item() * x.size(0)
                 running_corrects += torch.sum(preds == labels.data)
@@ -215,6 +225,27 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             yes_ratio = yes_cnt.double() / len(image_datasets[phase])
             true_ratio = true_cnt.double() / len(image_datasets[phase])
 
+            ################################################################
+
+            if phase == 'val':
+                # Calculate precision, recall, and F1 score
+                preds_val = torch.cat(preds_val, dim=0)
+                labels_val = torch.cat(labels_val, dim=0)
+
+                precision = precision_score(labels_val.cpu(), preds_val.cpu())
+                recall = recall_score(labels_val.cpu(), preds_val.cpu())
+                f1 = f1_score(labels_val.cpu(), preds_val.cpu())
+                confusion_matrix_ = confusion_matrix(labels_val.cpu(), preds_val.cpu())
+                print(confusion_matrix_)
+
+                wandb.log(
+                    {'{}_precision'.format(phase): precision, '{}_recall'.format(phase): recall, '{}_f1'.format(phase): f1})
+
+                print('{} - {} - Loss: {:.4f} - Acc: {:.2f} - Precision: {:.4f} - Recall: {:.4f} - F1: {:.4f}'.format(
+                    wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, precision, recall, f1))
+
+            ################################################################
+
             if phase == 'train':
                 scheduler.step()
 
@@ -224,8 +255,10 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, yes_ratio.item() * 100, true_ratio.item() * 100))
 
             # deep copy the model
-            if phase == 'val' and epoch_acc >= best_acc:
+            if phase == 'val' and f1 >= best_f1:
+                best_f1 = f1
                 best_acc = epoch_acc
+                best_loss = epoch_loss
                 best_model_wts = copy.deepcopy(model.state_dict())
 
                 ckpt_path = '/home/giang/Downloads/advising_network/best_models/best_model_{}.pt' \
@@ -236,6 +269,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     'model_state_dict': best_model_wts,
                     'optimizer_state_dict': optimizer.state_dict(),
                     'val_loss': epoch_loss,
+                    'best_loss': best_loss,
+                    'best_f1':best_f1,
                     'val_acc': epoch_acc * 100,
                     'val_yes_ratio': yes_ratio * 100,
                     'running_params': RunningParams,
@@ -257,8 +292,6 @@ MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
 if RunningParams.UNBALANCED_TRAINING is True:
-    # pos_weight = torch.tensor([4.0])  # the cost of misclassifying a positive sample
-    # criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight).cuda()
     criterion = nn.BCEWithLogitsLoss().cuda()
 
 # Observe all parameters that are being optimized
@@ -280,15 +313,9 @@ config = {"train": train_dataset,
           'explanation': RunningParams.XAI_method,
           'k_value': RunningParams.k_value,
           'conv_layer': RunningParams.conv_layer,
-          'USING_SOFTMAX': RunningParams.USING_SOFTMAX,
-          'dropout_rate': RunningParams.dropout,
-          'TOP1_NN': RunningParams.TOP1_NN,
-          'MODEL2_FINETUNING': RunningParams.MODEL2_FINETUNING,
           'HIGHPERFORMANCE_FEATURE_EXTRACTOR': RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR,
           'HIGHPERFORMANCE_MODEL1': RunningParams.HIGHPERFORMANCE_MODEL1,
-          'CONTINUE_TRAINING': RunningParams.CONTINUE_TRAINING,
           'BOTTLENECK': RunningParams.BOTTLENECK,
-          'EXP_TOKEN': RunningParams.EXP_TOKEN,
           }
 
 print(config)

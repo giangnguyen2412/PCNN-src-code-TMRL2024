@@ -1,83 +1,54 @@
+import torchvision
+import torch.nn as nn
 import torch
-import numpy as np
-import random
-from torch.autograd import Variable
-from torch.nn.modules.module import Module
-from torch.nn.modules.utils import _single, _pair, _triple
-import torch.nn.functional as F
-from torch.nn.parameter import Parameter
+import os
 
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
+model = torchvision.models.resnet18(pretrained=True).cuda()
+model.fc = nn.Linear(model.fc.in_features, 196)
 
-class my_MaxPool2d(Module):
+my_model_state_dict = torch.load(
+    '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best.pth.tar')
+model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
+model.eval()
+model.cuda()
 
+valdir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
 
-    def __init__(self, kernel_size, stride=None, padding=0, dilation=1,
-                 return_indices=False, ceil_mode=False):
-        super(my_MaxPool2d, self).__init__()
-        self.kernel_size = kernel_size
-        self.stride = stride or kernel_size
-        self.padding = padding
-        self.dilation = dilation
-        self.return_indices = return_indices
-        self.ceil_mode = ceil_mode
+import torchvision.transforms as transforms
+import torchvision.datasets as datasets
+normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
 
-    def forward(self, input):
-        input = input.transpose(3,1)
+val_loader = torch.utils.data.DataLoader(
+        datasets.ImageFolder(valdir, transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            normalize,
+        ])),
+        batch_size=128, shuffle=False,
+        num_workers=8, pin_memory=True)
 
+running_corrects = 0
+total_cnt = 0
+with torch.no_grad():
+    for i, (images, target) in enumerate(val_loader):
 
-        input = F.max_pool2d(input, self.kernel_size, self.stride,
-                            self.padding, self.dilation, self.ceil_mode,
-                            self.return_indices)
-        input = input.transpose(3,1).contiguous()
+        images, target = images.cuda(), target.cuda()
 
-        return input
+        # compute output
+        output = model(images)
 
-    def __repr__(self):
-        kh, kw = _pair(self.kernel_size)
-        dh, dw = _pair(self.stride)
-        padh, padw = _pair(self.padding)
-        dilh, dilw = _pair(self.dilation)
-        padding_str = ', padding=(' + str(padh) + ', ' + str(padw) + ')' \
-            if padh != 0 or padw != 0 else ''
-        dilation_str = (', dilation=(' + str(dilh) + ', ' + str(dilw) + ')'
-                        if dilh != 0 and dilw != 0 else '')
-        ceil_str = ', ceil_mode=' + str(self.ceil_mode)
-        return self.__class__.__name__ + '(' \
-            + 'kernel_size=(' + str(kh) + ', ' + str(kw) + ')' \
-            + ', stride=(' + str(dh) + ', ' + str(dw) + ')' \
-            + padding_str + dilation_str + ceil_str + ')'
+        p = torch.softmax(output, dim=1)
 
+        # Compute top-1 predictions and accuracy
+        score, index = torch.topk(p, 1, dim=1)
 
-class my_AvgPool2d(Module):
-    def __init__(self, kernel_size, stride=None, padding=0, ceil_mode=False,
-                 count_include_pad=True):
-        super(my_AvgPool2d, self).__init__()
-        self.kernel_size = kernel_size
-        self.stride = stride or kernel_size
-        self.padding = padding
-        self.ceil_mode = ceil_mode
-        self.count_include_pad = count_include_pad
+        running_corrects += torch.sum(index.squeeze() == target.cuda())
+        total_cnt += images.shape[0]
 
-    def forward(self, input):
-        input = input.transpose(3,1)
-        input = F.avg_pool2d(input, self.kernel_size, self.stride,
-                            self.padding, self.ceil_mode, self.count_include_pad)
-        input = input.transpose(3,1).contiguous()
+        print("Top-1 Accuracy: {}".format(running_corrects * 100 / total_cnt))
 
-        return input
-
-
-    def __repr__(self):
-        return self.__class__.__name__ + '(' \
-            + 'kernel_size=' + str(self.kernel_size) \
-            + ', stride=' + str(self.stride) \
-            + ', padding=' + str(self.padding) \
-            + ', ceil_mode=' + str(self.ceil_mode) \
-            + ', count_include_pad=' + str(self.count_include_pad) + ')'
-
-
-m = my_MaxPool2d((1, 32), stride=(1, 32))
-input = Variable(torch.randn(3, 2208, 7, 7))
-output = m(input)
-print(output.size())

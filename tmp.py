@@ -4,7 +4,7 @@ import os
 cnt = 0
 overlap = 0
 crt_cnt = 0
-filename = '/home/giang/Downloads/advising_network/faiss/cars/top10_k1_enriched_NeurIPS_Finetuning_faiss_train_top1.npy'
+filename = '/home/giang/Downloads/advising_network/faiss/sdogs/top1_k1_enriched_NeurIPS_Finetuning_faiss_test.npy'
 cnt_dict = {}
 
 kbc = np.load(filename, allow_pickle=True, ).item()

@@ -82,6 +82,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
+    best_loss = float('inf')
 
     for epoch in range(num_epochs):
         print(f'Epoch {epoch + 1}/{num_epochs}')
@@ -210,8 +211,9 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, yes_ratio.item() * 100, true_ratio.item() * 100))
 
             # deep copy the model
-            if phase == 'val' and epoch_acc >= best_acc:
+            if phase == 'val' and epoch_loss <= best_loss:
                 best_acc = epoch_acc
+                best_loss = epoch_loss
                 best_model_wts = copy.deepcopy(model.state_dict())
 
                 ckpt_path = '/home/giang/Downloads/advising_network/best_models/best_model_{}.pt' \
@@ -264,15 +266,9 @@ config = {"train": train_dataset,
           'explanation': RunningParams.XAI_method,
           'k_value': RunningParams.k_value,
           'conv_layer': RunningParams.conv_layer,
-          'USING_SOFTMAX': RunningParams.USING_SOFTMAX,
-          'dropout_rate': RunningParams.dropout,
-          'TOP1_NN': RunningParams.TOP1_NN,
-          'MODEL2_FINETUNING': RunningParams.MODEL2_FINETUNING,
           'HIGHPERFORMANCE_FEATURE_EXTRACTOR': RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR,
           'HIGHPERFORMANCE_MODEL1': RunningParams.HIGHPERFORMANCE_MODEL1,
-          'CONTINUE_TRAINING': RunningParams.CONTINUE_TRAINING,
           'BOTTLENECK': RunningParams.BOTTLENECK,
-          'EXP_TOKEN': RunningParams.EXP_TOKEN,
           }
 
 print(config)

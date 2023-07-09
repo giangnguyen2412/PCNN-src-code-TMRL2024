@@ -12,57 +12,81 @@ import wandb
 import random
 import pdb
 import faiss
+import torchvision.transforms as T
+
 
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
 from params import RunningParams
-from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
+from datasets import Dataset, ImageFolderWithPaths, StanfordDogsDataset
 
 torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
+import math
+
+def preprocess(image):
+    width, height = image.size
+    if width > height and width > 512:
+        height = math.floor(512 * height / width)
+        width = 512
+    elif width < height and height > 512:
+        width = math.floor(512 * width / height)
+        height = 512
+    pad_values = (
+        (512 - width) // 2 + (0 if width % 2 == 0 else 1),
+        (512 - height) // 2 + (0 if height % 2 == 0 else 1),
+        (512 - width) // 2,
+        (512 - height) // 2,
+    )
+    return T.Compose([
+        T.Resize((height, width)),
+        T.Pad(pad_values),
+        T.ToTensor(),
+        T.Lambda(lambda x: x[:3]),  # Remove the alpha channel if it's there
+    ])(image)
 
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-import torchvision
-normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-model = torchvision.models.resnet18(pretrained=True).cuda()
-model.fc = nn.Linear(model.fc.in_features, 196)
+model = models.resnet34(pretrained=True)
 
-my_model_state_dict = torch.load(
-    '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best.pth.tar')
-model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
-model.eval()
+# Parameters of newly constructed modules have requires_grad=True by default
+num_ftrs = model.fc.in_features
+model.fc = nn.Linear(num_ftrs, 120)
+
+from collections import OrderedDict
+new_ckpt = OrderedDict()
+ckpt = torch.load('/home/giang/Downloads/advising_network/stanford-dogs/HAL9002_RN34.pt')
+print(ckpt['val_acc']/100)
+
+for k, v in ckpt['model_state_dict'].items():
+    new_k = k.replace('module.', '')
+    new_ckpt[new_k] = v
+
+model.load_state_dict(new_ckpt)
 
 MODEL1 = model.cuda()
+MODEL1.eval()
+
 
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
 feature_extractor.cuda()
 feature_extractor = nn.DataParallel(feature_extractor)
 
 in_features = 512
-print("Building FAISS index...! Training set is the knowledge base.")
+print("Building FAISS index for Stanford Dogs...! Training set is the knowledge base.")
 
-# train_transform = transforms.Compose([
-#             transforms.RandomResizedCrop(224),
-#             transforms.RandomHorizontalFlip(),
-#             transforms.ToTensor(),
-#             normalize,
-#         ])
 
-train_transform = transforms.Compose([transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            normalize,
-        ])
+# Because it has a unique type of mapping the labels, we need reference_dataset to convert the predicted ids (StanfordDogsDataset) to ImageFolder ids
+reference_dataset = StanfordDogsDataset(
+    root=os.path.join('/home/giang/Downloads/advising_network/stanford-dogs', "data"), set_type="train", transform=preprocess)
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/Cars/Stanford-Cars-dataset/train',
-                                     transform=train_transform)
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/advising_network/stanford-dogs/data/images/train',
+                                     transform=preprocess)
 
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
@@ -73,7 +97,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-INDEX_FILE = 'faiss/cars/NeurIPS22_faiss_Car196_class_idx_dict.npy'
+INDEX_FILE = 'faiss/sdogs/NeurIPS22_faiss_SDogs_class_idx_dict.npy'
 print(INDEX_FILE)
 
 if os.path.exists(INDEX_FILE):
@@ -120,23 +144,16 @@ else:
 
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-set = 'val'
-data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/{}'.format(set)
-
-if set == 'train':
-    data_transform = train_transform
-elif set == 'test' or set == 'val':
-    val_transform = transforms.Compose([transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            normalize,
-        ])
-    data_transform = val_transform
-else:
-    exit(-1)
+set = 'validation'
+depth_of_pred = 2
 
 image_datasets = dict()
-image_datasets['train'] = ImageFolderWithPaths(data_dir, data_transform)
+# image_datasets['train'] = StanfordDogsDataset(
+#     root=os.path.join('/home/giang/Downloads/advising_network/stanford-dogs', 'data'), set_type=set, transform=preprocess)
+
+image_datasets['train'] = ImageFolderWithPaths('/home/giang/Downloads/advising_network/stanford-dogs/data/images/{}'.format(set),
+                                     transform=preprocess)
+
 train_loader = torch.utils.data.DataLoader(
     image_datasets['train'],
     batch_size=128,
@@ -145,7 +162,6 @@ train_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-depth_of_pred = 2
 
 if set == 'test':
     depth_of_pred = 1
@@ -155,9 +171,10 @@ total_cnt = 0
 
 MODEL1.eval()
 
+import pdb
 faiss_nn_dict = dict()
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
-    if len(train_loader.dataset.classes) < 196:
+    if len(train_loader.dataset.classes) < 120:
         for sample_idx in range(data.shape[0]):
             tgt = label[sample_idx].item()
             class_name = train_loader.dataset.classes[tgt]
@@ -179,6 +196,11 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             # Get the top-k predicted label
             predicted_idx = index[sample_idx][i].item()
 
+            ################################ CONVERT THE PREDICTED IDS #################################
+            dog_name = reference_dataset.mapping[predicted_idx]
+            predicted_idx = train_loader.dataset.class_to_idx[dog_name]
+            ############################################################################################
+
             # Dataloader and knowledge base upon the predicted class
             loader = faiss_loader_dict[predicted_idx]
             faiss_index = faiss_nns_class_dict[predicted_idx]
@@ -196,7 +218,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                 if i == 0:  # top-1 predictions --> Enrich top-1 prediction samples
                     _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), faiss_index.ntotal)
 
-                    if set == 'val':
+                    if set == 'val' or set == 'validation':
                         width_of_pred = 1
                     else:
                         width_of_pred = depth_of_pred
@@ -240,10 +262,9 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                     faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
                     faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
 
-print(set)
-print(depth_of_pred)
+
 print(len(faiss_nn_dict))
-np.save('faiss/cars/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1.npy'.format(depth_of_pred, RunningParams.k_value, set),
+np.save('faiss/sdogs/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}.npy'.format(depth_of_pred, RunningParams.k_value, set),
         faiss_nn_dict)
 
 
