@@ -20,7 +20,6 @@ from transformer import *
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
-from explainers import ModelExplainer
 
 # torch.backends.cudnn.benchmark = True
 # plt.ion()   # interactive mode
@@ -30,7 +29,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
-Explainer = ModelExplainer()
 
 assert (RunningParams.CUB_TRAINING is False)
 

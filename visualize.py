@@ -86,12 +86,18 @@ class Visualization(object):
                                                   confidence2: int,
                                                   prototypes: list,
                                                   ):
-        cmd = "convert '{}' -resize 256x256^ -gravity Center -extent 224x224 {}/query.jpeg".format(
+        # cmd = "convert '{}' -resize 256x256^ -gravity Center -extent 224x224 {}/query.jpeg".format(
+        #     query, save_dir
+        # )
+        cmd = "convert '{}' -resize 256x256^ -gravity Center {}/query.jpeg".format(
             query, save_dir
         )
+
         os.system(cmd)
         for idx, prototype in enumerate(prototypes):
-            cmd = "convert '{}' -resize 256x256^ -gravity Center -extent 224x224 {}/{}.jpeg".format(
+            # cmd = "convert '{}' -resize 256x256^ -gravity Center -extent 224x224 {}/{}.jpeg".format(
+            #     prototype, save_dir, idx)
+            cmd = "convert '{}' -resize 256x256^ -gravity Center {}/{}.jpeg".format(
                 prototype, save_dir, idx)
             os.system(cmd)
 
@@ -107,7 +113,6 @@ class Visualization(object):
         cmd = 'convert {} -font aakar -pointsize 21 -gravity North -background White -splice 0x40 -annotate +0+4 "{}" {}'.format(
             save_path, annotation, save_path
         )
-        print(cmd)
         os.system(cmd)
 
     @staticmethod
@@ -404,3 +409,79 @@ class Visualization(object):
 
         HelperFunctions.check_and_mkdir('tmp/{}'.format(title))
         plt.savefig('tmp/{}/{}_{}.png'.format(title, basename, proto_idx), bbox_inches='tight')
+
+    @staticmethod
+    def visualize_transformer_attn_sdogs(bef_weights, aft_weights, bef_image_paths, aft_image_paths, title, proto_idx):
+        breakpoint()
+        input_label = os.path.dirname(aft_image_paths).split('/')[-1]
+        prototype_label = os.path.dirname(bef_image_paths).split('/')[-1]
+        basename = os.path.basename(aft_image_paths)
+
+        from skimage import exposure
+        from PIL import Image
+        def load_image(path):
+            image = Image.open(path)
+            image = image.resize((512, 512), Image.ANTIALIAS)
+            image = np.array(image)
+            return image
+
+        bef_image_path = bef_image_paths
+        aft_image_path = aft_image_paths
+
+        bef_image = load_image(bef_image_path)
+        aft_image = load_image(aft_image_path)
+
+        bef_weights = bef_weights.data.cpu().numpy().reshape(16, 16)
+        aft_weights = aft_weights.data.cpu().numpy().reshape(16, 16)
+
+        cam_bef_weights = bef_weights
+        # Normalize the array to a range of 0 and 1
+        cam_bef_weights = (cam_bef_weights - cam_bef_weights.min()) / (
+                    cam_bef_weights.max() - cam_bef_weights.min())
+        cam_bef_weights = cv2.resize(cam_bef_weights.astype(np.float32), (512, 512), interpolation=cv2.INTER_CUBIC)
+
+        cam_aft_weights = aft_weights
+        cam_aft_weights = (cam_aft_weights - cam_aft_weights.min()) / (
+                    cam_aft_weights.max() - cam_aft_weights.min())
+        cam_aft_weights = cv2.resize(cam_aft_weights.astype(np.float32), (512, 512), interpolation=cv2.INTER_CUBIC)
+
+        uP = cm.get_cmap('Reds', 129)
+        dowN = cm.get_cmap('Blues_r', 128)
+
+        newcolors = np.vstack((
+            dowN(np.linspace(0, 1, 128)),
+            uP(np.linspace(0, 1, 129))
+        ))
+        cMap = ListedColormap(newcolors, name='RedBlues')
+
+        cMap.colors[257 // 2, :] = [1, 1, 1, 1]
+
+        fig = plt.figure()
+        ax1 = fig.add_subplot(2, 2, 1)
+        ax3 = fig.add_subplot(2, 2, 2)
+        ax2 = fig.add_subplot(2, 2, 3)
+        ax4 = fig.add_subplot(2, 2, 4)
+
+        ax1.imshow(bef_image)
+        ax1.axis("off")
+        ax1.set_title(prototype_label)
+
+        ax2.imshow(aft_image)
+        ax2.axis("off")
+        ax2.set_title(input_label)
+
+        ax3.imshow(bef_image)
+        im1 = ax3.imshow(cam_bef_weights, alpha=0.5, cmap='Reds', interpolation='none', vmin=0, vmax=1)
+        ax3.axis("off")
+
+        ax4.imshow(aft_image)
+        im2 = ax4.imshow(cam_aft_weights, alpha=0.5, cmap='Reds', interpolation='none', vmin=0, vmax=1)
+        ax4.axis("off")
+
+        fig.subplots_adjust(right=0.8)
+        plt.suptitle(title, fontsize=16, y=0.02)
+        fig.colorbar(im2, ax=ax4)
+        fig.colorbar(im1, ax=ax3)
+
+        HelperFunctions.check_and_mkdir('attn_maps/{}'.format(title))
+        plt.savefig('attn_maps/{}/{}_{}.jpg'.format(title, basename, proto_idx), bbox_inches='tight')

@@ -22,7 +22,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 
 Dataset = Dataset()
@@ -31,11 +31,17 @@ RunningParams = RunningParams()
 import torchvision
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
-model = torchvision.models.resnet18(pretrained=True).cuda()
+if RunningParams.resnet == 50:
+    model = torchvision.models.resnet50(pretrained=True).cuda()
+elif RunningParams.resnet == 34:
+    model = torchvision.models.resnet34(pretrained=True).cuda()
+elif RunningParams.resnet == 18:
+    model = torchvision.models.resnet18(pretrained=True).cuda()
+
 model.fc = nn.Linear(model.fc.in_features, 196)
 
 my_model_state_dict = torch.load(
-    '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best.pth.tar')
+    '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.resnet), map_location='cuda')
 model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
 model.eval()
 
@@ -45,15 +51,8 @@ feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feat
 feature_extractor.cuda()
 feature_extractor = nn.DataParallel(feature_extractor)
 
-in_features = 512
+in_features = model.fc.in_features
 print("Building FAISS index...! Training set is the knowledge base.")
-
-# train_transform = transforms.Compose([
-#             transforms.RandomResizedCrop(224),
-#             transforms.RandomHorizontalFlip(),
-#             transforms.ToTensor(),
-#             normalize,
-#         ])
 
 train_transform = transforms.Compose([transforms.Resize(256),
             transforms.CenterCrop(224),
@@ -61,7 +60,7 @@ train_transform = transforms.Compose([transforms.Resize(256),
             normalize,
         ])
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/Cars/Stanford-Cars-dataset/train',
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train',
                                      transform=train_transform)
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -73,7 +72,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-INDEX_FILE = 'faiss/cars/NeurIPS22_faiss_Car196_class_idx_dict.npy'
+INDEX_FILE = 'faiss/cars/NeurIPS22_faiss_Car196_class_idx_dict_rn{}.npy'.format(RunningParams.resnet)
 print(INDEX_FILE)
 
 if os.path.exists(INDEX_FILE):
@@ -120,8 +119,10 @@ else:
 
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-set = 'val'
-data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/{}'.format(set)
+set = 'test'
+# data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/{}'.format(set)
+data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
+# data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train'
 
 if set == 'train':
     data_transform = train_transform
@@ -145,7 +146,7 @@ train_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-depth_of_pred = 2
+depth_of_pred = 1
 
 if set == 'test':
     depth_of_pred = 1
@@ -214,6 +215,9 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                             max_id = (j * RunningParams.k_value) + RunningParams.k_value
 
                         for id in range(min_id, max_id):
+                            # print(id)
+                            # print(indices)
+                            # print(loader.dataset.indices)
                             id = loader.dataset.indices[indices[0, id]]
                             nn_list.append(loader.dataset.dataset.imgs[id][0])
 
@@ -243,7 +247,8 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
 print(set)
 print(depth_of_pred)
 print(len(faiss_nn_dict))
-np.save('faiss/cars/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1.npy'.format(depth_of_pred, RunningParams.k_value, set),
+np.save('faiss/cars/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1_rn50.npy'.format(depth_of_pred, RunningParams.k_value, set),
         faiss_nn_dict)
+print('faiss/cars/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1_rn50.npy'.format(depth_of_pred, RunningParams.k_value, set))
 
 

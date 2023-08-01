@@ -3,36 +3,62 @@ import torch.nn as nn
 import numpy as np
 import os
 import argparse
+from torchvision import datasets, models, transforms
 
 from tqdm import tqdm
 from params import RunningParams
-from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
+from datasets import Dataset, StanfordDogsDataset, ImageFolderForNNs
 from helpers import HelperFunctions
+from explainers import ModelExplainer
 from transformer import Transformer_AdvisingNetwork
 from visualize import Visualization
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
-
-from torchvision import datasets, models, transforms
+import torchvision.transforms as T
 
 RunningParams = RunningParams()
 Dataset = Dataset()
 HelperFunctions = HelperFunctions()
+ModelExplainer = ModelExplainer()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 CATEGORY_ANALYSIS = False
 
-full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train',
-                                     Dataset.data_transforms['train'])
+import math
+def preprocess(image):
+    width, height = image.size
+    if width > height and width > 512:
+        height = math.floor(512 * height / width)
+        width = 512
+    elif width < height and height > 512:
+        width = math.floor(512 * width / height)
+        height = 512
+    pad_values = (
+        (512 - width) // 2 + (0 if width % 2 == 0 else 1),
+        (512 - height) // 2 + (0 if height % 2 == 0 else 1),
+        (512 - width) // 2,
+        (512 - height) // 2,
+    )
+    return T.Compose([
+        T.Resize((height, width)),
+        T.Pad(pad_values),
+        T.ToTensor(),
+        T.Lambda(lambda x: x[:3]),  # Remove the alpha channel if it's there
+    ])(image)
+full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/advising_network/stanford-dogs/data/images/BACKUP/train',
+                                     preprocess)
+
+# Because it has a unique type of mapping the labels, we need reference_dataset to convert the predicted ids (StanfordDogsDataset) to ImageFolder ids
+reference_dataset = StanfordDogsDataset(
+    root=os.path.join('/home/giang/Downloads/advising_network/stanford-dogs', "data"), set_type="train", transform=preprocess)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        # default='best_model_robust-sunset-3158.pt',  # RN50
-                        # default='best_model_spring-field-3157.pt',  # RN34
-                        default='best_model_divine-cherry-3160.pt',  # RN18
+                        default='best_model_eager-cloud-3132.pt',
                         help='Model check point')
 
     args = parser.parse_args()
@@ -56,55 +82,46 @@ if __name__ == '__main__':
     print(RunningParams.__dict__)
 
     MODEL2.eval()
+    test_dir = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/test'  ##################################
+    # test_dir = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/validation_top2'  ##################################
 
-    ################################################################
+    image_datasets = dict()
+    nn_num = 10
+    print(nn_num)
+    file_name = 'faiss/sdogs/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}.npy'.format(
+        1, nn_num, os.path.basename(test_dir))
+    image_datasets['cub_test'] = ImageFolderForNNs(test_dir, preprocess, nn_dict=file_name)
 
-    import torchvision
+    dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
 
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
+    model = models.resnet34(pretrained=True)
 
-    if RunningParams.resnet == 50:
-        model = torchvision.models.resnet50(pretrained=True).cuda()
-    elif RunningParams.resnet == 34:
-        model = torchvision.models.resnet34(pretrained=True).cuda()
-    elif RunningParams.resnet == 18:
-        model = torchvision.models.resnet18(pretrained=True).cuda()
+    # Parameters of newly constructed modules have requires_grad=True by default
+    num_ftrs = model.fc.in_features
+    model.fc = nn.Linear(num_ftrs, 120)
 
-    model.fc = nn.Linear(model.fc.in_features, 196)
+    from collections import OrderedDict
 
-    my_model_state_dict = torch.load(
-        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.resnet), map_location=torch.device('cpu'))
-    model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
-    model.eval()
+    new_ckpt = OrderedDict()
+    ckpt = torch.load('/home/giang/Downloads/advising_network/stanford-dogs/HAL9002_RN34.pt')
+    print(ckpt['val_acc'] / 100)
+
+    for k, v in ckpt['model_state_dict'].items():
+        new_k = k.replace('module.', '')
+        new_ckpt[new_k] = v
+
+    model.load_state_dict(new_ckpt)
 
     MODEL1 = model.cuda()
     MODEL1.eval()
 
-    in_features = model.fc.in_features
-
-    data_transform = transforms.Compose([transforms.Resize(256),
-                                         transforms.CenterCrop(224),
-                                         transforms.ToTensor(),
-                                         normalize,
-                                         ])
-
-    ################################################################
-
-    test_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
-    # test_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
-
-    image_datasets = dict()
-    image_datasets['cub_test'] = ImageFolderForNNs(test_dir, data_transform)
-    dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
-
-    ################################################################
+    torch.manual_seed(42)
 
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=32,
-            shuffle=False,  # turn shuffle to False
+            batch_size=12,
+            shuffle=True,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
             drop_last=False  # Do not remove drop last because it affects performance
@@ -124,6 +141,12 @@ if __name__ == '__main__':
         if RunningParams.M2_VISUALIZATION is True:
             HelperFunctions.check_and_rm(save_dir)
             HelperFunctions.check_and_mkdir(save_dir)
+
+        # save_dir = '/home/giang/Downloads/advising_network/attn_maps'
+        # if RunningParams.M2_VISUALIZATION is True:
+        #     HelperFunctions.check_and_rm(save_dir)
+        #     HelperFunctions.check_and_mkdir(save_dir)
+
         model1_confidence_dist = dict()
         model2_confidence_dist = dict()
         for cat in categories:
@@ -137,12 +160,14 @@ if __name__ == '__main__':
         preds_val = []
 
         for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
+            # if batch_idx == 40:
+            #     break
             if RunningParams.XAI_method == RunningParams.NNs:
                 x = data[0].cuda()
             else:
                 x = data.cuda()
 
-            if len(data_loader.dataset.classes) < 196:
+            if len(data_loader.dataset.classes) < 120:
                 for sample_idx in range(x.shape[0]):
                     tgt = gt[sample_idx].item()
                     class_name = data_loader.dataset.classes[tgt]
@@ -154,121 +179,78 @@ if __name__ == '__main__':
             out = MODEL1(x)
             model1_p = torch.nn.functional.softmax(out, dim=1)
             model1_score, index = torch.topk(model1_p, 1, dim=1)
+            import pdb
+
+            pdb.set_trace = lambda: 0
+            pdb.set_trace()
             predicted_ids = index.squeeze()
             # MODEL1 Y/N label for input x
             for sample_idx in range(x.shape[0]):
                 query = pths[sample_idx]
                 base_name = os.path.basename(query)
 
+            # MODEL1 Y/N label for input x
+            ########################################################################
+            for sample_idx in range(x.shape[0]):
+                predicted_idx = predicted_ids[sample_idx]
+                dog_name = reference_dataset.mapping[predicted_idx.item()]
+                predicted_ids[sample_idx] = data_loader.dataset.class_to_idx[dog_name]
+            ########################################################################
+
             model2_gt = (predicted_ids == gts) * 1  # 0 and 1
             labels = model2_gt
 
-            # Get the idx of wrong predictions
-            idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
-
+            # For validation, we need to get it from the dict because we manipulate its MODEL2 labels (e.g. same input but NNS from different species)
             if 'train' in test_dir or 'val' in test_dir:
                 labels = data[2].cuda()
 
+            ps = []
+            for nn_idx in range(nn_num):
             # Generate explanations
-            if RunningParams.XAI_method == RunningParams.GradCAM:
-                explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
-            elif RunningParams.XAI_method == RunningParams.NNs:
                 explanation = data[1]
-                explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
-                # Find the maximum value along each row
-                max_values, _ = torch.max(model1_p, dim=1)
+                explanation = explanation[:, nn_idx:nn_idx+1, :, :, :]
 
-                SAME = False
-                RAND = False
-
-                if SAME is True:
-                    model1_score.fill_(0.999)
-
-                    explanation = x.clone().unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1, 1)
-                if RAND is True:
-                    explanation = torch.rand_like(explanation) * (
-                                explanation.max() - explanation.min()) + explanation.min()
-                    explanation.cuda()
-                    # Replace the maximum value with random guess
-                    model1_score.fill_(1 / 196)
-
-            if RunningParams.advising_network is True:
-                # Forward input, explanations, and softmax scores through MODEL2
-                if RunningParams.XAI_method == RunningParams.NO_XAI:
-                    output, _, _ = MODEL2(images=x, explanations=None, scores=model1_p)
-                else:
-                    output, query, i2e_attn, e2i_attn = MODEL2(images=x, explanations=explanation, scores=model1_score)
+                output, query, i2e_attn, e2i_attn = MODEL2(images=x, explanations=explanation, scores=model1_score)
 
                 # convert logits to probabilities using sigmoid function
                 p = torch.sigmoid(output)
+                ps.append(p)
 
-                # classify inputs as 0 or 1 based on the threshold of 0.5
+            p = torch.stack(ps, dim=0)
+
+            ################################################################
+            # Getting the most extreme one
+            # max_values, max_idx = torch.max(p, dim=0)
+            # min_values, min_idx = torch.min(p, dim=0)
+            #
+            # max_values = 1 - max_values
+            #
+            # p_list = []
+            # for sample_idx in range(x.shape[0]):
+            #     if min_values[sample_idx] < max_values[sample_idx]:
+            #         p_list.append(min_values[sample_idx])
+            #     else:
+            #         p_list.append(1 - max_values[sample_idx])
+            # p = torch.tensor(p_list).cuda()
+            # breakpoint()
+            ##################################################################
+
+            p = p.mean(dim=0)
+            ##################################################################
+
+            if RunningParams.advising_network is True:
+            # classify inputs as 0 or 1 based on the threshold of 0.5
                 preds = (p >= 0.5).long().squeeze()
                 model2_score = p
 
                 results = (preds == labels)
 
+                ################################
                 preds_val.append(preds)
                 labels_val.append(labels)
-
-                for j in range(x.shape[0]):
-                    pth = pths[j]
-
-                    if '0_0' in pth:
-                        top1_cnt += 1
-
-                        if results[j] == True:
-                            top1_crt_cnt += 1
+                ################################
 
                 running_corrects += torch.sum(preds == labels.data)
-
-                VISUALIZE_TRANSFORMER_ATTN = False
-                if VISUALIZE_TRANSFORMER_ATTN is True:
-                    i2e_attn = i2e_attn.mean(dim=1)  # bsx8x3x50
-                    i2e_attn = i2e_attn[:, :, 1:]  # remove cls token --> bsx3x49
-
-                    e2i_attn = e2i_attn.mean(dim=1)
-                    e2i_attn = e2i_attn[:, :, 1:]  # remove cls token
-
-                    for sample_idx in range(x.shape[0]):
-                        if sample_idx == 1:
-                            break
-                        result = results[sample_idx].item()
-                        if result is True:
-                            correctness = 'Correctly'
-                        else:
-                            correctness = 'Incorrectly'
-
-                        pred = preds[sample_idx].item()
-                        if pred == 1:
-                            action = 'Accept'
-                        else:
-                            action = 'Reject'
-                        model2_decision = correctness + action
-
-                        query = pths[sample_idx]
-                        base_name = os.path.basename(query)
-                        prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
-                        for prototype_idx in range(RunningParams.k_value):
-                            bef_weights = i2e_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
-                            aft_weights = e2i_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
-
-                            # as the test images are from validation, then we do not need to exclude the fist prototype
-                            prototype = prototypes[prototype_idx]
-                            Visualization.visualize_transformer_attn_v2(bef_weights, aft_weights, prototype, query,
-                                                                        model2_decision, prototype_idx)
-
-                        # Combine visualizations
-                        cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 tmp/{}/{}.jpeg'.format(
-                            model2_decision, base_name, RunningParams.k_value - 1, model2_decision, base_name)
-                        # cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 my_plot.png'.format(
-                        #     model2_decision, base_name, RunningParams.k_value - 1)
-                        os.system(cmd)
-                        # Remove unused images
-                        cmd = 'rm -rf tmp/{}/{}_[0-{}].png'.format(
-                            model2_decision, base_name, RunningParams.k_value - 1)
-                        os.system(cmd)
-
 
                 AI_DELEGATE = True
                 if AI_DELEGATE is True:
@@ -299,6 +281,52 @@ if __name__ == '__main__':
 
                                 if labels[sample_idx].item() == 1:
                                     confidence_dict[s][2] += 1
+
+            VISUALIZE_TRANSFORMER_ATTN = False
+            if VISUALIZE_TRANSFORMER_ATTN is True:
+                pdb.set_trace()
+
+                i2e_attn = i2e_attn.mean(dim=1)  # bsx8x3x50
+                i2e_attn = i2e_attn[:, :, 1:]  # remove cls token --> bsx3x49
+
+                e2i_attn = e2i_attn.mean(dim=1)
+                e2i_attn = e2i_attn[:, :, 1:]  # remove cls token
+
+                for sample_idx in range(x.shape[0]):
+                    result = results[sample_idx].item()
+                    if result is True:
+                        correctness = 'Correctly'
+                    else:
+                        correctness = 'Incorrectly'
+
+                    pred = preds[sample_idx].item()
+                    if pred == 1:
+                        action = 'Accept'
+                    else:
+                        action = 'Reject'
+                    model2_decision = correctness + action
+
+                    query = pths[sample_idx]
+                    base_name = os.path.basename(query)
+                    prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
+                    for prototype_idx in range(RunningParams.k_value):
+                        bef_weights = i2e_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
+                        aft_weights = e2i_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
+
+                        # as the test images are from validation, then we do not need to exclude the fist prototype
+                        prototype = prototypes[prototype_idx]
+                        Visualization.visualize_transformer_attn_sdogs(bef_weights, aft_weights, prototype, query,
+                                                                    model2_decision, prototype_idx)
+
+                    # Combine visualizations
+                    # cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 tmp/{}/{}.jpeg'.format(
+                    #     model2_decision, base_name, RunningParams.k_value - 1, model2_decision, base_name)
+
+                    # os.system(cmd)
+                    # Remove unused images
+                    # cmd = 'rm -rf tmp/{}/{}_[0-{}].png'.format(
+                    #     model2_decision, base_name, RunningParams.k_value - 1)
+                    # os.system(cmd)
 
             if RunningParams.M2_VISUALIZATION is True:
                 for sample_idx in range(x.shape[0]):
@@ -355,12 +383,23 @@ if __name__ == '__main__':
             true_cnt += sum(labels)
             np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
 
+        ################################################################
+
+        cmd = 'img2pdf -o /home/giang/Downloads/advising_network/attn_maps/IncorrectlyAccept/output.pdf ' \
+              '--pagesize A4^T /home/giang/Downloads/advising_network/attn_maps/IncorrectlyAccept/*.jpg'
+        os.system(cmd)
+        cmd = 'img2pdf -o /home/giang/Downloads/advising_network/attn_maps/IncorrectlyReject/output.pdf ' \
+              '--pagesize A4^T /home/giang/Downloads/advising_network/attn_maps/IncorrectlyReject/*.jpg'
+        os.system(cmd)
+
+        ################################################################
         cmd = 'img2pdf -o /home/giang/Downloads/advising_network/vis/IncorrectlyAccept/output.pdf ' \
               '--pagesize A4^T /home/giang/Downloads/advising_network/vis/IncorrectlyAccept/*.jpg'
         os.system(cmd)
         cmd = 'img2pdf -o /home/giang/Downloads/advising_network/vis/IncorrectlyReject/output.pdf ' \
               '--pagesize A4^T /home/giang/Downloads/advising_network/vis/IncorrectlyReject/*.jpg'
         os.system(cmd)
+        #################################################################
 
         epoch_acc = running_corrects.double() / len(image_datasets[ds])
         yes_ratio = yes_cnt.double() / len(image_datasets[ds])
@@ -398,4 +437,4 @@ if __name__ == '__main__':
                 os.path.basename(test_dir), epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
 
         np.save('confidence.npy', confidence_dict)
-        # print(top1_crt_cnt/top1_cnt)
+        print('top1 = {}'.format(top1_crt_cnt/1200))

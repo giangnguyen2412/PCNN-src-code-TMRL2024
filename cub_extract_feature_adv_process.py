@@ -24,13 +24,13 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-MODEL1_RN50 = True
-depth_of_pred = 10
+MODEL1_RN50 = False
+depth_of_pred = 5
 set = 'test'
 
 torch.manual_seed(42)
@@ -59,14 +59,14 @@ feature_extractor = nn.DataParallel(feature_extractor)
 in_features = 2048
 print("Building FAISS index...! Training set is the knowledge base.")
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB/advnet/train',
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB/train1',
                                      transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
     batch_size=RunningParams.batch_size,
     shuffle=False,  # turn shuffle to True
-    num_workers=16,  # Set to 0 as suggested by
+    num_workers=64,  # Set to 0 as suggested by
     # https://stackoverflow.com/questions/54773106/simple-way-to-load-specific-sample-using-pytorch-dataloader
     pin_memory=True,
 )
@@ -134,7 +134,8 @@ if MODEL1_RN50 is True:
 
     MODEL1 = nn.DataParallel(MODEL1).eval()
 
-    data_dir = '/home/giang/Downloads/datasets/CUB/advnet/{}'.format(set)
+    # data_dir = '/home/giang/Downloads/datasets/CUB/advnet/{}'.format(set)
+    data_dir = '/home/giang/Downloads/datasets/CUB/test0'
 
     image_datasets = dict()
     image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
@@ -183,7 +184,8 @@ else:
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
 
-    data_dir = '/home/giang/Downloads/datasets/CUB/advnet/{}'.format(set)
+    # data_dir = '/home/giang/Downloads/datasets/CUB/advnet/{}'.format(set)
+    data_dir = '/home/giang/Downloads/datasets/CUB/test0'
     val_data = ImageFolderWithPaths(
         # ImageNet train folder
         root=data_dir, transform=data_transforms
@@ -223,8 +225,8 @@ MODEL1.eval()
 
 faiss_nn_dict = dict()
 
-for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
-# for (data, label, paths), (data2, label2, paths2) in tqdm(zip(train_loader, std_train_loader)):
+# for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
+for (data, label, paths), (data2, label2, paths2) in tqdm(zip(train_loader, std_train_loader)):
     if len(train_loader.dataset.classes) < 200:
         for sample_idx in range(data.shape[0]):
             tgt = label[sample_idx].item()

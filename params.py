@@ -2,9 +2,12 @@ class RunningParams(object):
     def __init__(self):
         # Training mode
         self.CUB_TRAINING = False  # ----------------------------------------- IMPORTANT PARAM --------
-        self.DOGS_TRAINING = True
-        self.CARS_TRAINING = False
+        self.DOGS_TRAINING = False
+        self.CARS_TRAINING = True
         self.IMAGENET_TRAINING = False
+
+        if self.CARS_TRAINING is True:
+            self.resnet = 18
 
         # General
         self.SIMCLR_MODEL = False
@@ -17,7 +20,14 @@ class RunningParams(object):
             self.conv_layer_size = {4: 2048, 3: 1024, 2: 512, 1: 256}
         elif self.CARS_TRAINING is True:
             self.feat_map_size = {4: 49}
-            self.conv_layer_size = {4: 512}
+            if self.resnet == 50:
+                self.conv_layer_size = {4: 2048}
+            elif self.resnet == 34:
+                self.conv_layer_size = {4: 512}
+            elif self.resnet == 18:
+                self.conv_layer_size = {4: 512}
+            else:
+                exit(-1)
         elif self.DOGS_TRAINING is True:
             self.feat_map_size = {4: 256}
             self.conv_layer_size = {4: 512}
@@ -40,7 +50,7 @@ class RunningParams(object):
 
         # Training parameters
         if self.CUB_TRAINING is True:
-            self.batch_size = 96
+            self.batch_size = 256
             self.epochs = 100
             self.learning_rate = 1e-3
             self.k_value = 1

@@ -12,7 +12,7 @@ RunningParams = RunningParams()
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
 torch.manual_seed(42)
 
@@ -22,7 +22,8 @@ full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combine
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_genial-plasma-3125.pt',
+                        # default='best_model_genial-plasma-3125.pt',
+                        default='best_model_decent-pyramid-3156.pt',
                         help='Model check point')
 
     args = parser.parse_args()
@@ -49,7 +50,9 @@ if __name__ == '__main__':
 
     model.eval()
 
-    test_dir = '/home/giang/Downloads/datasets/CUB/advnet/test'  ##################################
+    # test_dir = '/home/giang/Downloads/datasets/CUB/advnet/test'  ##################################
+    test_dir = '/home/giang/Downloads/datasets/CUB/test0'
+
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])
@@ -58,7 +61,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=5,
+            batch_size=20,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,

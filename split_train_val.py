@@ -4,15 +4,15 @@ import numpy as np
 
 
 # Define the paths for the train_tmp and val_tmp folders
-train_tmp_path = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/train_tmp'
-val_tmp_path = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/val'
+train_tmp_path = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/dl_test'
+val_tmp_path = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/dl_val'
 
 # Create the train_tmp and val_tmp folders if they don't exist
 os.makedirs(train_tmp_path, exist_ok=True)
 os.makedirs(val_tmp_path, exist_ok=True)
 all_files = []
 
-src_dir = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/train'
+src_dir = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/test'
 
 # Loop over the subfolders in the combined folder
 for folder_name in os.listdir(src_dir):
@@ -29,8 +29,8 @@ for folder_name in os.listdir(src_dir):
 np.random.seed(100)
 # Shuffle the files and split them into train and val
 np.random.shuffle(all_files)
-val_files = all_files[:1200]
-train_files = all_files[1200:]
+val_files = all_files[:1000]
+train_files = all_files[1000:]
 
 # Move the val files to the val_tmp folder
 for folder_name, file_name in val_files:

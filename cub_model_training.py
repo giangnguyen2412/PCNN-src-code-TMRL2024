@@ -22,14 +22,12 @@ from transformer import *
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
-from explainers import ModelExplainer
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
-Explainer = ModelExplainer()
 
 if [RunningParams.IMAGENET_TRAINING, RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING].count(True) > 1:
     print("There are more than one training datasets chosen, skipping training!!!")
@@ -100,7 +98,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
         print('-' * 10)
 
         # Each epoch has a training and validation phase
-        for phase in ['train', 'val']:
+        # for phase in ['train', 'val']:
+        for phase in ['train']:
             if phase == 'train':
                 shuffle = True
                 model.train()  # Training mode
@@ -144,7 +143,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             yes_cnt = 0
             true_cnt = 0
 
-            if phase == 'val':
+            # if phase == 'val':
+            if True:
                 labels_val = []
                 preds_val = []
 
@@ -209,7 +209,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                         loss.backward()
                         optimizer.step()
 
-                if phase == 'val':
+                # if phase == 'val':
+                if True:
                     preds_val.append(preds)
                     labels_val.append(labels)
 
@@ -227,7 +228,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
             ################################################################
 
-            if phase == 'val':
+            # if phase == 'val':
+            if True:
                 # Calculate precision, recall, and F1 score
                 preds_val = torch.cat(preds_val, dim=0)
                 labels_val = torch.cat(labels_val, dim=0)
@@ -255,7 +257,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, yes_ratio.item() * 100, true_ratio.item() * 100))
 
             # deep copy the model
-            if phase == 'val' and f1 >= best_f1:
+            # if phase == 'val' and f1 >= best_f1:
+            if f1 >= best_f1:
                 best_f1 = f1
                 best_acc = epoch_acc
                 best_loss = epoch_loss

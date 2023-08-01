@@ -8,7 +8,6 @@ from tqdm import tqdm
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
-from explainers import ModelExplainer
 from transformer import Transformer_AdvisingNetwork
 from visualize import Visualization
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
@@ -17,11 +16,10 @@ from sklearn.metrics import precision_score, recall_score, f1_score, confusion_m
 RunningParams = RunningParams()
 Dataset = Dataset()
 HelperFunctions = HelperFunctions()
-ModelExplainer = ModelExplainer()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 CATEGORY_ANALYSIS = False
 
@@ -31,7 +29,8 @@ full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combine
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_genial-plasma-3125.pt',
+                        # default='best_model_genial-plasma-3125.pt',
+                        default='best_model_decent-pyramid-3156.pt',
                         help='Model check point')
 
     args = parser.parse_args()
@@ -50,13 +49,14 @@ if __name__ == '__main__':
     loss = checkpoint['val_loss']
     acc = checkpoint['val_acc']
 
-    print('Validation accuracy: {:.2f}'.format(acc))
+    print('Model accuracy: {:.2f}'.format(acc))
 
     print(RunningParams.__dict__)
 
     MODEL2.eval()
     # test_dir = '/home/giang/Downloads/datasets/CUB/advnet/val'  ##################################
-    test_dir = '/home/giang/Downloads/datasets/CUB/advnet/test'  ##################################
+    # test_dir = '/home/giang/Downloads/datasets/CUB/advnet/test'  ##################################
+    test_dir = '/home/giang/Downloads/datasets/CUB/test0'  ##################################
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'])
@@ -90,7 +90,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=32,
+            batch_size=64,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -232,7 +232,7 @@ if __name__ == '__main__':
                         running_corrects_conf_dict[key] += torch.sum((preds == labels.data)[my_dict[key]])
                     ###############################
 
-                optimal_T = 90
+                optimal_T = 95
                 ##################################
                 conf_list = []
                 confidences = model1_score
@@ -332,6 +332,10 @@ if __name__ == '__main__':
 
                         s = int(model1_score[sample_idx].item() * 100)
                         if s not in confidence_dict:
+                            # First: number of predictions having this confidence
+                            # Second: number of predictions having this confidence
+                            # Third: number of correct samples having this confidence
+                            # The confidence is from MODEL1 output
                             confidence_dict[s] = [0, 0, 0]
                             # if model2_score[sample_idx].item() >= model1_score[sample_idx].item():
                             if True:
@@ -407,7 +411,7 @@ if __name__ == '__main__':
 
             yes_cnt += sum(preds)
             true_cnt += sum(labels)
-            np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
+            # np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
 
         cmd = 'img2pdf -o /home/giang/Downloads/advising_network/vis/IncorrectlyAccept/output.pdf ' \
               '--pagesize A4^T /home/giang/Downloads/advising_network/vis/IncorrectlyAccept/*.jpg'

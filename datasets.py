@@ -25,7 +25,7 @@ class ImageFolderForAdvisingProcess(ImageFolder):
     torchvision.datasets.ImageFolder
     """
 
-    def __init__(self, root, transform=None):
+    def __init__(self, root, transform=None, nn_num=None):
         super(ImageFolderForAdvisingProcess, self).__init__(root, transform=transform)
 
         self.root = root
@@ -57,6 +57,7 @@ class ImageFolderForAdvisingProcess(ImageFolder):
         self.imgs = imgs
         self.samples = samples
         self.targets = targets
+        self.nn_num = nn_num
 
     def __getitem__(self, index):
         query_path, target = self.samples[index]
@@ -69,17 +70,22 @@ class ImageFolderForAdvisingProcess(ImageFolder):
 
         nns = self.faiss_nn_dict[base_name]  # a dict of C classes, each class has 6 NNs
 
+        if self.nn_num is None:
+            nn_num = RunningParams.k_value
+        else:
+            nn_num = self.nn_num
+
         if RunningParams.DOGS_TRAINING is True:
             # Initialize an empty tensor to store the transformed images
-            tensor_images = torch.empty((len(nns), RunningParams.k_value, 3, 512, 512))
+            tensor_images = torch.empty((len(nns), nn_num, 3, 512, 512))
         else:
-            tensor_images = torch.empty((len(nns), RunningParams.k_value, 3, 224, 224))
+            tensor_images = torch.empty((len(nns), nn_num, 3, 224, 224))
 
         labels = []
 
         # Iterate over the dictionary entries and transform the images
         for i, val in nns.items():
-            file_paths = val['NNs'][:RunningParams.k_value]
+            file_paths = val['NNs'][:nn_num]
             labels.append(val['Label'])
             for j, file_path in enumerate(file_paths):
                 # Load the image using the loader function
@@ -163,22 +169,24 @@ class ImageFolderForNNs(ImageFolder):
     """
 
     if RunningParams.IMAGENET_REAL:
-        def __init__(self, root, transform=None):
+        def __init__(self, root, transform=None, nn_dict=None):
             super(ImageFolderForNNs, self).__init__(root, transform=transform)
 
             self.root = root
             # Load the pre-computed NNs
             if RunningParams.CUB_TRAINING is True:
                 if 'train' in os.path.basename(root):
-                        file_name = 'faiss/cub/top10_k1_enriched_NeurIPS_Finetuning_faiss_train_top1_HP_MODEL1_HP_FE.npy'
+                    file_name = 'faiss/cub/top10_k1_enriched_NeurIPS_Finetuning_faiss_train_top1_HP_MODEL1_HP_FE.npy'
                     # file_name = '/home/giang/Downloads/advising_network/faiss/cub/NTSNet_10_1_train.npy'
+                elif 'val' in os.path.basename(root):
+                    file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_val_top1_HP_MODEL1_HP_FE.npy'
+                    # file_name = '/home/giang/Downloads/advising_network/faiss/cub/NTSNet_1_1_val.npy'
+                elif 'test' in os.path.basename(root):
+                    # file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test4k7_top1_HP_MODEL1_HP_FE.npy'
+                    file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1_HP_MODEL1_HP_FE.npy'
                 else:
-                    if 'val' in os.path.basename(root):
-                        file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_val_top1_HP_MODEL1_HP_FE.npy'
-                        # file_name = '/home/giang/Downloads/advising_network/faiss/cub/NTSNet_1_1_val.npy'
-                    else:
-                        file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1_HP_MODEL1_HP_FE.npy'
-                        # file_name = '/home/giang/Downloads/advising_network/faiss/cub/NTSNet_1_1_test.npy'
+                    file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1_HP_MODEL1_HP_FE.npy'
+                    # file_name = '/home/giang/Downloads/advising_network/faiss/cub/NTSNet_1_1_test.npy'
 
             elif RunningParams.DOGS_TRAINING is True:
                 if 'train' in os.path.basename(root):
@@ -196,11 +204,15 @@ class ImageFolderForNNs(ImageFolder):
                 elif 'val' in os.path.basename(root):
                     file_name = 'faiss/cars/top2_k1_enriched_NeurIPS_Finetuning_faiss_val_top1.npy'
                 elif 'test' in os.path.basename(root):
-                    file_name = 'faiss/cars/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1.npy'
+                    # file_name = 'faiss/cars/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1.npy'
+                    file_name = 'faiss/cars/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1_rn50.npy'
                 else:
                     exit(-1)
             else:
                 exit(-1)
+
+            if nn_dict is not None:
+                file_name = nn_dict
 
             print(file_name)
             self.faiss_nn_dict = np.load(file_name, allow_pickle=True, ).item()
@@ -245,6 +257,7 @@ class ImageFolderForNNs(ImageFolder):
             explanations.append(sample)
         # If query is the same with any of NNs --> wrongly retrieved NNs
         if dup is True:
+            print('I found the query and the NNs are the same. Duplicate detected!!!!!!!!!!!!!!!!')
             exit(-1)
 
         explanations = torch.stack(explanations)
@@ -258,7 +271,7 @@ class ImageFolderForNNs(ImageFolder):
 
         # make a new tuple that includes original and the path
         if 'train' in os.path.basename(self.root):
-            tuple_with_path = ((query, explanations, model2_target, aug_query), target, query_path)
+                tuple_with_path = ((query, explanations, model2_target, aug_query), target, query_path)
         elif 'val' in os.path.basename(self.root) and (RunningParams.CARS_TRAINING is True or
                                                        RunningParams.DOGS_TRAINING is True):
             tuple_with_path = ((query, explanations, model2_target, aug_query), target, query_path)

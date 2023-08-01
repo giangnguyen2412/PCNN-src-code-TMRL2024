@@ -280,8 +280,8 @@ elif RunningParams.DOGS_TRAINING is True:
 
             ##############################################################
             model = models.resnet34(pretrained=True)
-
-            # Parameters of newly constructed modules have requires_grad=True by default
+            # TODO: uncomment the below lines
+            # # Parameters of newly constructed modules have requires_grad=True by default
             num_ftrs = model.fc.in_features
             model.fc = nn.Linear(num_ftrs, 120)
 
@@ -295,7 +295,7 @@ elif RunningParams.DOGS_TRAINING is True:
 
             model.load_state_dict(new_ckpt)
             ################################################################
-
+            # TODO
             conv_features = list(model.children())[:RunningParams.conv_layer - 6]  # delete the last fc layer
             self.conv_layers = nn.Sequential(*conv_features)
 
@@ -365,6 +365,7 @@ elif RunningParams.DOGS_TRAINING is True:
             if RunningParams.XAI_method == RunningParams.NNs:
                 if RunningParams.k_value == 1:
                     explanations = explanations.squeeze()
+                    # breakpoint()
                     explanation_spatial_feats = self.conv_layers(explanations)
                     if RunningParams.BOTTLENECK is True:
                         explanation_spatial_feats = self.bottleneck(explanation_spatial_feats)
@@ -406,7 +407,7 @@ elif RunningParams.DOGS_TRAINING is True:
                     exp_spt_feats = self.transformer(explanation_spatial_feats)
 
                     # Cross-attention --> 50x2048; only the cls tokens are transformed. Image tokens are kept the same.
-                    input_spatial_feats, explanation_spatial_feats, i2e_attn, e2i_attn = self.cross_transformer(
+                    input_spatial_feats, explanation_spatial_feats, i2e_attns, e2i_attns = self.cross_transformer(
                         input_spt_feats, exp_spt_feats)
 
                 input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
@@ -498,7 +499,7 @@ elif RunningParams.DOGS_TRAINING is True:
                 return output, None, None
             elif RunningParams.XAI_method == RunningParams.NNs:
                 if RunningParams.k_value == 1:
-                    return output, input_feat, None, None
+                    return output, input_feat, i2e_attns, e2i_attns
                 else:
                     return output, input_feat, i2e_attns, e2i_attns
 
@@ -510,11 +511,16 @@ elif RunningParams.CARS_TRAINING is True:
 
             ################################################################
             import torchvision
-            model = torchvision.models.resnet18(pretrained=True).cuda()
+            if RunningParams.resnet == 50:
+                model = torchvision.models.resnet50(pretrained=True).cuda()
+            elif RunningParams.resnet == 34:
+                model = torchvision.models.resnet34(pretrained=True).cuda()
+            elif RunningParams.resnet == 18:
+                model = torchvision.models.resnet18(pretrained=True).cuda()
             model.fc = nn.Linear(model.fc.in_features, 196)
 
             my_model_state_dict = torch.load(
-                '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best.pth.tar')
+                '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.resnet), map_location=torch.device('cpu'))
             model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
             ################################################################
 
@@ -611,7 +617,7 @@ elif RunningParams.CARS_TRAINING is True:
 
             sep_token = torch.zeros([explanations.shape[0], 1], requires_grad=False).cuda()
 
-            transformer_encoder_depth = 2
+            transformer_encoder_depth = 3
 
             if RunningParams.k_value == 1:
                 # Add the cls token and positional embedding --> 50x2048

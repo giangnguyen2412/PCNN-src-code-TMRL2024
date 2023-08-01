@@ -144,8 +144,8 @@ else:
 
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-set = 'validation'
-depth_of_pred = 2
+set = 'test'
+depth_of_pred = 1
 
 image_datasets = dict()
 # image_datasets['train'] = StanfordDogsDataset(

@@ -22,7 +22,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 Dataset = Dataset()
 RunningParams = RunningParams()
@@ -30,25 +30,46 @@ RunningParams = RunningParams()
 depth_of_pred = 10
 set = 'test'
 
-
+MODEL1_RN34 = True
 import torchvision
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-model = torchvision.models.resnet18(pretrained=True).cuda()
-model.fc = nn.Linear(model.fc.in_features, 196)
+                                         std=[0.229, 0.224, 0.225])
+if MODEL1_RN34 is True:
 
-my_model_state_dict = torch.load(
-    '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best.pth.tar')
-model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
+    model = torchvision.models.resnet18(pretrained=True).cuda()
+    model.fc = nn.Linear(model.fc.in_features, 196)
+
+    my_model_state_dict = torch.load(
+        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn18.pth.tar', map_location=torch.device('cpu'))
+    model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
+else:
+    model = torchvision.models.mobilenet_v2(pretrained=True).cuda()
+    new_linear = nn.Linear(model.classifier[1].in_features, 196)
+    new_classifier = nn.Sequential(nn.Dropout(0.2), new_linear)
+    model.classifier = new_classifier
+
+    my_model_state_dict = torch.load(
+        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_mobilenet_v2.pth.tar', map_location=torch.device('cpu'))
+    model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
+
 model.eval()
 
 MODEL1 = model.cuda()
 
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
+
+if MODEL1_RN34 is True:
+    in_features = 512
+else:
+    in_features = 1280
+    # Define the average pooling layer
+    avgpool = nn.AdaptiveAvgPool2d(1)
+
+    # Append the average pooling layer to the feature extractor
+    feature_extractor.add_module("19", avgpool)
+
 feature_extractor.cuda()
 feature_extractor = nn.DataParallel(feature_extractor)
-
-in_features = 512
 
 data_transform = transforms.Compose([transforms.Resize(256),
             transforms.CenterCrop(224),
@@ -56,7 +77,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
             normalize,
         ])
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/Cars/Stanford-Cars-dataset/train',
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train',
                                      transform=data_transform)
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -68,7 +89,11 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-INDEX_FILE = 'faiss/cars/INDEX_file_adv_process_for_Cars.npy'
+if MODEL1_RN34 is True:
+    INDEX_FILE = 'faiss/cars/INDEX_file_adv_process_for_Cars_rn18.npy'
+else:
+    INDEX_FILE = 'faiss/cars/INDEX_file_adv_process_for_Cars_mobilenet_v2.npy'
+
 print(INDEX_FILE)
 
 if os.path.exists(INDEX_FILE):
@@ -115,7 +140,13 @@ else:
 
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/{}'.format(set)
+# data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/{}'.format(set)
+if set == 'train':
+    data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train'
+elif set == 'test':
+    data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
+else:
+    exit(-1)
 
 image_datasets = dict()
 image_datasets['train'] = ImageFolderWithPaths(data_dir, data_transform)

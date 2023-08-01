@@ -5,7 +5,7 @@ import argparse
 
 from tqdm import tqdm
 from params import RunningParams
-from datasets import Dataset, ImageFolderForAdvisingProcess, ImageFolderForNNs
+from datasets import Dataset, ImageFolderForAdvisingProcess, StanfordDogsDataset
 from transformer import Transformer_AdvisingNetwork
 
 RunningParams = RunningParams()
@@ -18,23 +18,40 @@ torch.manual_seed(42)
 
 from torchvision import datasets, models, transforms
 
-normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-data_transform = transforms.Compose([transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            normalize,
-        ])
-full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train',
-                                     data_transform)
+import torchvision.transforms as T
+import math
+
+def preprocess(image):
+    width, height = image.size
+    if width > height and width > 512:
+        height = math.floor(512 * height / width)
+        width = 512
+    elif width < height and height > 512:
+        width = math.floor(512 * width / height)
+        height = 512
+    pad_values = (
+        (512 - width) // 2 + (0 if width % 2 == 0 else 1),
+        (512 - height) // 2 + (0 if height % 2 == 0 else 1),
+        (512 - width) // 2,
+        (512 - height) // 2,
+    )
+    return T.Compose([
+        T.Resize((height, width)),
+        T.Pad(pad_values),
+        T.ToTensor(),
+        T.Lambda(lambda x: x[:3]),  # Remove the alpha channel if it's there
+    ])(image)
+
+# Because it has a unique type of mapping the labels, we need reference_dataset to convert the predicted ids (StanfordDogsDataset) to ImageFolder ids
+reference_dataset = StanfordDogsDataset(
+    root=os.path.join('/home/giang/Downloads/advising_network/stanford-dogs', "data"), set_type="train", transform=preprocess)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        # default='best_model_zesty-mountain-3152.pt',
-                        # default='best_model_spring-field-3157.pt',
-                        # default='best_model_robust-sunset-3158.pt',
-                        default='best_model_divine-cherry-3160.pt',
+                        # default='best_model_serene-bush-3128.pt',
+                        # default='best_model_stoic-water-3131.pt',
+                        default='best_model_eager-cloud-3132.pt',
                         help='Model check point')
 
     args = parser.parse_args()
@@ -52,23 +69,31 @@ if __name__ == '__main__':
     epoch = checkpoint['epoch']
     loss = checkpoint['val_loss']
     acc = checkpoint['val_acc']
+
     f1 = checkpoint['best_f1']
+    print(epoch)
 
     print('Validation accuracy: {:.4f}'.format(acc))
     print('F1 score: {:.4f}'.format(f1))
 
     model.eval()
 
-    test_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'  ##################################
+    test_dir = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/test'  ##################################
 
     image_datasets = dict()
-    image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])
+
+    nn_num = 8
+    print(nn_num)
+    file_name = 'faiss/sdogs/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}.npy'.format(
+        1, nn_num, os.path.basename(test_dir))
+
+    image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, preprocess, nn_num=nn_num)
     dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
 
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=16,
+            batch_size=8,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -93,23 +118,32 @@ if __name__ == '__main__':
                 for sample_idx in range(x.shape[0]):
                     tgt = gt[sample_idx].item()
                     class_name = data_loader.dataset.classes[tgt]
-                    id = full_cub_dataset.class_to_idx[class_name]
+                    id = reference_dataset.class_to_idx[class_name]
                     gt[sample_idx] = id
 
             # Make a dummy confidence score
-            model1_score = torch.zeros([data[1].shape[0], 1]).cuda()
+            model1_score = torch.zeros([data[1].shape[0], 1])
 
             output_tensors = []
             # Loop to get the logit for each class
             for class_idx in range(data[1].shape[1]):
                 explanation = data[1][:, class_idx, :, :, :, :]
-                explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
-                # print(explanation.shape)
-                output, _, _, _ = model(images=x, explanations=explanation, scores=model1_score)
-                output = output.squeeze()
-                output_tensors.append(output)
+                ps = []
+                for nn_idx in range(nn_num):
+                    ex = explanation[:, nn_idx:nn_idx+1, :, :, :]
+                    output, _, _, _ = model(images=x, explanations=ex, scores=model1_score)
+                    # convert logits to probabilities using sigmoid function
+                    p = torch.sigmoid(output)
+                    ps.append(p)
 
+                p = torch.stack(ps, dim=0)
+                ###############################
+                ###############################
+                p = p.mean(dim=0)
+                output_tensors.append(p)
+
+            # breakpoint()
             logits = torch.stack(output_tensors, dim=1)
             # convert logits to probabilities using softmax function
             p = torch.softmax(logits, dim=1)

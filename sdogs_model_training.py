@@ -20,7 +20,6 @@ from transformer import *
 from params import RunningParams
 from datasets import Dataset, StanfordDogsDataset, ImageFolderForNNs
 from helpers import HelperFunctions
-from explainers import ModelExplainer
 
 # torch.backends.cudnn.benchmark = True
 # plt.ion()   # interactive mode
@@ -30,7 +29,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
-Explainer = ModelExplainer()
 
 import torchvision.transforms as T
 import math
@@ -79,7 +77,7 @@ MODEL1 = nn.DataParallel(MODEL1)
 
 
 train_dataset = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/train_top10'
-val_dataset = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/validation_top2'
+val_dataset = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/test'
 
 data_transform = preprocess
 
@@ -144,7 +142,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 image_datasets[phase],
                 batch_size=RunningParams.batch_size,
                 shuffle=shuffle,  # turn shuffle to True
-                num_workers=16,
+                num_workers=32,
                 pin_memory=True,
                 drop_last=drop_last
             )
@@ -184,7 +182,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                 labels = model2_gt
 
-                if phase == 'train' or phase == 'val':
+                # if phase == 'train' or phase == 'val':
+                if phase == 'train':
                     labels = data[2].cuda()
 
                 #####################################################

@@ -20,14 +20,12 @@ from transformer import *
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
-from explainers import ModelExplainer
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
-Explainer = ModelExplainer()
 
 assert (RunningParams.DOGS_TRAINING is False and RunningParams.IMAGENET_TRAINING is False)
 

@@ -12,7 +12,7 @@ from torchvision import models
 from datasets import StanfordDogsDataset
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 def preprocess(image):
     width, height = image.size
@@ -45,7 +45,7 @@ DEVICE = torch.device("cuda")
 
 
 #
-train_dataset = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/train'
+train_dataset = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/BACKUP/train'
 val_dataset = '/home/giang/Downloads/advising_network/stanford-dogs/data/images/test'
 
 from datasets import Dataset, StanfordDogsDataset, ImageFolderForNNs
@@ -55,9 +55,11 @@ validation_set = ImageFolderForNNs(val_dataset, preprocess)
 
 
 dataloaders = {
-    "train": DataLoader(train_set, batch_size=128, shuffle=True, num_workers=4),
-    "validation": DataLoader(validation_set, batch_size=128, shuffle=True, num_workers=4),
+    "train": DataLoader(train_set, batch_size=16, shuffle=True, num_workers=4),
+    "validation": DataLoader(validation_set, batch_size=16, shuffle=True, num_workers=4),
 }
+
+torch.manual_seed(42)
 
 
 print('train size: {}'.format(len(train_set)))
@@ -96,6 +98,8 @@ reference_dataset = StanfordDogsDataset(
 
 running_corrects = 0
 data_loader = dataloaders['validation']
+
+preds_dict = {}
 # Iterate over data.
 for inputs, labels, pths in data_loader:
     inputs = inputs[0].to(DEVICE)
@@ -103,7 +107,8 @@ for inputs, labels, pths in data_loader:
 
     # track history if only in train
     outputs = model(inputs)
-    _, preds = torch.max(outputs, 1)
+    model1_p = torch.nn.functional.softmax(outputs, dim=1)
+    confs, preds = torch.max(model1_p, 1)
 
     for sample_idx in range(inputs.shape[0]):
 
@@ -112,6 +117,14 @@ for inputs, labels, pths in data_loader:
         dog_name = reference_dataset.mapping[predicted_idx]
         preds[sample_idx] = data_loader.dataset.class_to_idx[dog_name]
         ############################################################################################
+        img_name = os.path.basename(pths[sample_idx])
+        correctness = (preds[sample_idx] == labels.data[sample_idx])
+        preds_dict[img_name] = {}
+        preds_dict[img_name]['correctness'] = correctness.item()
+        preds_dict[img_name]['prediction'] = preds[sample_idx].item()
+        preds_dict[img_name]['groundtruth'] = labels.data[sample_idx].item()
+        preds_dict[img_name]['confidence'] = confs[sample_idx].item()
+        ############################################################################################
 
     # statistics
     running_corrects += torch.sum(preds == labels.data)
@@ -119,3 +132,5 @@ for inputs, labels, pths in data_loader:
 epoch_acc = running_corrects.double() / dataset_sizes['validation'] * 100
 print(epoch_acc)
 ################################################################
+import numpy as np
+np.save('SDogs_preds_dict.npy', preds_dict)

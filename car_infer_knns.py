@@ -8,6 +8,7 @@ from tqdm import tqdm
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
+from explainers import ModelExplainer
 from transformer import Transformer_AdvisingNetwork
 from visualize import Visualization
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
@@ -17,10 +18,11 @@ from torchvision import datasets, models, transforms
 RunningParams = RunningParams()
 Dataset = Dataset()
 HelperFunctions = HelperFunctions()
+ModelExplainer = ModelExplainer()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 CATEGORY_ANALYSIS = False
 
@@ -30,9 +32,7 @@ full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/Cars/Stanford-Cars-d
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        # default='best_model_robust-sunset-3158.pt',  # RN50
-                        # default='best_model_spring-field-3157.pt',  # RN34
-                        default='best_model_divine-cherry-3160.pt',  # RN18
+                        default='best_model_zesty-mountain-3152.pt',
                         help='Model check point')
 
     args = parser.parse_args()
@@ -63,25 +63,18 @@ if __name__ == '__main__':
 
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
-
-    if RunningParams.resnet == 50:
-        model = torchvision.models.resnet50(pretrained=True).cuda()
-    elif RunningParams.resnet == 34:
-        model = torchvision.models.resnet34(pretrained=True).cuda()
-    elif RunningParams.resnet == 18:
-        model = torchvision.models.resnet18(pretrained=True).cuda()
-
+    model = torchvision.models.resnet34(pretrained=True).cuda()
     model.fc = nn.Linear(model.fc.in_features, 196)
 
     my_model_state_dict = torch.load(
-        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.resnet), map_location=torch.device('cpu'))
+        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn34.pth.tar', map_location=torch.device('cpu'))
     model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
     model.eval()
 
     MODEL1 = model.cuda()
     MODEL1.eval()
 
-    in_features = model.fc.in_features
+    in_features = 512
 
     data_transform = transforms.Compose([transforms.Resize(256),
                                          transforms.CenterCrop(224),
@@ -91,11 +84,14 @@ if __name__ == '__main__':
 
     ################################################################
 
+    # test_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/val_top2'
     test_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
-    # test_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
 
     image_datasets = dict()
-    image_datasets['cub_test'] = ImageFolderForNNs(test_dir, data_transform)
+    nn_num = 10
+    file_name = 'faiss/cars/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1.npy'.format(
+        1, nn_num, os.path.basename(test_dir))
+    image_datasets['cub_test'] = ImageFolderForNNs(test_dir, data_transform, nn_dict=file_name)
     dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
 
     ################################################################
@@ -169,38 +165,22 @@ if __name__ == '__main__':
             if 'train' in test_dir or 'val' in test_dir:
                 labels = data[2].cuda()
 
-            # Generate explanations
-            if RunningParams.XAI_method == RunningParams.GradCAM:
-                explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
-            elif RunningParams.XAI_method == RunningParams.NNs:
+            ps = []
+            for nn_idx in range(nn_num):
+                # Generate explanations
+
                 explanation = data[1]
-                explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
-                # Find the maximum value along each row
-                max_values, _ = torch.max(model1_p, dim=1)
+                explanation = explanation[:, nn_idx:nn_idx + 1, :, :, :]
 
-                SAME = False
-                RAND = False
-
-                if SAME is True:
-                    model1_score.fill_(0.999)
-
-                    explanation = x.clone().unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1, 1)
-                if RAND is True:
-                    explanation = torch.rand_like(explanation) * (
-                                explanation.max() - explanation.min()) + explanation.min()
-                    explanation.cuda()
-                    # Replace the maximum value with random guess
-                    model1_score.fill_(1 / 196)
-
-            if RunningParams.advising_network is True:
-                # Forward input, explanations, and softmax scores through MODEL2
-                if RunningParams.XAI_method == RunningParams.NO_XAI:
-                    output, _, _ = MODEL2(images=x, explanations=None, scores=model1_p)
-                else:
-                    output, query, i2e_attn, e2i_attn = MODEL2(images=x, explanations=explanation, scores=model1_score)
+                output, query, i2e_attn, e2i_attn = MODEL2(images=x, explanations=explanation, scores=model1_score)
 
                 # convert logits to probabilities using sigmoid function
                 p = torch.sigmoid(output)
+
+                ps.append(p)
+
+            p = torch.stack(ps, dim=0).mean(dim=0)
+            if RunningParams.advising_network is True:
 
                 # classify inputs as 0 or 1 based on the threshold of 0.5
                 preds = (p >= 0.5).long().squeeze()
@@ -398,4 +378,3 @@ if __name__ == '__main__':
                 os.path.basename(test_dir), epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
 
         np.save('confidence.npy', confidence_dict)
-        # print(top1_crt_cnt/top1_cnt)

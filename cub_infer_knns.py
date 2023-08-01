@@ -8,15 +8,16 @@ from tqdm import tqdm
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
+from explainers import ModelExplainer
 from transformer import Transformer_AdvisingNetwork
 from visualize import Visualization
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
 
-from torchvision import datasets, models, transforms
 
 RunningParams = RunningParams()
 Dataset = Dataset()
 HelperFunctions = HelperFunctions()
+ModelExplainer = ModelExplainer()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -24,15 +25,13 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 CATEGORY_ANALYSIS = False
 
-full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train',
+full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
                                      Dataset.data_transforms['train'])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        # default='best_model_robust-sunset-3158.pt',  # RN50
-                        # default='best_model_spring-field-3157.pt',  # RN34
-                        default='best_model_divine-cherry-3160.pt',  # RN18
+                        default='best_model_genial-plasma-3125.pt',
                         help='Model check point')
 
     args = parser.parse_args()
@@ -56,54 +55,33 @@ if __name__ == '__main__':
     print(RunningParams.__dict__)
 
     MODEL2.eval()
-
-    ################################################################
-
-    import torchvision
-
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-
-    if RunningParams.resnet == 50:
-        model = torchvision.models.resnet50(pretrained=True).cuda()
-    elif RunningParams.resnet == 34:
-        model = torchvision.models.resnet34(pretrained=True).cuda()
-    elif RunningParams.resnet == 18:
-        model = torchvision.models.resnet18(pretrained=True).cuda()
-
-    model.fc = nn.Linear(model.fc.in_features, 196)
-
-    my_model_state_dict = torch.load(
-        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.resnet), map_location=torch.device('cpu'))
-    model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
-    model.eval()
-
-    MODEL1 = model.cuda()
-    MODEL1.eval()
-
-    in_features = model.fc.in_features
-
-    data_transform = transforms.Compose([transforms.Resize(256),
-                                         transforms.CenterCrop(224),
-                                         transforms.ToTensor(),
-                                         normalize,
-                                         ])
-
-    ################################################################
-
-    test_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
-    # test_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
+    # test_dir = '/home/giang/Downloads/datasets/CUB/advnet/val'  ##################################
+    test_dir = '/home/giang/Downloads/datasets/CUB/advnet/test'  ##################################
 
     image_datasets = dict()
-    image_datasets['cub_test'] = ImageFolderForNNs(test_dir, data_transform)
+    nn_num = 3
+    file_name = 'faiss/cub/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1_HP_MODEL1_HP_FE.npy'.format(
+        1, nn_num, os.path.basename(test_dir))
+
+    image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'], nn_dict=file_name)
     dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
 
-    ################################################################
+    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+
+    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+    my_model_state_dict = torch.load(
+        'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+    resnet.load_state_dict(my_model_state_dict, strict=True)
+    MODEL1 = resnet.cuda()
+    MODEL1.eval()
+
+    categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_HIGH/combined'
+
 
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=32,
+            batch_size=16,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -114,6 +92,19 @@ if __name__ == '__main__':
         advising_crt_cnt = 0
 
         top1_cnt, top1_crt_cnt = 0, 0
+
+        MODEL_BAGGING = True
+        if MODEL_BAGGING is True:
+            running_corrects_conf_dict = {key: 0 for key in range(0, 96, 5)}
+            # Init by 0.001 to avoid diving by ZERO
+            total_conf_dict = {key: 0.001 for key in range(0, 96, 5)}
+            thresholding_accs = [85.83, 85.83, 85.83, 85.87, 86.01, 86.17, 86.47, 86.89, 87.47,
+                                 88.15, 88.97, 90.05, 90.91, 92.01, 92.81, 93.62, 94.60, 95.52, 96.42, 97.68]
+            thresholding_accs_dict = {key: thresholding_accs[i] for i, key in enumerate(range(0, 96, 5))}
+            thresholding_ratios = [1.0000, 1.0000, 1.0000, 0.9991, 0.9967, 0.9933, 0.9888, 0.9819,
+                                   0.9722, 0.9570, 0.9392, 0.9173, 0.8947, 0.8723, 0.8469, 0.8198, 0.7891, 0.7551,
+                                   0.7090, 0.6108]
+            thresholding_ratios_dict = {key: thresholding_ratios[i] for i, key in enumerate(range(0, 96, 5))}
 
         yes_cnt = 0
         true_cnt = 0
@@ -142,7 +133,7 @@ if __name__ == '__main__':
             else:
                 x = data.cuda()
 
-            if len(data_loader.dataset.classes) < 196:
+            if len(data_loader.dataset.classes) < 200:
                 for sample_idx in range(x.shape[0]):
                     tgt = gt[sample_idx].item()
                     class_name = data_loader.dataset.classes[tgt]
@@ -150,11 +141,14 @@ if __name__ == '__main__':
                     gt[sample_idx] = id
 
             gts = gt.cuda()
+            import pdb
             # Step 1: Forward pass input x through MODEL1 - Explainer
             out = MODEL1(x)
             model1_p = torch.nn.functional.softmax(out, dim=1)
             model1_score, index = torch.topk(model1_p, 1, dim=1)
+            _, model1_ranks = torch.topk(model1_p, 200, dim=1)
             predicted_ids = index.squeeze()
+            # pdb.set_trace()
             # MODEL1 Y/N label for input x
             for sample_idx in range(x.shape[0]):
                 query = pths[sample_idx]
@@ -163,48 +157,81 @@ if __name__ == '__main__':
             model2_gt = (predicted_ids == gts) * 1  # 0 and 1
             labels = model2_gt
 
+            # print(labels.shape)
+
             # Get the idx of wrong predictions
             idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
 
-            if 'train' in test_dir or 'val' in test_dir:
+            if 'train' in test_dir:
                 labels = data[2].cuda()
 
-            # Generate explanations
-            if RunningParams.XAI_method == RunningParams.GradCAM:
-                explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
-            elif RunningParams.XAI_method == RunningParams.NNs:
+            # print(labels.shape)
+
+            ps = []
+            for nn_idx in range(nn_num):
+                # Generate explanations
                 explanation = data[1]
-                explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
-                # Find the maximum value along each row
-                max_values, _ = torch.max(model1_p, dim=1)
+                explanation = explanation[:, nn_idx:nn_idx+1, :, :, :]
 
-                SAME = False
-                RAND = False
-
-                if SAME is True:
-                    model1_score.fill_(0.999)
-
-                    explanation = x.clone().unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1, 1)
-                if RAND is True:
-                    explanation = torch.rand_like(explanation) * (
-                                explanation.max() - explanation.min()) + explanation.min()
-                    explanation.cuda()
-                    # Replace the maximum value with random guess
-                    model1_score.fill_(1 / 196)
-
-            if RunningParams.advising_network is True:
-                # Forward input, explanations, and softmax scores through MODEL2
-                if RunningParams.XAI_method == RunningParams.NO_XAI:
-                    output, _, _ = MODEL2(images=x, explanations=None, scores=model1_p)
-                else:
-                    output, query, i2e_attn, e2i_attn = MODEL2(images=x, explanations=explanation, scores=model1_score)
-
-                # convert logits to probabilities using sigmoid function
+                output, query, i2e_attn, e2i_attn = MODEL2(images=x, explanations=explanation, scores=model1_score)
+                # breakpoint()
                 p = torch.sigmoid(output)
+
+                ps.append(p)
+
+            # breakpoint()
+            p = torch.stack(ps, dim=0).mean(dim=0)
+            if RunningParams.advising_network is True:
+                # convert logits to probabilities using sigmoid function
 
                 # classify inputs as 0 or 1 based on the threshold of 0.5
                 preds = (p >= 0.5).long().squeeze()
                 model2_score = p
+
+                if MODEL_BAGGING is True:
+                    ###############################
+                    conf_list = []
+                    confidences = model1_score
+                    confidences = (confidences * 100).long()
+                    my_dict = {}
+                    for key in range(0, 96, 5):
+                        # get the indices where the tensor is smaller than the key
+                        # advising net handles hard cases
+                        indices = (confidences < key).nonzero().squeeze().view(-1, 2).tolist()
+                        # add the indices to the dictionary
+                        my_dict[key] = [id[0] for id in indices]
+
+                        total_conf_dict[key] += len(my_dict[key])
+                        running_corrects_conf_dict[key] += torch.sum((preds == labels.data)[my_dict[key]])
+                    ###############################
+
+                optimal_T = 90
+                ##################################
+                conf_list = []
+                confidences = model1_score
+                # for j, confidence in enumerate(confidences):
+                #     confidence = confidence.item() * 100
+                #     if confidence >= optimal_T:
+                #         preds[j] = 1
+                ###############################
+
+                ##################################
+                conf_list = []
+                confidences = model1_score
+
+                for j, confidence in enumerate(confidences):
+                    confidence = confidence.item() * 100
+                    thres_conf = thresholding_accs[int(confidence/5)]  # the confidence of the thresholding agent
+                    adv_net_conf = p[j].item()*100  # the confidence of the advising network
+                    if adv_net_conf < 50:
+                        adv_net_conf = 100 - adv_net_conf
+
+                    # # the thresholding is more confident than the adv net
+                    # if thres_conf >= adv_net_conf:
+                    #     preds[j] = 1
+                    # else:
+                    #     pass
+                ###############################
 
                 results = (preds == labels)
 
@@ -214,7 +241,7 @@ if __name__ == '__main__':
                 for j in range(x.shape[0]):
                     pth = pths[j]
 
-                    if '0_0' in pth:
+                    if '_0_' in pth:
                         top1_cnt += 1
 
                         if results[j] == True:
@@ -369,22 +396,33 @@ if __name__ == '__main__':
         orig_wrong = len(image_datasets[ds]) - true_cnt
         adv_wrong = len(image_datasets[ds]) - advising_crt_cnt
 
+        if MODEL_BAGGING is True:
+            adv_net_acc_dict = {}
+            ensemble_acc_dict = {}
+            for key in range(0, 96, 5):
+                adv_net_acc_dict[key] = running_corrects_conf_dict[key] * 100 / total_conf_dict[key]
+                ensemble_acc_dict[key] = thresholding_accs_dict[key] * thresholding_ratios_dict[key] + \
+                                         adv_net_acc_dict[key] * (1.0 - thresholding_ratios_dict[key])
 
-        ################################################################
-        # Calculate precision, recall, and F1 score
-        preds_val = torch.cat(preds_val, dim=0)
-        labels_val = torch.cat(labels_val, dim=0)
+                print(
+                    'Using bagging - Optimal threshold: {} - Ensemble Acc: {:.2f} - Yes Ratio: {:.2f} - True Ratio: {:.2f}'.format(
+                        key, ensemble_acc_dict[key], yes_ratio.item() * 100, true_ratio.item() * 100))
 
-        precision = precision_score(labels_val.cpu(), preds_val.cpu())
-        recall = recall_score(labels_val.cpu(), preds_val.cpu())
-        f1 = f1_score(labels_val.cpu(), preds_val.cpu())
-        confusion_matrix_ = confusion_matrix(labels_val.cpu(), preds_val.cpu())
-        print(confusion_matrix_)
+            ################################################################
+            # Calculate precision, recall, and F1 score
+            preds_val = torch.cat(preds_val, dim=0)
+            labels_val = torch.cat(labels_val, dim=0)
+
+            precision = precision_score(labels_val.cpu(), preds_val.cpu())
+            recall = recall_score(labels_val.cpu(), preds_val.cpu())
+            f1 = f1_score(labels_val.cpu(), preds_val.cpu())
+            confusion_matrix_ = confusion_matrix(labels_val.cpu(), preds_val.cpu())
+            print(confusion_matrix_)
 
 
-        print('Acc: {:.2f} - Precision: {:.4f} - Recall: {:.4f} - F1: {:.4f}'.format(
-            epoch_acc.item() * 100, precision, recall, f1))
-        ################################################################
+            print('Acc: {:.2f} - Precision: {:.4f} - Recall: {:.4f} - F1: {:.4f}'.format(
+                epoch_acc.item() * 100, precision, recall, f1))
+            ################################################################
 
         if RunningParams.MODEL2_ADVISING is True:
             advising_acc = advising_crt_cnt.double() / len(image_datasets[ds])
@@ -398,4 +436,3 @@ if __name__ == '__main__':
                 os.path.basename(test_dir), epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
 
         np.save('confidence.npy', confidence_dict)
-        # print(top1_crt_cnt/top1_cnt)

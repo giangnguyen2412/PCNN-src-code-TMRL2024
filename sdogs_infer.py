@@ -22,7 +22,7 @@ ModelExplainer = ModelExplainer()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 CATEGORY_ANALYSIS = False
 
@@ -110,11 +110,13 @@ if __name__ == '__main__':
     MODEL1 = model.cuda()
     MODEL1.eval()
 
+    torch.manual_seed(42)
+
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=10,
-            shuffle=False,  # turn shuffle to False
+            batch_size=8,
+            shuffle=True,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
             drop_last=False  # Do not remove drop last because it affects performance
@@ -134,6 +136,12 @@ if __name__ == '__main__':
         if RunningParams.M2_VISUALIZATION is True:
             HelperFunctions.check_and_rm(save_dir)
             HelperFunctions.check_and_mkdir(save_dir)
+
+        # save_dir = '/home/giang/Downloads/advising_network/attn_maps'
+        # if RunningParams.M2_VISUALIZATION is True:
+        #     HelperFunctions.check_and_rm(save_dir)
+        #     HelperFunctions.check_and_mkdir(save_dir)
+
         model1_confidence_dist = dict()
         model2_confidence_dist = dict()
         for cat in categories:
@@ -147,6 +155,8 @@ if __name__ == '__main__':
         preds_val = []
 
         for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
+            if batch_idx == 40:
+                break
             if RunningParams.XAI_method == RunningParams.NNs:
                 x = data[0].cuda()
             else:
@@ -164,6 +174,10 @@ if __name__ == '__main__':
             out = MODEL1(x)
             model1_p = torch.nn.functional.softmax(out, dim=1)
             model1_score, index = torch.topk(model1_p, 1, dim=1)
+            import pdb
+
+            pdb.set_trace = lambda: 1
+            pdb.set_trace()
             predicted_ids = index.squeeze()
             # MODEL1 Y/N label for input x
             for sample_idx in range(x.shape[0]):
@@ -213,73 +227,20 @@ if __name__ == '__main__':
                 # convert logits to probabilities using sigmoid function
                 p = torch.sigmoid(output)
 
+                pdb.set_trace()
+
                 # classify inputs as 0 or 1 based on the threshold of 0.5
                 preds = (p >= 0.5).long().squeeze()
                 model2_score = p
 
                 results = (preds == labels)
 
+                ################################
                 preds_val.append(preds)
                 labels_val.append(labels)
-
-                for j in range(x.shape[0]):
-                    pth = pths[j]
-
-                    if '0_0' in pth:
-                        top1_cnt += 1
-
-                        if results[j] == True:
-                            top1_crt_cnt += 1
+                ################################
 
                 running_corrects += torch.sum(preds == labels.data)
-
-                VISUALIZE_TRANSFORMER_ATTN = False
-                if VISUALIZE_TRANSFORMER_ATTN is True:
-                    i2e_attn = i2e_attn.mean(dim=1)  # bsx8x3x50
-                    i2e_attn = i2e_attn[:, :, 1:]  # remove cls token --> bsx3x49
-
-                    e2i_attn = e2i_attn.mean(dim=1)
-                    e2i_attn = e2i_attn[:, :, 1:]  # remove cls token
-
-                    for sample_idx in range(x.shape[0]):
-                        if sample_idx == 1:
-                            break
-                        result = results[sample_idx].item()
-                        if result is True:
-                            correctness = 'Correctly'
-                        else:
-                            correctness = 'Incorrectly'
-
-                        pred = preds[sample_idx].item()
-                        if pred == 1:
-                            action = 'Accept'
-                        else:
-                            action = 'Reject'
-                        model2_decision = correctness + action
-
-                        query = pths[sample_idx]
-                        base_name = os.path.basename(query)
-                        prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
-                        for prototype_idx in range(RunningParams.k_value):
-                            bef_weights = i2e_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
-                            aft_weights = e2i_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
-
-                            # as the test images are from validation, then we do not need to exclude the fist prototype
-                            prototype = prototypes[prototype_idx]
-                            Visualization.visualize_transformer_attn_v2(bef_weights, aft_weights, prototype, query,
-                                                                        model2_decision, prototype_idx)
-
-                        # Combine visualizations
-                        cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 tmp/{}/{}.jpeg'.format(
-                            model2_decision, base_name, RunningParams.k_value - 1, model2_decision, base_name)
-                        # cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 my_plot.png'.format(
-                        #     model2_decision, base_name, RunningParams.k_value - 1)
-                        os.system(cmd)
-                        # Remove unused images
-                        cmd = 'rm -rf tmp/{}/{}_[0-{}].png'.format(
-                            model2_decision, base_name, RunningParams.k_value - 1)
-                        os.system(cmd)
-
 
                 AI_DELEGATE = True
                 if AI_DELEGATE is True:
@@ -310,6 +271,52 @@ if __name__ == '__main__':
 
                                 if labels[sample_idx].item() == 1:
                                     confidence_dict[s][2] += 1
+
+            VISUALIZE_TRANSFORMER_ATTN = True
+            if VISUALIZE_TRANSFORMER_ATTN is True:
+                pdb.set_trace()
+
+                i2e_attn = i2e_attn.mean(dim=1)  # bsx8x3x50
+                i2e_attn = i2e_attn[:, :, 1:]  # remove cls token --> bsx3x49
+
+                e2i_attn = e2i_attn.mean(dim=1)
+                e2i_attn = e2i_attn[:, :, 1:]  # remove cls token
+
+                for sample_idx in range(x.shape[0]):
+                    result = results[sample_idx].item()
+                    if result is True:
+                        correctness = 'Correctly'
+                    else:
+                        correctness = 'Incorrectly'
+
+                    pred = preds[sample_idx].item()
+                    if pred == 1:
+                        action = 'Accept'
+                    else:
+                        action = 'Reject'
+                    model2_decision = correctness + action
+
+                    query = pths[sample_idx]
+                    base_name = os.path.basename(query)
+                    prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
+                    for prototype_idx in range(RunningParams.k_value):
+                        bef_weights = i2e_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
+                        aft_weights = e2i_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
+
+                        # as the test images are from validation, then we do not need to exclude the fist prototype
+                        prototype = prototypes[prototype_idx]
+                        Visualization.visualize_transformer_attn_sdogs(bef_weights, aft_weights, prototype, query,
+                                                                    model2_decision, prototype_idx)
+
+                    # Combine visualizations
+                    # cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 tmp/{}/{}.jpeg'.format(
+                    #     model2_decision, base_name, RunningParams.k_value - 1, model2_decision, base_name)
+
+                    # os.system(cmd)
+                    # Remove unused images
+                    # cmd = 'rm -rf tmp/{}/{}_[0-{}].png'.format(
+                    #     model2_decision, base_name, RunningParams.k_value - 1)
+                    # os.system(cmd)
 
             if RunningParams.M2_VISUALIZATION is True:
                 for sample_idx in range(x.shape[0]):
@@ -366,12 +373,23 @@ if __name__ == '__main__':
             true_cnt += sum(labels)
             np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
 
+        ################################################################
+
+        cmd = 'img2pdf -o /home/giang/Downloads/advising_network/attn_maps/IncorrectlyAccept/output.pdf ' \
+              '--pagesize A4^T /home/giang/Downloads/advising_network/attn_maps/IncorrectlyAccept/*.jpg'
+        os.system(cmd)
+        cmd = 'img2pdf -o /home/giang/Downloads/advising_network/attn_maps/IncorrectlyReject/output.pdf ' \
+              '--pagesize A4^T /home/giang/Downloads/advising_network/attn_maps/IncorrectlyReject/*.jpg'
+        os.system(cmd)
+
+        ################################################################
         cmd = 'img2pdf -o /home/giang/Downloads/advising_network/vis/IncorrectlyAccept/output.pdf ' \
               '--pagesize A4^T /home/giang/Downloads/advising_network/vis/IncorrectlyAccept/*.jpg'
         os.system(cmd)
         cmd = 'img2pdf -o /home/giang/Downloads/advising_network/vis/IncorrectlyReject/output.pdf ' \
               '--pagesize A4^T /home/giang/Downloads/advising_network/vis/IncorrectlyReject/*.jpg'
         os.system(cmd)
+        #################################################################
 
         epoch_acc = running_corrects.double() / len(image_datasets[ds])
         yes_ratio = yes_cnt.double() / len(image_datasets[ds])

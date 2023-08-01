@@ -20,17 +20,15 @@ from transformer import *
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
-from explainers import ModelExplainer
 
 # torch.backends.cudnn.benchmark = True
 # plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
-Explainer = ModelExplainer()
 
 import torchvision
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
@@ -39,7 +37,7 @@ model = torchvision.models.resnet18(pretrained=True).cuda()
 model.fc = nn.Linear(model.fc.in_features, 196)
 
 my_model_state_dict = torch.load(
-    '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best.pth.tar')
+    '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn18.pth.tar', map_location=torch.device('cpu'))
 model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
 model.eval()
 
@@ -48,8 +46,8 @@ MODEL1 = model.cuda()
 fc = MODEL1.fc
 fc = fc.cuda()
 
-train_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/train_top10'
-val_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/val_top2'
+train_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/train_top10_rn18'
+val_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
 
 data_transform = transforms.Compose([transforms.Resize(256),
             transforms.CenterCrop(224),
@@ -83,7 +81,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
         print('-' * 10)
 
         # Each epoch has a training and validation phase
-        for phase in ['train', 'val']:
+        for phase in ['train']:
             if phase == 'train':
                 shuffle = True
                 drop_last = True
@@ -127,7 +125,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             yes_cnt = 0
             true_cnt = 0
 
-            if phase == 'val':
+            # if phase == 'val':
+            if True:
                 labels_val = []
                 preds_val = []
 
@@ -146,24 +145,11 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 score, index = torch.topk(model1_p, 1, dim=1)
                 predicted_ids = index.squeeze()
 
-                # MODEL1 Y/N label for input x
-                if RunningParams.IMAGENET_REAL and phase == 'val' and RunningParams.IMAGENET_TRAINING:
-                    model2_gt = torch.zeros([x.shape[0]], dtype=torch.int64).cuda()
-                    for sample_idx in range(x.shape[0]):
-                        query = pths[sample_idx]
-                        base_name = os.path.basename(query)
-                        real_ids = Dataset.real_labels[base_name]
-                        if predicted_ids[sample_idx].item() in real_ids:
-                            model2_gt[sample_idx] = 1
-                        else:
-                            model2_gt[sample_idx] = 0
-
-                else:
-                    model2_gt = (predicted_ids == gts) * 1  # 0 and 1
+                model2_gt = (predicted_ids == gts) * 1  # 0 and 1
 
                 labels = model2_gt
 
-                if phase == 'train' or phase =='val':
+                if phase == 'train' or phase == 'val':
                     labels = data[2].cuda()
 
                 #####################################################
@@ -183,7 +169,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                         output, _, _ = model(images=x, explanations=None, scores=model1_p)
                     else:
                         if phase == 'train':
-                            output, query, nns, emb_cos_sim = model(images=data[-1], explanations=explanation, scores=score)
+                            aug_query = data[-1]
+                            output, query, nns, emb_cos_sim = model(images=aug_query, explanations=explanation, scores=score)
                         else:
                             output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
 
@@ -198,7 +185,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                         loss.backward()
                         optimizer.step()
 
-                if phase == 'val':
+                # if phase == 'val':
+                if True:
                     preds_val.append(preds)
                     labels_val.append(labels)
 
@@ -216,7 +204,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
             ################################################################
 
-            if phase == 'val':
+            # if phase == 'val':
+            if True:
                 # Calculate precision, recall, and F1 score
                 preds_val = torch.cat(preds_val, dim=0)
                 labels_val = torch.cat(labels_val, dim=0)
@@ -244,7 +233,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, yes_ratio.item() * 100,
                                                    true_ratio.item() * 100))
             # deep copy the model
-            if phase == 'val' and f1 >= best_f1:
+            # if phase == 'val' and f1 >= best_f1:
+            if f1 >= best_f1:
                 best_f1 = f1
                 best_acc = epoch_acc
                 best_loss = epoch_loss

@@ -18,13 +18,12 @@ from torchvision import datasets, models, transforms
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
-from explainers import ModelExplainer
 
 torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4"
 
 
 Dataset = Dataset()
@@ -162,8 +161,9 @@ else:
 
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-set = 'train'
+set = 'test'
 data_dir = '/home/giang/Downloads/datasets/CUB/advnet/{}'.format(set)
+# data_dir = '/home/giang/Downloads/datasets/CUB/test0'  ##################################
 
 image_datasets = dict()
 image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
@@ -175,7 +175,7 @@ train_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-depth_of_pred = 10
+depth_of_pred = 1
 correct_cnt = 0
 total_cnt = 0
 
@@ -266,5 +266,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
 
 
 print(len(faiss_nn_dict))
-np.save('faiss/cub/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1_HP_MODEL1_HP_FE.npy'.format(depth_of_pred, RunningParams.k_value, set),
+file_name = 'faiss/cub/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}4k7_top1_HP_MODEL1_HP_FE.npy'.format(depth_of_pred, RunningParams.k_value, set)
+np.save(file_name,
         faiss_nn_dict)
+print(file_name)

@@ -22,12 +22,12 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-depth_of_pred = 5
+depth_of_pred = 2
 set = 'test'
 
 import torchvision.transforms as T
@@ -97,7 +97,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-INDEX_FILE = 'faiss/cub/INDEX_file_adv_process_for_SDogs.npy'
+INDEX_FILE = 'faiss/sdogs/INDEX_file_adv_process_for_SDogs.npy'
 print(INDEX_FILE)
 
 if os.path.exists(INDEX_FILE):
@@ -204,7 +204,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             nn_list = list()
 
             key = i
-            _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 6)
+            _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 11)
 
             for id in range(indices.shape[1]):
                 id = loader.dataset.indices[indices[0, id]]
