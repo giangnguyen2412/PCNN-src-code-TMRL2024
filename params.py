@@ -1,13 +1,13 @@
 class RunningParams(object):
     def __init__(self):
         # Training mode
-        self.CUB_TRAINING = False  # ----------------------------------------- IMPORTANT PARAM --------
+        self.CUB_TRAINING = True  # ----------------------------------------- IMPORTANT PARAM --------
         self.DOGS_TRAINING = False
-        self.CARS_TRAINING = True
+        self.CARS_TRAINING = False
         self.IMAGENET_TRAINING = False
 
         if self.CARS_TRAINING is True:
-            self.resnet = 18
+            self.resnet = 50
 
         # General
         self.SIMCLR_MODEL = False

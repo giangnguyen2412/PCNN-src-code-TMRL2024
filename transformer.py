@@ -122,7 +122,7 @@ if RunningParams.CUB_TRAINING is True:
             if RunningParams.k_value == 1:
                 self.agg_branch = nn.Linear(2, 1).cuda()
             else:
-                self.agg_branch = nn.Linear(6, 1).cuda()
+                self.agg_branch = nn.Linear(RunningParams.k_value*2, 1).cuda()
 
             # initialize all fc layers to xavier
             for m in self.modules():

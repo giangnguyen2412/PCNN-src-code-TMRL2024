@@ -8,7 +8,6 @@ from tqdm import tqdm
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
-from explainers import ModelExplainer
 from transformer import Transformer_AdvisingNetwork
 from visualize import Visualization
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
@@ -18,11 +17,10 @@ from torchvision import datasets, models, transforms
 RunningParams = RunningParams()
 Dataset = Dataset()
 HelperFunctions = HelperFunctions()
-ModelExplainer = ModelExplainer()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 CATEGORY_ANALYSIS = False
 
@@ -32,7 +30,8 @@ full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/Cars/Stanford-Cars-d
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_zesty-mountain-3152.pt',
+                        # default='best_model_zesty-mountain-3152.pt',
+                        default='best_model_robust-sunset-3158.pt',
                         help='Model check point')
 
     args = parser.parse_args()
@@ -63,18 +62,23 @@ if __name__ == '__main__':
 
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
-    model = torchvision.models.resnet34(pretrained=True).cuda()
+    if RunningParams.resnet == 50:
+        model = torchvision.models.resnet50(pretrained=True).cuda()
+    elif RunningParams.resnet == 34:
+        model = torchvision.models.resnet34(pretrained=True).cuda()
+    elif RunningParams.resnet == 18:
+        model = torchvision.models.resnet18(pretrained=True).cuda()
     model.fc = nn.Linear(model.fc.in_features, 196)
 
     my_model_state_dict = torch.load(
-        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn34.pth.tar', map_location=torch.device('cpu'))
+        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.resnet), map_location=torch.device('cpu'))
     model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
     model.eval()
 
     MODEL1 = model.cuda()
     MODEL1.eval()
 
-    in_features = 512
+    in_features = model.fc.in_features
 
     data_transform = transforms.Compose([transforms.Resize(256),
                                          transforms.CenterCrop(224),
@@ -88,9 +92,10 @@ if __name__ == '__main__':
     test_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
 
     image_datasets = dict()
-    nn_num = 10
-    file_name = 'faiss/cars/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1.npy'.format(
-        1, nn_num, os.path.basename(test_dir))
+    nn_num = 5
+
+    file_name = 'faiss/cars/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1_rn{}.npy'.format(
+        1, nn_num, os.path.basename(test_dir), RunningParams.resnet)
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, data_transform, nn_dict=file_name)
     dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
 
@@ -99,7 +104,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=32,
+            batch_size=7,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,

@@ -19,7 +19,7 @@ HelperFunctions = HelperFunctions()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
 
 CATEGORY_ANALYSIS = False
 
@@ -90,7 +90,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=64,
+            batch_size=20,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -186,15 +186,15 @@ if __name__ == '__main__':
                 max_values, _ = torch.max(model1_p, dim=1)
 
                 SAME = False
-                RAND = False
+                RAND = True
 
                 if SAME is True:
                     model1_score.fill_(0.999)
 
                     explanation = x.clone().unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1, 1)
                 if RAND is True:
-                    explanation = torch.rand_like(explanation) * (
-                                explanation.max() - explanation.min()) + explanation.min()
+                    torch.manual_seed(42)
+                    explanation = torch.rand_like(explanation)
                     explanation.cuda()
                     # Replace the maximum value with random guess
                     model1_score.fill_(1 / 200)

@@ -183,7 +183,8 @@ class ImageFolderForNNs(ImageFolder):
                     # file_name = '/home/giang/Downloads/advising_network/faiss/cub/NTSNet_1_1_val.npy'
                 elif 'test' in os.path.basename(root):
                     # file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test4k7_top1_HP_MODEL1_HP_FE.npy'
-                    file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1_HP_MODEL1_HP_FE.npy'
+                    # file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1_HP_MODEL1_HP_FE.npy'
+                    file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test5k7_top1_HP_MODEL1_HP_FE.npy'
                 else:
                     file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1_HP_MODEL1_HP_FE.npy'
                     # file_name = '/home/giang/Downloads/advising_network/faiss/cub/NTSNet_1_1_test.npy'

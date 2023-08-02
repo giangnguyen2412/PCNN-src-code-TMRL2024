@@ -22,7 +22,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 
 Dataset = Dataset()

@@ -8,7 +8,6 @@ from tqdm import tqdm
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
-from explainers import ModelExplainer
 from transformer import Transformer_AdvisingNetwork
 from visualize import Visualization
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
@@ -17,7 +16,6 @@ from sklearn.metrics import precision_score, recall_score, f1_score, confusion_m
 RunningParams = RunningParams()
 Dataset = Dataset()
 HelperFunctions = HelperFunctions()
-ModelExplainer = ModelExplainer()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -31,7 +29,8 @@ full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combine
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_genial-plasma-3125.pt',
+                        # default='best_model_genial-plasma-3125.pt',
+                        default='best_model_decent-pyramid-3156.pt',
                         help='Model check point')
 
     args = parser.parse_args()
@@ -56,12 +55,13 @@ if __name__ == '__main__':
 
     MODEL2.eval()
     # test_dir = '/home/giang/Downloads/datasets/CUB/advnet/val'  ##################################
-    test_dir = '/home/giang/Downloads/datasets/CUB/advnet/test'  ##################################
+    # test_dir = '/home/giang/Downloads/datasets/CUB/advnet/test'  ##################################
+    test_dir = '/home/giang/Downloads/datasets/CUB/test0'  ##################################
 
     image_datasets = dict()
-    nn_num = 3
-    file_name = 'faiss/cub/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1_HP_MODEL1_HP_FE.npy'.format(
-        1, nn_num, os.path.basename(test_dir))
+    nn_num = 5
+    file_name = 'faiss/cub/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_test5k7_top1_HP_MODEL1_HP_FE.npy'.format(
+        1, nn_num)
 
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'], nn_dict=file_name)
     dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
@@ -81,9 +81,9 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=16,
+            batch_size=10,
             shuffle=False,  # turn shuffle to False
-            num_workers=16,
+            num_workers=8,
             pin_memory=True,
             drop_last=False  # Do not remove drop last because it affects performance
         )
