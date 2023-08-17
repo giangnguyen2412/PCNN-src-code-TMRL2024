@@ -33,11 +33,16 @@ Dataset = Dataset()
 import torchvision
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
-model = torchvision.models.resnet18(pretrained=True).cuda()
+if RunningParams.resnet == 50:
+    model = torchvision.models.resnet50(pretrained=True).cuda()
+elif RunningParams.resnet == 34:
+    model = torchvision.models.resnet34(pretrained=True).cuda()
+elif RunningParams.resnet == 18:
+    model = torchvision.models.resnet18(pretrained=True).cuda()
 model.fc = nn.Linear(model.fc.in_features, 196)
 
 my_model_state_dict = torch.load(
-    '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn18.pth.tar', map_location=torch.device('cpu'))
+        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.resnet), map_location=torch.device('cpu'))
 model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
 model.eval()
 
@@ -46,7 +51,7 @@ MODEL1 = model.cuda()
 fc = MODEL1.fc
 fc = fc.cuda()
 
-train_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/train_top10_rn18'
+train_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/train_top10_rn{}'.format(RunningParams.resnet)
 val_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
 
 data_transform = transforms.Compose([transforms.Resize(256),

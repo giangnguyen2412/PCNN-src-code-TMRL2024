@@ -4,7 +4,7 @@ import os
 cnt = 0
 overlap = 0
 crt_cnt = 0
-filename = '/home/giang/Downloads/advising_network/faiss/cars/top10_k1_enriched_NeurIPS_Finetuning_faiss_train_top1.npy'
+filename = 'faiss/cub/top15_k1_enriched_NeurIPS_Finetuning_faiss_train5k7_top1_HP_MODEL1_HP_FE.npy'
 cnt_dict = {}
 
 kbc = np.load(filename, allow_pickle=True, ).item()
@@ -35,8 +35,8 @@ print(cnt*100/len(kbc))
 print(len(kbc))
 print(overlap)
 print(len(new_kbc))
-# # np.save(filename, new_kbc)
-
+# np.save(filename, new_kbc)
+#
 
 # Initialize a list to hold the accuracy at each threshold
 # accuracies = []

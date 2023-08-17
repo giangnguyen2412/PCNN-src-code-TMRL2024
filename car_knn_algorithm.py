@@ -107,6 +107,7 @@ N_test = len(val_data)
 if True:
     random.seed(42)
     np.random.seed(42)
+    torch.manual_seed(42)
 
     all_val_embds = []
     all_val_labels = []

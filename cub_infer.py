@@ -19,7 +19,7 @@ HelperFunctions = HelperFunctions()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 CATEGORY_ANALYSIS = False
 
@@ -29,8 +29,18 @@ full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combine
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        # default='best_model_genial-plasma-3125.pt',
-                        default='best_model_decent-pyramid-3156.pt',
+                        default='best_model_decent-pyramid-3156.pt', # Normal model
+                        # default='best_model_cosmic-waterfall-3174.pt', # no CA --> have no cross attn to visualize
+                        # default='best_model_young-planet-3170.pt',  # no SA --> clear heatmaps
+                        # default='best_model_serene-field-3176.pt',  # no SA --> depth2 head2
+                        # default='best_model_warm-disco-3178.pt',  # no SA --> depth2 head1
+                        # default='best_model_cerulean-sponge-3186.pt',  # Normal model, top15
+                        # default='best_model_eager-field-3187.pt',  # Normal model, top10, run2
+                        # default='best_model_light-cosmos-3188.pt',  # Normal model, top10, run3
+                        # default='best_model_colorful-dragon-3182.pt',  # Normal model, top5
+                        # default='best_model_prime-forest-3183.pt',  # Normal model, top3
+                        # default='best_model_skilled-night-3167.pt',  # no augmentation
+                        # default='best_model_olive-dream-3169.pt',  # no training conv layers
                         help='Model check point')
 
     args = parser.parse_args()
@@ -86,12 +96,17 @@ if __name__ == '__main__':
 
         categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_LOW/combined'
 
+    import random
+
+    random.seed(42)
+    np.random.seed(42)
+    torch.manual_seed(42)
 
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=20,
-            shuffle=False,  # turn shuffle to False
+            batch_size=17,
+            shuffle=True,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
             drop_last=False  # Do not remove drop last because it affects performance
@@ -120,9 +135,9 @@ if __name__ == '__main__':
         confidence_dict = dict()
 
         categories = ['CorrectlyAccept', 'IncorrectlyAccept', 'CorrectlyReject', 'IncorrectlyReject']
-        save_dir = '/home/giang/Downloads/advising_network/vis'
+        save_dir = '/home/giang/Downloads/advising_network/vis/cub/'
         if RunningParams.M2_VISUALIZATION is True:
-            HelperFunctions.check_and_rm(save_dir)
+            # HelperFunctions.check_and_rm(save_dir)
             HelperFunctions.check_and_mkdir(save_dir)
         model1_confidence_dist = dict()
         model2_confidence_dist = dict()
@@ -141,6 +156,9 @@ if __name__ == '__main__':
                 x = data[0].cuda()
             else:
                 x = data.cuda()
+
+            # if batch_idx == 10:
+            #     break
 
             if len(data_loader.dataset.classes) < 200:
                 for sample_idx in range(x.shape[0]):
@@ -178,15 +196,16 @@ if __name__ == '__main__':
 
             # Generate explanations
             if RunningParams.XAI_method == RunningParams.GradCAM:
-                explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
+                exit(-1)
             elif RunningParams.XAI_method == RunningParams.NNs:
                 explanation = data[1]
+                # breakpoint()
                 explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
                 # Find the maximum value along each row
                 max_values, _ = torch.max(model1_p, dim=1)
 
                 SAME = False
-                RAND = True
+                RAND = False
 
                 if SAME is True:
                     model1_score.fill_(0.999)
@@ -198,6 +217,8 @@ if __name__ == '__main__':
                     explanation.cuda()
                     # Replace the maximum value with random guess
                     model1_score.fill_(1 / 200)
+
+                # explanation = explanation[torch.randperm(explanation.size(0))]
 
             if RunningParams.advising_network is True:
                 # Forward input, explanations, and softmax scores through MODEL2
@@ -285,8 +306,6 @@ if __name__ == '__main__':
                     e2i_attn = e2i_attn[:, :, 1:]  # remove cls token
 
                     for sample_idx in range(x.shape[0]):
-                        if sample_idx == 1:
-                            break
                         result = results[sample_idx].item()
                         if result is True:
                             correctness = 'Correctly'
@@ -309,19 +328,35 @@ if __name__ == '__main__':
 
                             # as the test images are from validation, then we do not need to exclude the fist prototype
                             prototype = prototypes[prototype_idx]
-                            Visualization.visualize_transformer_attn_v2(bef_weights, aft_weights, prototype, query,
+                            Visualization.visualize_transformer_attn_birds(bef_weights, aft_weights, prototype, query,
                                                                         model2_decision, prototype_idx)
 
                         # Combine visualizations
-                        cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 tmp/{}/{}.jpeg'.format(
-                            model2_decision, base_name, RunningParams.k_value - 1, model2_decision, base_name)
+                        # cmd = 'montage attn_maps/cub/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 tmp/{}/{}.jpeg'.format(
+                        #     model2_decision, base_name, RunningParams.k_value - 1, model2_decision, base_name)
                         # cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 my_plot.png'.format(
                         #     model2_decision, base_name, RunningParams.k_value - 1)
-                        os.system(cmd)
+                        # os.system(cmd)
                         # Remove unused images
-                        cmd = 'rm -rf tmp/{}/{}_[0-{}].png'.format(
-                            model2_decision, base_name, RunningParams.k_value - 1)
-                        os.system(cmd)
+                        # cmd = 'rm -rf attn_maps/cub/{}/{}_[0-{}].png'.format(
+                        #     model2_decision, base_name, RunningParams.k_value - 1)
+                        # os.system(cmd)
+
+                    cmd = 'img2pdf -o /home/giang/Downloads/advising_network/attn_maps/cub/IncorrectlyAccept/output.pdf ' \
+                          '--pagesize A4^T /home/giang/Downloads/advising_network/attn_maps/cub/IncorrectlyAccept/*.png'
+                    os.system(cmd)
+
+                    cmd = 'img2pdf -o /home/giang/Downloads/advising_network/attn_maps/cub/CorrectlyAccept/output.pdf ' \
+                          '--pagesize A4^T /home/giang/Downloads/advising_network/attn_maps/cub/CorrectlyAccept/*.png'
+                    os.system(cmd)
+
+                    cmd = 'img2pdf -o /home/giang/Downloads/advising_network/attn_maps/cub/IncorrectlyReject/output.pdf ' \
+                          '--pagesize A4^T /home/giang/Downloads/advising_network/attn_maps/cub/IncorrectlyReject/*.png'
+                    os.system(cmd)
+
+                    cmd = 'img2pdf -o /home/giang/Downloads/advising_network/attn_maps/cub/CorrectlyReject/output.pdf ' \
+                          '--pagesize A4^T /home/giang/Downloads/advising_network/attn_maps/cub/CorrectlyReject/*.png'
+                    os.system(cmd)
 
 
                 AI_DELEGATE = True

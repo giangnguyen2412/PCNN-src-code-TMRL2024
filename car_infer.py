@@ -20,7 +20,7 @@ HelperFunctions = HelperFunctions()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 CATEGORY_ANALYSIS = False
 
@@ -30,9 +30,12 @@ full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/Cars/Stanford-Cars-d
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        # default='best_model_robust-sunset-3158.pt',  # RN50
+                        default='best_model_robust-sunset-3158.pt',  # RN50 run 1
+                        # default='best_model_wandering-capybara-3189.pt',  # RN50 run 2
+                        # default='best_model_different-lion-3192.pt',  # RN50 run 3
                         # default='best_model_spring-field-3157.pt',  # RN34
-                        default='best_model_divine-cherry-3160.pt',  # RN18
+                        # default='best_model_divine-cherry-3160.pt',  # RN18
+                        # default='best_model_summer-waterfall-3168.pt',  # RN50 not data augmentation
                         help='Model check point')
 
     args = parser.parse_args()
@@ -99,12 +102,16 @@ if __name__ == '__main__':
     dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
 
     ################################################################
+    import random
+    random.seed(42)
+    np.random.seed(42)
+    torch.manual_seed(42)
 
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=32,
-            shuffle=False,  # turn shuffle to False
+            batch_size=11,
+            shuffle=True,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
             drop_last=False  # Do not remove drop last because it affects performance
@@ -120,9 +127,9 @@ if __name__ == '__main__':
         confidence_dict = dict()
 
         categories = ['CorrectlyAccept', 'IncorrectlyAccept', 'CorrectlyReject', 'IncorrectlyReject']
-        save_dir = '/home/giang/Downloads/advising_network/vis'
+        save_dir = '/home/giang/Downloads/advising_network/vis/cars'
         if RunningParams.M2_VISUALIZATION is True:
-            HelperFunctions.check_and_rm(save_dir)
+            # HelperFunctions.check_and_rm(save_dir)
             HelperFunctions.check_and_mkdir(save_dir)
         model1_confidence_dist = dict()
         model2_confidence_dist = dict()
@@ -186,11 +193,13 @@ if __name__ == '__main__':
 
                     explanation = x.clone().unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1, 1)
                 if RAND is True:
-                    explanation = torch.rand_like(explanation) * (
-                                explanation.max() - explanation.min()) + explanation.min()
+                    torch.manual_seed(42)
+                    explanation = torch.rand_like(explanation)
                     explanation.cuda()
                     # Replace the maximum value with random guess
                     model1_score.fill_(1 / 196)
+
+                # explanation = explanation[torch.randperm(explanation.size(0))]
 
             if RunningParams.advising_network is True:
                 # Forward input, explanations, and softmax scores through MODEL2

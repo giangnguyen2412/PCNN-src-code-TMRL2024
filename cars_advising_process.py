@@ -34,7 +34,9 @@ if __name__ == '__main__':
                         # default='best_model_zesty-mountain-3152.pt',
                         # default='best_model_spring-field-3157.pt',
                         # default='best_model_robust-sunset-3158.pt',
-                        default='best_model_divine-cherry-3160.pt',
+                        # default='best_model_divine-cherry-3160.pt',
+                        # default='best_model_wandering-capybara-3189.pt',  # RN50 run 2
+                        default='best_model_different-lion-3192.pt',  # RN50 run 3
                         help='Model check point')
 
     args = parser.parse_args()

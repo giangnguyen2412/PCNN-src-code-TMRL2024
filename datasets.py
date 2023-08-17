@@ -176,7 +176,8 @@ class ImageFolderForNNs(ImageFolder):
             # Load the pre-computed NNs
             if RunningParams.CUB_TRAINING is True:
                 if 'train' in os.path.basename(root):
-                    file_name = 'faiss/cub/top10_k1_enriched_NeurIPS_Finetuning_faiss_train_top1_HP_MODEL1_HP_FE.npy'
+                    # file_name = 'faiss/cub/top10_k1_enriched_NeurIPS_Finetuning_faiss_train_top1_HP_MODEL1_HP_FE.npy'
+                    file_name = 'faiss/cub/top15_k1_enriched_NeurIPS_Finetuning_faiss_train5k7_top1_HP_MODEL1_HP_FE.npy'
                     # file_name = '/home/giang/Downloads/advising_network/faiss/cub/NTSNet_10_1_train.npy'
                 elif 'val' in os.path.basename(root):
                     file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_val_top1_HP_MODEL1_HP_FE.npy'
@@ -208,8 +209,10 @@ class ImageFolderForNNs(ImageFolder):
                     # file_name = 'faiss/cars/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1.npy'
                     file_name = 'faiss/cars/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1_rn50.npy'
                 else:
+                    print('211')
                     exit(-1)
             else:
+                print('214')
                 exit(-1)
 
             if nn_dict is not None:
@@ -222,10 +225,10 @@ class ImageFolderForNNs(ImageFolder):
             print(sample_count)
 
             remainder = sample_count - int(sample_count/RunningParams.batch_size)*RunningParams.batch_size
-            if 8 > remainder > 0:
-                print('Delete this termination if you are not using 4 GPUs')
-                print('Not enough samples for the last batch. Terminating ...')
-                exit(-1)
+            # if 8 > remainder > 0:
+            #     print('Delete this termination if you are not using 4 GPUs')
+            #     print('Not enough samples for the last batch. Terminating ...')
+            #     exit(-1)
 
     def __getitem__(self, index):
         query_path, target = self.samples[index]
@@ -251,6 +254,8 @@ class ImageFolderForNNs(ImageFolder):
             if nn_base_name in base_name:
                 dup = True
                 continue
+
+            # Augment the NNs
             if 'train' in os.path.basename(self.root):
                 sample = trivial_augmenter(sample)
 
@@ -267,8 +272,9 @@ class ImageFolderForNNs(ImageFolder):
         sample = self.loader(query_path)
         query = self.transform(sample)
 
-        aug_query = trivial_augmenter(sample)
-        aug_query = self.transform(aug_query)
+        # Augment the query
+        aug_sample = trivial_augmenter(sample)
+        aug_query = self.transform(aug_sample)
 
         # make a new tuple that includes original and the path
         if 'train' in os.path.basename(self.root):

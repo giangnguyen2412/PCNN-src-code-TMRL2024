@@ -108,13 +108,14 @@ if RunningParams.CUB_TRAINING is True:
 
             transformer_depth = 4
             cross_transformer_depth = 4
+            head_num = 8
             feat_dim = RunningParams.conv_layer_size[RunningParams.conv_layer]
-            self.transformer = Transformer(dim=feat_dim, depth=transformer_depth, heads=8, dim_head=64, mlp_dim=512, dropout=0.0)
-            self.cross_transformer = CrossTransformer(sm_dim=feat_dim, lg_dim=feat_dim, depth=cross_transformer_depth, heads=8,
+            self.transformer = Transformer(dim=feat_dim, depth=transformer_depth, heads=head_num, dim_head=64, mlp_dim=512, dropout=0.0)
+            self.cross_transformer = CrossTransformer(sm_dim=feat_dim, lg_dim=feat_dim, depth=cross_transformer_depth, heads=head_num,
                                                       dim_head=64, dropout=0.0)
 
-            print('Using transformer with depth {} and 8 heads'.format(transformer_depth))
-            print('Using cross_transformer with depth {} and 8 heads'.format(cross_transformer_depth))
+            print('Using transformer with depth {} and {} heads'.format(transformer_depth, head_num))
+            print('Using cross_transformer with depth {} and {} heads'.format(cross_transformer_depth, head_num))
 
             self.branch3 = BinaryMLP(
                 2 * RunningParams.conv_layer_size[RunningParams.conv_layer] + 2, 32)
@@ -181,8 +182,12 @@ if RunningParams.CUB_TRAINING is True:
                     input_spt_feats = self.transformer(input_spatial_feats)
                     exp_spt_feats = self.transformer(explanation_spatial_feats)
 
+                    # input_spt_feats = input_spatial_feats
+                    # exp_spt_feats = explanation_spatial_feats
+
                     # Cross-attention --> 50x2048; only the cls tokens are transformed. Image tokens are kept the same.
-                    input_spatial_feats, explanation_spatial_feats, i2e_attn, e2i_attn = self.cross_transformer(input_spt_feats, exp_spt_feats)
+                    input_spatial_feats, explanation_spatial_feats, i2e_attns, e2i_attns = self.cross_transformer(
+                        input_spt_feats, exp_spt_feats)
 
                 input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
                 input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
@@ -268,7 +273,7 @@ if RunningParams.CUB_TRAINING is True:
                 return output, None, None
             elif RunningParams.XAI_method == RunningParams.NNs:
                 if RunningParams.k_value == 1:
-                    return output, input_feat, None, None
+                    return output, input_feat, i2e_attns, e2i_attns
                 else:
                     return output, input_feat, i2e_attns, e2i_attns
 

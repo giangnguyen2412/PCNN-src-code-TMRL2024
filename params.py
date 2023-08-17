@@ -51,7 +51,7 @@ class RunningParams(object):
         # Training parameters
         if self.CUB_TRAINING is True:
             self.batch_size = 256
-            self.epochs = 100
+            self.epochs = 1000
             self.learning_rate = 1e-3
             self.k_value = 1
 
@@ -79,7 +79,7 @@ class RunningParams(object):
         self.advising_steps = 0
 
         # Visualization
-        self.M2_VISUALIZATION = False
+        self.M2_VISUALIZATION = True
 
         # Unused
         self.BATCH_NORM = True

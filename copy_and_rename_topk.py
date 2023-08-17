@@ -1,11 +1,11 @@
 import numpy as np
 
 # Set the paths and filenames
-# folder_path = "/home/giang/Downloads/datasets/CUB/advnet/CUB_train_all_NTSNet"
-# dict_path = "/home/giang/Downloads/advising_network/faiss/cub/NTSNet_10_1_train.npy"
+# folder_path = "/home/anonymous/Downloads/datasets/CUB/advnet/CUB_train_all_NTSNet"
+# dict_path = "/home/anonymous/Downloads/advising_network/faiss/cub/NTSNet_10_1_train.npy"
 
-folder_path = "/home/giang/Downloads/datasets/CUB/advnet/train_all_top15"
-dict_path = "/home/giang/Downloads/advising_network/faiss/cub/top15_k1_enriched_NeurIPS_Finetuning_faiss_train5k7_top1_HP_MODEL1_HP_FE.npy"
+folder_path = "/home/anonymous/Downloads/datasets/CUB/advnet/train_all_top15"
+dict_path = "/home/anonymous/Downloads/advising_network/faiss/cub/top15_k1_enriched_NeurIPS_Finetuning_faiss_train5k7_top1_HP_MODEL1_HP_FE.npy"
 
 
 # Load the dictionary

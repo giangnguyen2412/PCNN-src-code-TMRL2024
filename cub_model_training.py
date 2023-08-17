@@ -29,54 +29,31 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 RunningParams = RunningParams()
 Dataset = Dataset()
 
-if [RunningParams.IMAGENET_TRAINING, RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING].count(True) > 1:
+if [RunningParams.IMAGENET_TRAINING, RunningParams.CUB_TRAINING].count(True) > 1:
     print("There are more than one training datasets chosen, skipping training!!!")
     exit(-1)
 
-if RunningParams.UNBALANCED_TRAINING:
-    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
-    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-    my_model_state_dict = torch.load(
-        'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
-    resnet.load_state_dict(my_model_state_dict, strict=True)
-    MODEL1 = resnet.cuda()
-    MODEL1.eval()
-    fc = list(MODEL1.children())[-1].cuda()
-    fc = nn.DataParallel(fc)
-else:
-    import torchvision
+resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+my_model_state_dict = torch.load(
+    'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+resnet.load_state_dict(my_model_state_dict, strict=True)
+MODEL1 = resnet.cuda()
+MODEL1.eval()
+fc = list(MODEL1.children())[-1].cuda()
+fc = nn.DataParallel(fc)
 
-    inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
-    inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
-    my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
-    inat_resnet.load_state_dict(my_model_state_dict, strict=True)
-    MODEL1 = inat_resnet
-    MODEL1.eval()
-
-    fc = MODEL1.fc
-    fc = fc.cuda()
-
-
-if RunningParams.UNBALANCED_TRAINING is True:
-    train_dataset = '/home/giang/Downloads/datasets/CUB/advnet/train_all_top10'
-    val_dataset = '/home/giang/Downloads/datasets/CUB/advnet/val'
-else:
-    train_dataset = '/home/giang/Downloads/datasets/CUB_pre_train'
-    val_dataset = '/home/giang/Downloads/datasets/CUB_pre_val'
-
+# Change this if you want to change the train dataset
+train_dataset = '/home/giang/Downloads/datasets/CUB/advnet/train_all_top10'
+val_dataset = '/home/giang/Downloads/datasets/CUB/advnet/val'
 
 full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
                                      Dataset.data_transforms['train'])
 
-if RunningParams.XAI_method == RunningParams.NNs:
-    image_datasets = dict()
-    image_datasets['train'] = ImageFolderForNNs(train_dataset, Dataset.data_transforms['train'])
-    image_datasets['val'] = ImageFolderForNNs(val_dataset, Dataset.data_transforms['val'])
-else:
-    pass
-    # Not implemented
-
+image_datasets = dict()
+image_datasets['train'] = ImageFolderForNNs(train_dataset, Dataset.data_transforms['train'])
+image_datasets['val'] = ImageFolderForNNs(val_dataset, Dataset.data_transforms['val'])
 
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
 
@@ -179,7 +156,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 #####################################################
 
                 if RunningParams.XAI_method == RunningParams.GradCAM:
-                    explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
+                    exit(-1)
                 elif RunningParams.XAI_method == RunningParams.NNs:
                     if RunningParams.PRECOMPUTED_NN is True:
                         explanation = data[1]
@@ -209,10 +186,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                         loss.backward()
                         optimizer.step()
 
-                # if phase == 'val':
-                if True:
-                    preds_val.append(preds)
-                    labels_val.append(labels)
+                preds_val.append(preds)
+                labels_val.append(labels)
 
                 # statistics
                 running_loss += loss.item() * x.size(0)

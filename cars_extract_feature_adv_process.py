@@ -22,25 +22,30 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-depth_of_pred = 10
+depth_of_pred = 5
 set = 'test'
 
-MODEL1_RN34 = True
+MODEL1_RESNET = True
 import torchvision
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                          std=[0.229, 0.224, 0.225])
-if MODEL1_RN34 is True:
+if MODEL1_RESNET is True:
 
-    model = torchvision.models.resnet18(pretrained=True).cuda()
+    if RunningParams.resnet == 50:
+        model = torchvision.models.resnet50(pretrained=True).cuda()
+    elif RunningParams.resnet == 34:
+        model = torchvision.models.resnet34(pretrained=True).cuda()
+    elif RunningParams.resnet == 18:
+        model = torchvision.models.resnet18(pretrained=True).cuda()
     model.fc = nn.Linear(model.fc.in_features, 196)
 
     my_model_state_dict = torch.load(
-        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn18.pth.tar', map_location=torch.device('cpu'))
+        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.resnet), map_location=torch.device('cpu'))
     model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
 else:
     model = torchvision.models.mobilenet_v2(pretrained=True).cuda()
@@ -58,8 +63,8 @@ MODEL1 = model.cuda()
 
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
 
-if MODEL1_RN34 is True:
-    in_features = 512
+if MODEL1_RESNET is True:
+    in_features = model.fc.in_features
 else:
     in_features = 1280
     # Define the average pooling layer
@@ -89,8 +94,8 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-if MODEL1_RN34 is True:
-    INDEX_FILE = 'faiss/cars/INDEX_file_adv_process_for_Cars_rn18.npy'
+if MODEL1_RESNET is True:
+    INDEX_FILE = 'faiss/cars/INDEX_file_adv_process_for_Cars_rn{}.npy'.format(RunningParams.resnet)
 else:
     INDEX_FILE = 'faiss/cars/INDEX_file_adv_process_for_Cars_mobilenet_v2.npy'
 

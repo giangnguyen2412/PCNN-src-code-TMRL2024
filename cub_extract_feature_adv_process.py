@@ -18,18 +18,17 @@ from torchvision import datasets, models, transforms
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
-from explainers import ModelExplainer
 
 torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-MODEL1_RN50 = False
+MODEL1_RN50 = True
 depth_of_pred = 5
 set = 'test'
 
@@ -71,7 +70,11 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-INDEX_FILE = 'faiss/cub/INDEX_file_adv_process.npy'
+if MODEL1_RN50 is True:
+    INDEX_FILE = 'faiss/cub/INDEX_file_adv_process.npy'
+else:
+    INDEX_FILE = 'faiss/cub/INDEX_file_adv_process_NTSNET.npy'
+
 print(INDEX_FILE)
 
 if os.path.exists(INDEX_FILE):
@@ -224,9 +227,10 @@ total_cnt = 0
 MODEL1.eval()
 
 faiss_nn_dict = dict()
+cnt = 0
 
-# for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
-for (data, label, paths), (data2, label2, paths2) in tqdm(zip(train_loader, std_train_loader)):
+for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
+# for (data, label, paths), (data2, label2, paths2) in tqdm(zip(train_loader, std_train_loader)):
     if len(train_loader.dataset.classes) < 200:
         for sample_idx in range(data.shape[0]):
             tgt = label[sample_idx].item()
@@ -248,7 +252,11 @@ for (data, label, paths), (data2, label2, paths2) in tqdm(zip(train_loader, std_
         _, out, _, _, _ = MODEL1(data.cuda())
 
     model1_p = torch.nn.functional.softmax(out, dim=1)
+
+    score_top1, index_top1 = torch.topk(model1_p, 1, dim=1)
+
     score, index = torch.topk(model1_p, depth_of_pred, dim=1)
+
     for sample_idx in range(data.shape[0]):
         base_name = os.path.basename(paths[sample_idx])
         gt_id = label[sample_idx]
@@ -274,7 +282,13 @@ for (data, label, paths), (data2, label2, paths2) in tqdm(zip(train_loader, std_
             faiss_nn_dict[base_name][key] = dict()
             faiss_nn_dict[base_name][key]['NNs'] = nn_list
             faiss_nn_dict[base_name][key]['Label'] = predicted_idx
+        # faiss_nn_dict[base_name]['Correctness'] = (gt_id == index_top1[sample_idx])
+        # print((gt_id == index_top1[sample_idx]).item())
+        #
+        # if (((gt_id == index_top1[sample_idx]).item())) is True:
+        #     cnt += 1
 
+print(cnt)
 save_file = 'faiss/advising_process_{}_top1_HP_MODEL1_HP_FE.npy'.format(set)
 print(save_file)
 print(set)
