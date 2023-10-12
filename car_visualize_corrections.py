@@ -72,6 +72,12 @@ if __name__ == '__main__':
     image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])
     dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
 
+    import random
+
+    random.seed(42)
+    np.random.seed(42)
+    torch.manual_seed(42)
+
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
@@ -178,8 +184,9 @@ if __name__ == '__main__':
                     original_img = Image.open(path)
                     original_img = resize_and_crop(original_img)
                     axs[0].imshow(np.array(original_img))
-                    axs[0].set_title('Query: {}'.format(data_loader.dataset.classes[gt[sample_idx].item()]),
-                                     fontsize=12)
+                    axs[0].set_title('Query: {}'.format(data_loader.dataset.classes[gt[sample_idx].item()]), color='green', fontsize=12)
+
+
                     axs[0].set_xticks([])
                     axs[0].set_yticks([])
 
@@ -191,12 +198,20 @@ if __name__ == '__main__':
                         # axs[i + 1].set_title(
                         #     f'Top{i + 1} {data_loader.dataset.classes[pred]}, Confidence: {sim_scores[i]:.2f}')
 
+                        if data_loader.dataset.classes[pred] == data_loader.dataset.classes[gt[sample_idx].item()]:
+                            color = 'green'
+                        else:
+                            color = 'black'
                         # Set the title for the plot (at the top by default)
-                        axs[i + 1].set_title(f'Top{i + 1} {data_loader.dataset.classes[pred]}', fontsize=12)
+                        axs[i + 1].set_title(f'Top{i + 1}: {data_loader.dataset.classes[pred]}', color=color, fontsize=12)
 
                         # Add the confidence at the bottom of the image
-                        axs[i + 1].text(0.5, -0.07, f'AdvNet\'s Confidence: {sim_scores[i]:.2f}', size=18,
-                                        ha="center",
+                        # axs[i + 1].text(0.5, -0.07, f'AdvNet\'s Confidence: {sim_scores[i]:.2f}', size=18,
+                        #                 ha="center",
+                        #                 transform=axs[i + 1].transAxes)
+
+                        conf = nn_dict[i]['C_confidence']
+                        axs[i + 1].text(0.5, -0.07, f'C\'s Confidence: {conf:.2f}', size=18, ha="center",
                                         transform=axs[i + 1].transAxes)
 
                         axs[i + 1].set_xticks([])
@@ -238,7 +253,19 @@ if __name__ == '__main__':
                         pred_img = Image.open(nns[original_preds.index(pred)])
                         pred_img = resize_and_crop(pred_img)
                         axs[i + 1].imshow(np.array(pred_img))
-                        axs[i + 1].set_title(f'Top{i + 1} {data_loader.dataset.classes[pred]}', fontsize=12)
+
+                        if data_loader.dataset.classes[pred] == data_loader.dataset.classes[gt[sample_idx].item()]:
+                            color = 'green'
+                        else:
+                            color = 'black'
+                        # Set the title for the plot (at the top by default)
+                        axs[i + 1].set_title(f'Top{i + 1}: {data_loader.dataset.classes[pred]}', color=color, fontsize=12)
+
+                        sim_scores = sorted(sim_scores, reverse=True)
+
+                        axs[i + 1].text(0.5, -0.07, f'AdvNet\'s Confidence: {sim_scores[i]:.2f}', size=18, ha="center",
+                                        transform=axs[i + 1].transAxes)
+
                         axs[i + 1].set_xticks([])
                         axs[i + 1].set_yticks([])
 

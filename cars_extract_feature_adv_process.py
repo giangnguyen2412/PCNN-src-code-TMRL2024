@@ -212,6 +212,8 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             faiss_nn_dict[base_name][key] = dict()
             faiss_nn_dict[base_name][key]['NNs'] = nn_list
             faiss_nn_dict[base_name][key]['Label'] = predicted_idx
+            faiss_nn_dict[base_name][key]['C_confidence'] = score[sample_idx][key].item()
+            # breakpoint()
 
 save_file = 'faiss/advising_process_{}_Cars.npy'.format(set)
 print(save_file)

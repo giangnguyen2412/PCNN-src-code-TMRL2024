@@ -177,57 +177,50 @@ if __name__ == '__main__':
                 labels = data[2].cuda()
 
             # Generate explanations
-            if RunningParams.XAI_method == RunningParams.GradCAM:
-                explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
-            elif RunningParams.XAI_method == RunningParams.NNs:
-                explanation = data[1]
-                explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
-                # Find the maximum value along each row
-                max_values, _ = torch.max(model1_p, dim=1)
+            explanation = data[1]
+            explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
+            # Find the maximum value along each row
+            max_values, _ = torch.max(model1_p, dim=1)
 
-                SAME = False
-                RAND = False
+            SAME = False
+            RAND = False
 
-                if SAME is True:
-                    model1_score.fill_(0.999)
+            if SAME is True:
+                model1_score.fill_(0.999)
 
-                    explanation = x.clone().unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1, 1)
-                if RAND is True:
-                    torch.manual_seed(42)
-                    explanation = torch.rand_like(explanation)
-                    explanation.cuda()
-                    # Replace the maximum value with random guess
-                    model1_score.fill_(1 / 196)
+                explanation = x.clone().unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1, 1)
+            if RAND is True:
+                torch.manual_seed(42)
+                explanation = torch.rand_like(explanation)
+                explanation.cuda()
+                # Replace the maximum value with random guess
+                model1_score.fill_(1 / 196)
 
-                # explanation = explanation[torch.randperm(explanation.size(0))]
+            # explanation = explanation[torch.randperm(explanation.size(0))]
 
-            if RunningParams.advising_network is True:
-                # Forward input, explanations, and softmax scores through MODEL2
-                if RunningParams.XAI_method == RunningParams.NO_XAI:
-                    output, _, _ = MODEL2(images=x, explanations=None, scores=model1_p)
-                else:
-                    output, query, i2e_attn, e2i_attn = MODEL2(images=x, explanations=explanation, scores=model1_score)
+            # Forward input, explanations, and softmax scores through MODEL2
+            output, query, i2e_attn, e2i_attn = MODEL2(images=x, explanations=explanation, scores=model1_score)
 
-                # convert logits to probabilities using sigmoid function
-                p = torch.sigmoid(output)
+            # convert logits to probabilities using sigmoid function
+            p = torch.sigmoid(output)
 
-                # classify inputs as 0 or 1 based on the threshold of 0.5
-                preds = (p >= 0.5).long().squeeze()
-                model2_score = p
+            # classify inputs as 0 or 1 based on the threshold of 0.5
+            preds = (p >= 0.5).long().squeeze()
+            model2_score = p
 
-                results = (preds == labels)
+            results = (preds == labels)
 
-                preds_val.append(preds)
-                labels_val.append(labels)
+            preds_val.append(preds)
+            labels_val.append(labels)
 
-                for j in range(x.shape[0]):
-                    pth = pths[j]
+            for j in range(x.shape[0]):
+                pth = pths[j]
 
-                    if '0_0' in pth:
-                        top1_cnt += 1
+                if '0_0' in pth:
+                    top1_cnt += 1
 
-                        if results[j] == True:
-                            top1_crt_cnt += 1
+                    if results[j] == True:
+                        top1_crt_cnt += 1
 
                 running_corrects += torch.sum(preds == labels.data)
 
@@ -395,16 +388,8 @@ if __name__ == '__main__':
             epoch_acc.item() * 100, precision, recall, f1))
         ################################################################
 
-        if RunningParams.MODEL2_ADVISING is True:
-            advising_acc = advising_crt_cnt.double() / len(image_datasets[ds])
-
-            print(
-                '{} - Binary Acc: {:.2f} - MODEL2 Yes Ratio: {:.2f} - Orig. Acc: {:.2f} - Correction Acc: {:.2f}'.format(
-                    os.path.basename(test_dir), epoch_acc * 100, yes_ratio * 100, true_ratio * 100, advising_acc * 100))
-            print('Original misclassified: {} - After correction: {}'.format(orig_wrong, adv_wrong))
-        else:
-            print('{} - Binary Acc: {:.2f} - MODEL2 Yes Ratio: {:.2f} - Orig. accuracy: {:.2f}'.format(
-                os.path.basename(test_dir), epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
+        print('{} - Binary Acc: {:.2f} - MODEL2 Yes Ratio: {:.2f} - Orig. accuracy: {:.2f}'.format(
+            os.path.basename(test_dir), epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
 
         np.save('confidence.npy', confidence_dict)
         # print(top1_crt_cnt/top1_cnt)

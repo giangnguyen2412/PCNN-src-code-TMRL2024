@@ -158,7 +158,8 @@ class CrossTransformer(nn.Module):
         lg_tokens = torch.cat((lg_cls, lg_patch_tokens), dim = 1)
 
         # Return the maps at the second layer of attention
-        return sm_tokens, lg_tokens, attns[2], attns[3]
+        return sm_tokens, lg_tokens, attns[-2], attns[-1]
+        # return sm_tokens, lg_tokens, None, None
 
 
 # multi-scale encoder

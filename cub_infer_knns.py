@@ -70,7 +70,7 @@ if __name__ == '__main__':
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
-        'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+        'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
     resnet.load_state_dict(my_model_state_dict, strict=True)
     MODEL1 = resnet.cuda()
     MODEL1.eval()
@@ -181,151 +181,149 @@ if __name__ == '__main__':
 
             # breakpoint()
             p = torch.stack(ps, dim=0).mean(dim=0)
-            if RunningParams.advising_network is True:
-                # convert logits to probabilities using sigmoid function
 
-                # classify inputs as 0 or 1 based on the threshold of 0.5
-                preds = (p >= 0.5).long().squeeze()
-                model2_score = p
+            # classify inputs as 0 or 1 based on the threshold of 0.5
+            preds = (p >= 0.5).long().squeeze()
+            model2_score = p
 
-                if MODEL_BAGGING is True:
-                    ###############################
-                    conf_list = []
-                    confidences = model1_score
-                    confidences = (confidences * 100).long()
-                    my_dict = {}
-                    for key in range(0, 96, 5):
-                        # get the indices where the tensor is smaller than the key
-                        # advising net handles hard cases
-                        indices = (confidences < key).nonzero().squeeze().view(-1, 2).tolist()
-                        # add the indices to the dictionary
-                        my_dict[key] = [id[0] for id in indices]
-
-                        total_conf_dict[key] += len(my_dict[key])
-                        running_corrects_conf_dict[key] += torch.sum((preds == labels.data)[my_dict[key]])
-                    ###############################
-
-                optimal_T = 90
-                ##################################
+            if MODEL_BAGGING is True:
+                ###############################
                 conf_list = []
                 confidences = model1_score
-                # for j, confidence in enumerate(confidences):
-                #     confidence = confidence.item() * 100
-                #     if confidence >= optimal_T:
-                #         preds[j] = 1
+                confidences = (confidences * 100).long()
+                my_dict = {}
+                for key in range(0, 96, 5):
+                    # get the indices where the tensor is smaller than the key
+                    # advising net handles hard cases
+                    indices = (confidences < key).nonzero().squeeze().view(-1, 2).tolist()
+                    # add the indices to the dictionary
+                    my_dict[key] = [id[0] for id in indices]
+
+                    total_conf_dict[key] += len(my_dict[key])
+                    running_corrects_conf_dict[key] += torch.sum((preds == labels.data)[my_dict[key]])
                 ###############################
 
-                ##################################
-                conf_list = []
-                confidences = model1_score
+            optimal_T = 90
+            ##################################
+            conf_list = []
+            confidences = model1_score
+            # for j, confidence in enumerate(confidences):
+            #     confidence = confidence.item() * 100
+            #     if confidence >= optimal_T:
+            #         preds[j] = 1
+            ###############################
 
-                for j, confidence in enumerate(confidences):
-                    confidence = confidence.item() * 100
-                    thres_conf = thresholding_accs[int(confidence/5)]  # the confidence of the thresholding agent
-                    adv_net_conf = p[j].item()*100  # the confidence of the advising network
-                    if adv_net_conf < 50:
-                        adv_net_conf = 100 - adv_net_conf
+            ##################################
+            conf_list = []
+            confidences = model1_score
 
-                    # # the thresholding is more confident than the adv net
-                    # if thres_conf >= adv_net_conf:
-                    #     preds[j] = 1
-                    # else:
-                    #     pass
-                ###############################
+            for j, confidence in enumerate(confidences):
+                confidence = confidence.item() * 100
+                thres_conf = thresholding_accs[int(confidence/5)]  # the confidence of the thresholding agent
+                adv_net_conf = p[j].item()*100  # the confidence of the advising network
+                if adv_net_conf < 50:
+                    adv_net_conf = 100 - adv_net_conf
 
-                results = (preds == labels)
+                # # the thresholding is more confident than the adv net
+                # if thres_conf >= adv_net_conf:
+                #     preds[j] = 1
+                # else:
+                #     pass
+            ###############################
 
-                preds_val.append(preds)
-                labels_val.append(labels)
+            results = (preds == labels)
 
-                for j in range(x.shape[0]):
-                    pth = pths[j]
+            preds_val.append(preds)
+            labels_val.append(labels)
 
-                    if '_0_' in pth:
-                        top1_cnt += 1
+            for j in range(x.shape[0]):
+                pth = pths[j]
 
-                        if results[j] == True:
-                            top1_crt_cnt += 1
+                if '_0_' in pth:
+                    top1_cnt += 1
 
-                running_corrects += torch.sum(preds == labels.data)
+                    if results[j] == True:
+                        top1_crt_cnt += 1
 
-                VISUALIZE_TRANSFORMER_ATTN = False
-                if VISUALIZE_TRANSFORMER_ATTN is True:
-                    i2e_attn = i2e_attn.mean(dim=1)  # bsx8x3x50
-                    i2e_attn = i2e_attn[:, :, 1:]  # remove cls token --> bsx3x49
+            running_corrects += torch.sum(preds == labels.data)
 
-                    e2i_attn = e2i_attn.mean(dim=1)
-                    e2i_attn = e2i_attn[:, :, 1:]  # remove cls token
+            VISUALIZE_TRANSFORMER_ATTN = False
+            if VISUALIZE_TRANSFORMER_ATTN is True:
+                i2e_attn = i2e_attn.mean(dim=1)  # bsx8x3x50
+                i2e_attn = i2e_attn[:, :, 1:]  # remove cls token --> bsx3x49
 
-                    for sample_idx in range(x.shape[0]):
-                        if sample_idx == 1:
-                            break
-                        result = results[sample_idx].item()
-                        if result is True:
-                            correctness = 'Correctly'
-                        else:
-                            correctness = 'Incorrectly'
+                e2i_attn = e2i_attn.mean(dim=1)
+                e2i_attn = e2i_attn[:, :, 1:]  # remove cls token
 
-                        pred = preds[sample_idx].item()
-                        if pred == 1:
-                            action = 'Accept'
-                        else:
-                            action = 'Reject'
-                        model2_decision = correctness + action
+                for sample_idx in range(x.shape[0]):
+                    if sample_idx == 1:
+                        break
+                    result = results[sample_idx].item()
+                    if result is True:
+                        correctness = 'Correctly'
+                    else:
+                        correctness = 'Incorrectly'
 
-                        query = pths[sample_idx]
-                        base_name = os.path.basename(query)
-                        prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
-                        for prototype_idx in range(RunningParams.k_value):
-                            bef_weights = i2e_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
-                            aft_weights = e2i_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
+                    pred = preds[sample_idx].item()
+                    if pred == 1:
+                        action = 'Accept'
+                    else:
+                        action = 'Reject'
+                    model2_decision = correctness + action
 
-                            # as the test images are from validation, then we do not need to exclude the fist prototype
-                            prototype = prototypes[prototype_idx]
-                            Visualization.visualize_transformer_attn_v2(bef_weights, aft_weights, prototype, query,
-                                                                        model2_decision, prototype_idx)
+                    query = pths[sample_idx]
+                    base_name = os.path.basename(query)
+                    prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
+                    for prototype_idx in range(RunningParams.k_value):
+                        bef_weights = i2e_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
+                        aft_weights = e2i_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
 
-                        # Combine visualizations
-                        cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 tmp/{}/{}.jpeg'.format(
-                            model2_decision, base_name, RunningParams.k_value - 1, model2_decision, base_name)
-                        # cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 my_plot.png'.format(
-                        #     model2_decision, base_name, RunningParams.k_value - 1)
-                        os.system(cmd)
-                        # Remove unused images
-                        cmd = 'rm -rf tmp/{}/{}_[0-{}].png'.format(
-                            model2_decision, base_name, RunningParams.k_value - 1)
-                        os.system(cmd)
+                        # as the test images are from validation, then we do not need to exclude the fist prototype
+                        prototype = prototypes[prototype_idx]
+                        Visualization.visualize_transformer_attn_v2(bef_weights, aft_weights, prototype, query,
+                                                                    model2_decision, prototype_idx)
+
+                    # Combine visualizations
+                    cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 tmp/{}/{}.jpeg'.format(
+                        model2_decision, base_name, RunningParams.k_value - 1, model2_decision, base_name)
+                    # cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 my_plot.png'.format(
+                    #     model2_decision, base_name, RunningParams.k_value - 1)
+                    os.system(cmd)
+                    # Remove unused images
+                    cmd = 'rm -rf tmp/{}/{}_[0-{}].png'.format(
+                        model2_decision, base_name, RunningParams.k_value - 1)
+                    os.system(cmd)
 
 
-                AI_DELEGATE = True
-                if AI_DELEGATE is True:
-                    for sample_idx in range(x.shape[0]):
-                        result = results[sample_idx].item()
-                        pred = preds[sample_idx].item()
+            AI_DELEGATE = True
+            if AI_DELEGATE is True:
+                for sample_idx in range(x.shape[0]):
+                    result = results[sample_idx].item()
+                    pred = preds[sample_idx].item()
 
-                        s = int(model1_score[sample_idx].item() * 100)
-                        if s not in confidence_dict:
-                            confidence_dict[s] = [0, 0, 0]
-                            # if model2_score[sample_idx].item() >= model1_score[sample_idx].item():
-                            if True:
-                                if result is True:
-                                    confidence_dict[s][0] += 1
-                                else:
-                                    confidence_dict[s][1] += 1
+                    s = int(model1_score[sample_idx].item() * 100)
+                    if s not in confidence_dict:
+                        confidence_dict[s] = [0, 0, 0]
+                        # if model2_score[sample_idx].item() >= model1_score[sample_idx].item():
+                        if True:
+                            if result is True:
+                                confidence_dict[s][0] += 1
+                            else:
+                                confidence_dict[s][1] += 1
 
-                                if labels[sample_idx].item() == 1:
-                                    confidence_dict[s][2] += 1
+                            if labels[sample_idx].item() == 1:
+                                confidence_dict[s][2] += 1
 
-                        else:
-                            # if model2_score[sample_idx].item() >= model1_score[sample_idx].item():
-                            if True:
-                                if result is True:
-                                    confidence_dict[s][0] += 1
-                                else:
-                                    confidence_dict[s][1] += 1
+                    else:
+                        # if model2_score[sample_idx].item() >= model1_score[sample_idx].item():
+                        if True:
+                            if result is True:
+                                confidence_dict[s][0] += 1
+                            else:
+                                confidence_dict[s][1] += 1
 
-                                if labels[sample_idx].item() == 1:
-                                    confidence_dict[s][2] += 1
+                            if labels[sample_idx].item() == 1:
+                                confidence_dict[s][2] += 1
 
             if RunningParams.M2_VISUALIZATION is True:
                 for sample_idx in range(x.shape[0]):
@@ -424,15 +422,7 @@ if __name__ == '__main__':
                 epoch_acc.item() * 100, precision, recall, f1))
             ################################################################
 
-        if RunningParams.MODEL2_ADVISING is True:
-            advising_acc = advising_crt_cnt.double() / len(image_datasets[ds])
-
-            print(
-                '{} - Binary Acc: {:.2f} - MODEL2 Yes Ratio: {:.2f} - Orig. Acc: {:.2f} - Correction Acc: {:.2f}'.format(
-                    os.path.basename(test_dir), epoch_acc * 100, yes_ratio * 100, true_ratio * 100, advising_acc * 100))
-            print('Original misclassified: {} - After correction: {}'.format(orig_wrong, adv_wrong))
-        else:
-            print('{} - Binary Acc: {:.2f} - MODEL2 Yes Ratio: {:.2f} - Orig. accuracy: {:.2f}'.format(
-                os.path.basename(test_dir), epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
+        print('{} - Binary Acc: {:.2f} - MODEL2 Yes Ratio: {:.2f} - Orig. accuracy: {:.2f}'.format(
+            os.path.basename(test_dir), epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
 
         np.save('confidence.npy', confidence_dict)

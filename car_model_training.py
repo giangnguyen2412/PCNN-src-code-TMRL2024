@@ -158,26 +158,18 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                     labels = data[2].cuda()
 
                 #####################################################
-
-                if RunningParams.XAI_method == RunningParams.GradCAM:
-                    explanation = ModelExplainer.grad_cam(MODEL1, x, index, RunningParams.GradCAM_RNlayer, resize=False)
-                elif RunningParams.XAI_method == RunningParams.NNs:
-                    if RunningParams.PRECOMPUTED_NN is True:
-                        explanation = data[1]
-                        explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
+                explanation = data[1]
+                explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
                 with torch.set_grad_enabled(phase == 'train'):
-                    if RunningParams.XAI_method == RunningParams.NO_XAI:
-                        output, _, _ = model(images=x, explanations=None, scores=model1_p)
+                    if phase == 'train':
+                        aug_query = data[-1]
+                        output, query, nns, emb_cos_sim = model(images=aug_query, explanations=explanation, scores=score)
                     else:
-                        if phase == 'train':
-                            aug_query = data[-1]
-                            output, query, nns, emb_cos_sim = model(images=aug_query, explanations=explanation, scores=score)
-                        else:
-                            output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
+                        output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
 
                     p = torch.sigmoid(output)
 

@@ -1,16 +1,11 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torch.optim import lr_scheduler
 import torch.backends.cudnn as cudnn
 import numpy as np
 import matplotlib.pyplot as plt
 import time
 import os
-import copy
-import wandb
-import random
-import pdb
+
 import faiss
 
 from tqdm import tqdm
@@ -30,43 +25,28 @@ Dataset = Dataset()
 RunningParams = RunningParams()
 
 
-HIGHPERFORMANCE_FEATURE_EXTRACTOR = RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR
-if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
-    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-    my_model_state_dict = torch.load(
-        'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
-    resnet.load_state_dict(my_model_state_dict, strict=True)
-    # Freeze backbone (for training only)
-    for param in list(resnet.parameters())[:-2]:
-        param.requires_grad = False
-    # to CUDA
-    inat_resnet = resnet.cuda()
-    MODEL1 = inat_resnet
-    MODEL1.eval()
-else:
-    import torchvision
-
-    inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
-    inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
-    my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
-    inat_resnet.load_state_dict(my_model_state_dict, strict=True)
-    # Freeze backbone (for training only)
-    for param in list(inat_resnet.parameters())[:-2]:
-        param.requires_grad = False
-    # to CUDA
-    inat_resnet.cuda()
-    MODEL1 = inat_resnet
-    MODEL1.eval()
+resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+my_model_state_dict = torch.load(
+    'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+resnet.load_state_dict(my_model_state_dict, strict=True)
+# Freeze backbone (for training only)
+for param in list(resnet.parameters())[:-2]:
+    param.requires_grad = False
+# to CUDA
+inat_resnet = resnet.cuda()
+MODEL1 = inat_resnet
+MODEL1.eval()
 
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
 feature_extractor.cuda()
 feature_extractor = nn.DataParallel(feature_extractor)
 
-in_features = 2048
+in_features = RunningParams.in_features
 print("Building FAISS index...! Training set is the knowledge base.")
 
+# faiss dataset contains images using as the knowledge based for KNN retrieval
 faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB/advnet/train',
                                      transform=Dataset.data_transforms['train'])
 
@@ -79,11 +59,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-    INDEX_FILE = 'faiss/cub/NeurIPS22_faiss_CUB200_class_idx_dict_HP_extractor.npy'
-    print(INDEX_FILE)
-else:
-    exit(-1)
+INDEX_FILE = 'faiss/cub/NeurIPS22_faiss_CUB200_class_idx_dict_HP_extractor.npy'
 
 if os.path.exists(INDEX_FILE):
     print("FAISS class index exists!")
@@ -128,45 +104,19 @@ else:
     np.save(INDEX_FILE, faiss_nns_class_dict)
 
 
-HIGHPERFORMANCE_MODEL1 = RunningParams.HIGHPERFORMANCE_MODEL1
-if HIGHPERFORMANCE_MODEL1 is True:
-    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
-    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-    my_model_state_dict = torch.load(
-        'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
-    resnet.load_state_dict(my_model_state_dict, strict=True)
-    # Freeze backbone (for training only)
-    for param in list(resnet.parameters())[:-2]:
-        param.requires_grad = False
-    # to CUDA
-    inat_resnet = resnet.cuda()
-    MODEL1 = inat_resnet
-    MODEL1.eval()
-else:
-    import torchvision
-
-    inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
-    inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
-    # my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
-    my_model_state_dict = torch.load('resnet50_inat_pretrained_0.841.pth')
-    inat_resnet.load_state_dict(my_model_state_dict, strict=True)
-    # Freeze backbone (for training only)
-    for param in list(inat_resnet.parameters())[:-2]:
-        param.requires_grad = False
-    # to CUDA
-    inat_resnet.cuda()
-    MODEL1 = inat_resnet
-    MODEL1.eval()
-
+resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+my_model_state_dict = torch.load(
+    'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+resnet.load_state_dict(my_model_state_dict, strict=True)
+MODEL1 = resnet.cuda()
+MODEL1.eval()
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-set = 'train'
-data_dir = '/home/giang/Downloads/datasets/CUB/advnet/{}'.format(set)
-# data_dir = '/home/giang/Downloads/datasets/CUB/test0'  ##################################
-
 image_datasets = dict()
-image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
+image_datasets['train'] = ImageFolderWithPaths(RunningParams.data_dir, Dataset.data_transforms['train'])
+print(RunningParams.data_dir)
 train_loader = torch.utils.data.DataLoader(
     image_datasets['train'],
     batch_size=128,
@@ -175,7 +125,7 @@ train_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-depth_of_pred = 15
+depth_of_pred = RunningParams.QK
 correct_cnt = 0
 total_cnt = 0
 
@@ -201,9 +151,6 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
         base_name = os.path.basename(paths[sample_idx])
         gt_id = label[sample_idx]
 
-        # correct_cnt += torch.sum(index.squeeze() == label.cuda())
-        # total_cnt += data.shape[0]
-
         for i in range(depth_of_pred):
             # Get the top-k predicted label
             predicted_idx = index[sample_idx][i].item()
@@ -222,7 +169,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                 faiss_nn_dict[base_name] = nn_list
             else:
 
-                if i == 0:  # top-1 predictions --> Enrich top-1 prediction samples
+                if i == 0:  # top-1 predictions --> Enrich top-1 prediction samples --> value Q
                     _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), faiss_index.ntotal)
 
                     for j in range(depth_of_pred):  # Make up x NN sets from top-1 predictions
@@ -265,8 +212,55 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                     faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
 
 
+file_name = RunningParams.faiss_npy_file
+np.save(file_name, faiss_nn_dict)
 print(len(faiss_nn_dict))
-file_name = 'faiss/cub/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}5k7_top1_HP_MODEL1_HP_FE.npy'.format(depth_of_pred, RunningParams.k_value, set)
-np.save(file_name,
-        faiss_nn_dict)
 print(file_name)
+
+for k, v in faiss_nn_dict.items():
+    NN_class = os.path.basename(os.path.dirname(v['NNs'][0])).split('.')[1]
+    if v['label'] == 1:
+        if NN_class.lower() in k.lower():
+            continue
+        else:
+            print('You retrieved wrong NNs. The label for the pair is positive but two images are from different classes!')
+            exit(-1)
+    else:
+        if NN_class.lower() not in k.lower():
+            continue
+        else:
+            print('You retrieved wrong NNs. The label for the pair is negative but two images are from same class!')
+            exit(-1)
+
+print('Passed sanity checks for extracting NNs!')
+
+################################################################
+
+new_dict = dict()
+for k, v in faiss_nn_dict.items():
+    for nn in v['NNs']:
+        base_name = os.path.basename(nn)
+        if base_name in k:
+            break
+        else:
+            new_dict[k] = v
+np.save(file_name, new_dict)
+print('DONE: Cleaning duplicates entries: query and NN being similar!')
+
+################################################################
+
+import shutil
+import os
+
+source_folder = RunningParams.data_dir
+destination_folder = RunningParams.aug_data_dir
+
+shutil.rmtree(destination_folder)
+
+# Check if the destination folder already exists
+if os.path.exists(destination_folder):
+    print(f"Destination folder '{destination_folder}' already exists. Exiting to avoid overwriting.")
+else:
+    shutil.copytree(source_folder, destination_folder)
+    print(f"Copied '{source_folder}' to '{destination_folder}'")
+

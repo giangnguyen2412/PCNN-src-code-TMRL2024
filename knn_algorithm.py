@@ -29,22 +29,7 @@ if ORIGINAL_FE is True:
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
-        'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
-
-    # model_dict = torch.load(
-    #     'pretrained_models/BBN.iNaturalist2017.res50.90epoch.best_model.pth')
-    #
-    # model = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-    # model_dict.pop("module.classifier.weight")
-    # model_dict.pop("module.classifier.bias")
-    # for key in list(model_dict.keys()):
-    #     model_dict[
-    #         key.replace("module.backbone.", "")
-    #         .replace("cb_block", "layer4.2")
-    #         .replace("rb_block", "layer4.3")
-    #     ] = model_dict.pop(key)
-    # model.load_state_dict(model_dict, strict=False)
-    # MODEL1 = model
+        'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
 
     resnet.load_state_dict(my_model_state_dict, strict=True)
     MODEL1 = resnet.cuda()

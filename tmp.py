@@ -9,7 +9,27 @@ cnt_dict = {}
 
 kbc = np.load(filename, allow_pickle=True, ).item()
 new_kbc = dict()
+
 for k, v in kbc.items():
+    NN_class = os.path.basename(os.path.dirname(v['NNs'][0])).split('.')[1]
+    print(k)
+    print(NN_class)
+    print(v['label'])
+    if v['label'] == 1:
+        if NN_class.lower() in k.lower():
+            continue
+        else:
+            print('Error!')
+            exit(-1)
+    else:
+        if NN_class.lower() not in k.lower():
+            continue
+        else:
+            print('Error!')
+            exit(-1)
+
+for k, v in kbc.items():
+
     if v['label'] == 1:
         cnt+=1
 
@@ -35,7 +55,7 @@ print(cnt*100/len(kbc))
 print(len(kbc))
 print(overlap)
 print(len(new_kbc))
-# np.save(filename, new_kbc)
+np.save(filename, new_kbc)
 #
 
 # Initialize a list to hold the accuracy at each threshold

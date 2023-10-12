@@ -2,10 +2,8 @@ import numpy as np
 import os
 from params import RunningParams
 from shutil import copyfile
-from helpers import HelperFunctions
 
 RunningParams = RunningParams()
-HelperFunctions = HelperFunctions()
 
 # Set the paths and filenames
 folder_path = RunningParams.aug_data_dir
@@ -13,18 +11,16 @@ dict_path = RunningParams.faiss_npy_file
 
 # Load the dictionary
 file_dict = np.load(dict_path, allow_pickle=True).item()
-
 cnt = 0
 # Function to recursively find and print JPG files
 for root, dirs, files in os.walk(folder_path):
     for file in files:
-        if file.lower().endswith(".jpg"):
-        # if file.lower().endswith(".jpeg"):
+        if file.lower().endswith(RunningParams.extension):
             file_path = os.path.join(root, file)
 
             for i in range(RunningParams.QK):
                 if i == 0:
-                    for j in range(RunningParams.QK):  # Make up 5 NN sets from top-1 predictions
+                    for j in range(RunningParams.QK):  # Make up NN sets from top-1 predictions
                         crt_file = 'Correct_{}_{}_'.format(i, j) + file
                         if crt_file in file_dict:
                             src_path = file_path
@@ -53,23 +49,8 @@ for root, dirs, files in os.walk(folder_path):
                         copyfile(src_path, dst_path)
                         cnt +=1
 
+            # Remove the original image
             os.remove(file_path)
 
-print(cnt)
-print("Files renamed/copied successfully!")
-
-import shutil
-import os
-
-source_folder = RunningParams.data_dir
-destination_folder = RunningParams.aug_data_dir
-
-print(source_folder, destination_folder)
-
-# Check if the destination folder already exists
-if os.path.exists(destination_folder):
-    print(f"Destination folder '{destination_folder}' already exists. Exiting to avoid overwriting.")
-else:
-    shutil.copytree(source_folder, destination_folder)
-    print(f"Copied '{source_folder}' to '{destination_folder}'")
+print(f"{cnt} files copied successfully!")
 

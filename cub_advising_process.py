@@ -12,7 +12,7 @@ RunningParams = RunningParams()
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
 torch.manual_seed(42)
 
@@ -25,7 +25,9 @@ if __name__ == '__main__':
                         # default='best_model_genial-plasma-3125.pt',
                         # default='best_model_decent-pyramid-3156.pt',
                         # default='best_model_eager-field-3187.pt',  # Normal model, top10, run2
-                        default='best_model_light-cosmos-3188.pt',  # Normal model, top10, run3
+                        # default='best_model_light-cosmos-3188.pt',  # Normal model, top10, run3
+                        # default='best_model_faithful-rain-3211.pt',
+                        default='best_model_legendary-durian-3216.pt',  # M=N=L=1 model convs only, no SA
                         help='Model check point')
 
     args = parser.parse_args()

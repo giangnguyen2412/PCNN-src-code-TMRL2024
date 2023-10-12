@@ -23,7 +23,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3"
 
 Dataset = Dataset()
 RunningParams = RunningParams()
@@ -39,7 +39,7 @@ from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
 resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+    'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
 resnet.load_state_dict(my_model_state_dict, strict=True)
 # Freeze backbone (for training only)
 for param in list(resnet.parameters())[:-2]:
@@ -125,7 +125,7 @@ if MODEL1_RN50 is True:
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
-        'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+        'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
     resnet.load_state_dict(my_model_state_dict, strict=True)
     # Freeze backbone (for training only)
     for param in list(resnet.parameters())[:-2]:
@@ -282,6 +282,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             faiss_nn_dict[base_name][key] = dict()
             faiss_nn_dict[base_name][key]['NNs'] = nn_list
             faiss_nn_dict[base_name][key]['Label'] = predicted_idx
+            faiss_nn_dict[base_name][key]['C_confidence'] = score[sample_idx][key]
         # faiss_nn_dict[base_name]['Correctness'] = (gt_id == index_top1[sample_idx])
         # print((gt_id == index_top1[sample_idx]).item())
         #

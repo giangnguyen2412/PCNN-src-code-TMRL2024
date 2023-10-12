@@ -43,14 +43,6 @@ gray_transform = torchvision.transforms.Compose(
 
 confidence_dict = dict()
 
-if RunningParams.IMAGENET_REAL is True:
-    real_json = open("reassessed-imagenet/real.json")
-    real_ids = json.load(real_json)
-    real_labels = {
-        f"ILSVRC2012_val_{i + 1:08d}.JPEG": labels
-        for i, labels in enumerate(real_ids)
-    }
-
 for i, imagenet_folder in enumerate(tqdm(imagenet_folders)):
     imagenet_id = imagenet_folder.split('1k/')[1]
     image_paths = glob.glob(imagenet_folder + '/*.*')
@@ -94,24 +86,12 @@ for T in T_list:
         gt_wnid = val['gt_wnid']
         predicted_wnid = val['predicted_wnid']
 
-        if RunningParams.IMAGENET_REAL is True:
-            base_name = os.path.basename(key)
-            real_ids = real_labels[base_name]
 
-            if len(real_ids) == 0:
-                continue
-
-            if (confidence_score > T and predicted_id in real_ids) or (
-                    confidence_score <= T and predicted_id not in real_ids):
-                correct += 1
-            else:
-                wrong += 1
+        if (confidence_score > T and predicted_wnid == gt_wnid) or (
+                confidence_score <= T and predicted_wnid != gt_wnid):
+            correct += 1
         else:
-            if (confidence_score > T and predicted_wnid == gt_wnid) or (
-                    confidence_score <= T and predicted_wnid != gt_wnid):
-                correct += 1
-            else:
-                wrong += 1
+            wrong += 1
 
     print("Total: {} - Accuracy at T = {} is {}".format(correct + wrong, T, correct * 100 / (correct + wrong)))
 

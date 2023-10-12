@@ -9,6 +9,7 @@ import albumentations as A
 from albumentations.pytorch.transforms import ToTensorV2
 from albumentations.augmentations.transforms import Normalize
 import cv2
+import traceback
 from PIL import Image
 import torchvision.transforms as T
 
@@ -38,9 +39,6 @@ class ImageFolderForAdvisingProcess(ImageFolder):
 
         elif RunningParams.CARS_TRAINING is True:
             file_name = 'faiss/advising_process_test_Cars.npy'
-
-        elif RunningParams.DOGS_TRAINING is True:
-            file_name = 'faiss/advising_process_test_SDogs.npy'
 
         print(file_name)
         self.faiss_nn_dict = np.load(file_name, allow_pickle=True, ).item()
@@ -75,11 +73,8 @@ class ImageFolderForAdvisingProcess(ImageFolder):
         else:
             nn_num = self.nn_num
 
-        if RunningParams.DOGS_TRAINING is True:
-            # Initialize an empty tensor to store the transformed images
-            tensor_images = torch.empty((len(nns), nn_num, 3, 512, 512))
-        else:
-            tensor_images = torch.empty((len(nns), nn_num, 3, 224, 224))
+        # Initialize an empty tensor to store the transformed images
+        tensor_images = torch.empty((len(nns), nn_num, 3, 224, 224))
 
         labels = []
 
@@ -108,43 +103,24 @@ class ImageFolderWithPaths(ImageFolder):
     """
 
     # override the __init__ method to drop no-label images
-    if RunningParams.IMAGENET_REAL:
-        def __init__(self, root, transform=None):
-            super(ImageFolderWithPaths, self).__init__(root, transform=transform)
+    def __init__(self, root, transform=None):
+        super(ImageFolderWithPaths, self).__init__(root, transform=transform)
 
-            if os.path.basename(root) == 'train':
-                pass
-            else:
-                real_json = open("reassessed-imagenet/real.json")
-                real_ids = json.load(real_json)
-                real_labels = {
-                    f"ILSVRC2012_val_{i + 1:08d}.JPEG": labels
-                    for i, labels in enumerate(real_ids)
-                }
+        original_len = len(self.imgs)
+        imgs = []
+        samples = []
+        targets = []
+        for sample_idx in range(original_len):
+            pth = self.imgs[sample_idx][0]
+            base_name = os.path.basename(pth)
 
-                original_len = len(self.imgs)
-                imgs = []
-                samples = []
-                targets = []
-                for sample_idx in range(original_len):
-                    pth = self.imgs[sample_idx][0]
-                    base_name = os.path.basename(pth)
-                    # Not ImageNet-val then we exit the function
-                    # if base_name not in real_labels:
-                    #     return
-                    if RunningParams.IMAGENET_TRAINING:
-                        real_ids = real_labels[base_name]
-                        if len(real_ids) == 0:
-                            continue
+            imgs.append(self.imgs[sample_idx])
+            samples.append(self.samples[sample_idx])
+            targets.append(self.targets[sample_idx])
 
-                    else:
-                        imgs.append(self.imgs[sample_idx])
-                        samples.append(self.samples[sample_idx])
-                        targets.append(self.targets[sample_idx])
-
-                self.imgs = imgs
-                self.samples = samples
-                self.targets = targets
+        self.imgs = imgs
+        self.samples = samples
+        self.targets = targets
 
     # override the __getitem__ method. this is the method that dataloader calls
     def __getitem__(self, index):
@@ -168,67 +144,40 @@ class ImageFolderForNNs(ImageFolder):
     torchvision.datasets.ImageFolder
     """
 
-    if RunningParams.IMAGENET_REAL:
-        def __init__(self, root, transform=None, nn_dict=None):
-            super(ImageFolderForNNs, self).__init__(root, transform=transform)
+    def __init__(self, root, transform=None, nn_dict=None):
+        super(ImageFolderForNNs, self).__init__(root, transform=transform)
 
-            self.root = root
-            # Load the pre-computed NNs
-            if RunningParams.CUB_TRAINING is True:
-                if 'train' in os.path.basename(root):
-                    # file_name = 'faiss/cub/top10_k1_enriched_NeurIPS_Finetuning_faiss_train_top1_HP_MODEL1_HP_FE.npy'
-                    file_name = 'faiss/cub/top15_k1_enriched_NeurIPS_Finetuning_faiss_train5k7_top1_HP_MODEL1_HP_FE.npy'
-                    # file_name = '/home/giang/Downloads/advising_network/faiss/cub/NTSNet_10_1_train.npy'
-                elif 'val' in os.path.basename(root):
-                    file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_val_top1_HP_MODEL1_HP_FE.npy'
-                    # file_name = '/home/giang/Downloads/advising_network/faiss/cub/NTSNet_1_1_val.npy'
-                elif 'test' in os.path.basename(root):
-                    # file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test4k7_top1_HP_MODEL1_HP_FE.npy'
-                    # file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1_HP_MODEL1_HP_FE.npy'
-                    file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test5k7_top1_HP_MODEL1_HP_FE.npy'
-                else:
-                    file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1_HP_MODEL1_HP_FE.npy'
-                    # file_name = '/home/giang/Downloads/advising_network/faiss/cub/NTSNet_1_1_test.npy'
-
-            elif RunningParams.DOGS_TRAINING is True:
-                if 'train' in os.path.basename(root):
-                    file_name = 'faiss/sdogs/top10_k1_enriched_NeurIPS_Finetuning_faiss_train.npy'
-                elif 'val' in os.path.basename(root):
-                    file_name = 'faiss/sdogs/top2_k1_enriched_NeurIPS_Finetuning_faiss_validation.npy'
-                elif 'test' in os.path.basename(root):
-                    file_name = 'faiss/sdogs/top1_k1_enriched_NeurIPS_Finetuning_faiss_test.npy'
-                else:
-                    exit(-1)
-
-            elif RunningParams.CARS_TRAINING is True:
-                if 'train' in os.path.basename(root):
-                    file_name = 'faiss/cars/top10_k1_enriched_NeurIPS_Finetuning_faiss_train_top1.npy'
-                elif 'val' in os.path.basename(root):
-                    file_name = 'faiss/cars/top2_k1_enriched_NeurIPS_Finetuning_faiss_val_top1.npy'
-                elif 'test' in os.path.basename(root):
-                    # file_name = 'faiss/cars/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1.npy'
-                    file_name = 'faiss/cars/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1_rn50.npy'
-                else:
-                    print('211')
-                    exit(-1)
+        self.root = root
+        # Load the pre-computed NNs
+        if RunningParams.CUB_TRAINING is True:
+            if 'train' in os.path.basename(root):
+                file_name = RunningParams.faiss_npy_file
+            elif 'test' in os.path.basename(root):
+                file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1_HP_MODEL1_HP_FE.npy'
             else:
-                print('214')
-                exit(-1)
+                file_name = RunningParams.faiss_npy_file
 
-            if nn_dict is not None:
-                file_name = nn_dict
+        elif RunningParams.CARS_TRAINING is True:
+            if 'train' in os.path.basename(root):
+                file_name = RunningParams.faiss_npy_file
+            elif 'test' in os.path.basename(root):
+                file_name = 'faiss/cars/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1.npy'
+            else:
+                file_name = RunningParams.faiss_npy_file
 
-            print(file_name)
-            self.faiss_nn_dict = np.load(file_name, allow_pickle=True, ).item()
+        else:
+            print("Wrong RunningParams params!")
+            exit(-1)
 
-            sample_count = len(self.faiss_nn_dict)
-            print(sample_count)
+        if nn_dict is not None:
+            file_name = nn_dict
 
-            remainder = sample_count - int(sample_count/RunningParams.batch_size)*RunningParams.batch_size
-            # if 8 > remainder > 0:
-            #     print('Delete this termination if you are not using 4 GPUs')
-            #     print('Not enough samples for the last batch. Terminating ...')
-            #     exit(-1)
+        print(file_name)
+        self.faiss_nn_dict = np.load(file_name, allow_pickle=True, ).item()
+
+        sample_count = len(self.faiss_nn_dict)
+        print(sample_count)
+
 
     def __getitem__(self, index):
         query_path, target = self.samples[index]
@@ -254,8 +203,6 @@ class ImageFolderForNNs(ImageFolder):
             if nn_base_name in base_name:
                 dup = True
                 continue
-
-            # Augment the NNs
             if 'train' in os.path.basename(self.root):
                 sample = trivial_augmenter(sample)
 
@@ -263,7 +210,7 @@ class ImageFolderForNNs(ImageFolder):
             explanations.append(sample)
         # If query is the same with any of NNs --> wrongly retrieved NNs
         if dup is True:
-            print('I found the query and the NNs are the same. Duplicate detected!!!!!!!!!!!!!!!!')
+            print('I found the query and the NNs are the same file. Duplicate detected! Exit now ...')
             exit(-1)
 
         explanations = torch.stack(explanations)
@@ -272,9 +219,8 @@ class ImageFolderForNNs(ImageFolder):
         sample = self.loader(query_path)
         query = self.transform(sample)
 
-        # Augment the query
-        aug_sample = trivial_augmenter(sample)
-        aug_query = self.transform(aug_sample)
+        aug_query = trivial_augmenter(sample)
+        aug_query = self.transform(aug_query)
 
         # make a new tuple that includes original and the path
         if 'train' in os.path.basename(self.root):
@@ -305,13 +251,6 @@ class Dataset(object):
             ]),
         }
 
-        if RunningParams.IMAGENET_REAL is True:
-            real_json = open("/home/giang/Downloads/advising_network/reassessed-imagenet/real.json")
-            real_ids = json.load(real_json)
-            self.real_labels = {
-                f"ILSVRC2012_val_{i + 1:08d}.JPEG": labels
-                for i, labels in enumerate(real_ids)
-            }
 
 class StanfordDogsDataset(Dataset):
     """`Stanford Dogs <http://vision.stanford.edu/aditya86/ImageNetDogs/>`_ Dataset.

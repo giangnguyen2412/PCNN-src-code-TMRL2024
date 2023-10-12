@@ -466,9 +466,32 @@ class Visualization(object):
         basename = os.path.basename(aft_image_paths)
 
         from PIL import Image
+        from PIL import Image
+
         def load_image(path):
             image = Image.open(path)
-            image = image.resize((224, 224), Image.ANTIALIAS)
+
+            # Step 1: Determine aspect ratio
+            aspect_ratio = image.width / image.height
+            if aspect_ratio > 1:  # width > height
+                new_width = int(256 * aspect_ratio)
+                new_height = 256
+            else:
+                new_width = 256
+                new_height = int(256 / aspect_ratio)
+
+            # Step 2: Resize the image
+            image = image.resize((new_width, new_height), Image.ANTIALIAS)
+
+            # Step 3: Compute the coordinates for a 224x224 center crop
+            left = (new_width - 224) / 2
+            top = (new_height - 224) / 2
+            right = (new_width + 224) / 2
+            bottom = (new_height + 224) / 2
+
+            # Step 4: Perform the crop
+            image = image.crop((left, top, right, bottom))
+
             image = np.array(image)
             return image
 
@@ -527,13 +550,13 @@ class Visualization(object):
         # if proto_idx != 1:
         #     plt.suptitle('', fontsize=16, y=0.02)
         # else:
-        plt.suptitle(title, fontsize=16, y=0.02)
+        # plt.suptitle(title, fontsize=16, y=0.02)
         fig.colorbar(im2, ax=ax4)
         fig.colorbar(im1, ax=ax3)
 
         HelperFunctions.check_and_mkdir('attn_maps/cub')
         HelperFunctions.check_and_mkdir('attn_maps/cub/{}'.format(title))
-        plt.savefig('attn_maps/cub/{}/{}_{}.png'.format(title, basename, proto_idx), bbox_inches='tight')
+        plt.savefig('attn_maps/cub/{}/{}.pdf'.format(title, basename), bbox_inches='tight', dpi=300)
 
     @staticmethod
     def visualize_transformer_attn_sdogs(bef_weights, aft_weights, bef_image_paths, aft_image_paths, title, proto_idx):

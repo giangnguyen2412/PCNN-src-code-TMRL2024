@@ -1,3 +1,5 @@
+import os
+
 class RunningParams(object):
     def __init__(self):
         # Training mode
@@ -10,14 +12,12 @@ class RunningParams(object):
             self.resnet = 50
 
         # General
-        self.SIMCLR_MODEL = False
-        self.IMAGENET_REAL = True
-        self.advising_network = True
         self.conv_layer = 4
 
         if self.CUB_TRAINING is True:
             self.feat_map_size = {4: 49}
             self.conv_layer_size = {4: 2048, 3: 1024, 2: 512, 1: 256}
+
         elif self.CARS_TRAINING is True:
             self.feat_map_size = {4: 49}
             if self.resnet == 50:
@@ -27,18 +27,15 @@ class RunningParams(object):
             elif self.resnet == 18:
                 self.conv_layer_size = {4: 512}
             else:
+                print('Not supported architecture! Exiting...')
                 exit(-1)
-        elif self.DOGS_TRAINING is True:
-            self.feat_map_size = {4: 256}
-            self.conv_layer_size = {4: 512}
         else:
+            print('Wrong params! Exiting...')
             exit(-1)
 
         # XAI methods
-        self.NO_XAI = 'No-XAI'
-        self.GradCAM = 'GradCAM'
         self.NNs = 'NNs'
-        self.XAI_method = self.NNs
+        self.XAI_method = 'NNs'
         # TODO: write script to run a set of basic experiments: No-XAI, NNs with conv2,3,4, k1,3,5
 
         self.BOTTLENECK = False
@@ -51,36 +48,52 @@ class RunningParams(object):
         # Training parameters
         if self.CUB_TRAINING is True:
             self.batch_size = 256
-            self.epochs = 1000
+            self.epochs = 100
             self.learning_rate = 1e-3
             self.k_value = 1
 
-        elif self.DOGS_TRAINING is True:
-            self.batch_size = 96
-            self.epochs = 100
-            self.learning_rate = 1e-2
-            self.k_value = 1
+            self.in_features = 2048
+
+            # Retrieving NNs and sample positive and negative pairs
+            # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
+            set = 'train'
+            self.data_dir = '/home/giang/Downloads/datasets/CUB/advnet/' + set
+            # self.data_dir = '/home/giang/Downloads/datasets/CUB/test0'  # CUB test folder
+            self.QK = 7  # Q and K values for building positives and negatives
+            self.faiss_npy_file = 'faiss/cub/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}5k7_top1_HP_MODEL1_HP_FE.npy'. \
+                format(self.QK, self.k_value, set)
+            self.aug_data_dir = self.data_dir +'_all' + f'_top{self.QK}'
+
+            self.N = 4
+            self.M = 4
+            self.L = 2
+            self.extension = '.jpg'
 
         elif self.CARS_TRAINING is True:
             self.batch_size = 256
             self.epochs = 100
             self.learning_rate = 1e-2
             self.k_value = 1
+
+            self.in_features = 2048
+
+            # Retrieving NNs and sample positive and negative pairs
+            # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
+            set = 'train'
+            self.data_dir = ''
+            self.QK = 10  # Q and K values for building positives and negatives
+            self.faiss_npy_file = 'faiss/cars/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1.npy'. \
+                format(self.QK, self.k_value, set)
+            self.aug_data_dir = os.path.join(self.data_dir, set + '_all' + f'_top{self.QK}')
+
+            self.N = 3
+            self.M = 3
+            self.L = 3
+            self.extension = '.jpeg'
+
         else:
             exit(-1)
 
-        self.query_frozen = True  # False = Trainable; True = Freeze? -------------------- IMPORTANT PARAM --------
-        self.UNBALANCED_TRAINING = True
-
-        self.PRECOMPUTED_NN = True
-
-        # Infer
-        self.MODEL2_ADVISING = False
-        self.advising_steps = 0
-
         # Visualization
-        self.M2_VISUALIZATION = True
-
-        # Unused
-        self.BATCH_NORM = True
-        self.GradCAM_RNlayer = 'layer4'
+        self.M2_VISUALIZATION = False
+        self.VISUALIZE_TRANSFORMER_ATTN = False

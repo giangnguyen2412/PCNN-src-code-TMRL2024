@@ -19,7 +19,7 @@ HelperFunctions = HelperFunctions()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
 
 CATEGORY_ANALYSIS = False
 
@@ -30,6 +30,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
                         default='best_model_decent-pyramid-3156.pt', # Normal model
+                        # default='best_model_avid-cosmos-3201.pt', # M=N=L=1 model
+                        # default='best_model_rare-shadow-3213.pt', # M=N=L=1 model convs only
+                        # default='best_model_decent-mountain-3215.pt', # M=N=L=1 model convs only, no SA
+                        # default='best_model_legendary-durian-3216.pt', # Random data sampling
+                        # default='best_model_faithful-rain-3211.pt', # M=N=L=1 model convs only, no SA
                         # default='best_model_cosmic-waterfall-3174.pt', # no CA --> have no cross attn to visualize
                         # default='best_model_young-planet-3170.pt',  # no SA --> clear heatmaps
                         # default='best_model_serene-field-3176.pt',  # no SA --> depth2 head2
@@ -78,7 +83,7 @@ if __name__ == '__main__':
 
         resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
         my_model_state_dict = torch.load(
-            'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+            'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
         resnet.load_state_dict(my_model_state_dict, strict=True)
         MODEL1 = resnet.cuda()
         MODEL1.eval()
@@ -139,12 +144,13 @@ if __name__ == '__main__':
         if RunningParams.M2_VISUALIZATION is True:
             # HelperFunctions.check_and_rm(save_dir)
             HelperFunctions.check_and_mkdir(save_dir)
-        model1_confidence_dist = dict()
-        model2_confidence_dist = dict()
-        for cat in categories:
-            model1_confidence_dist[cat] = list()
-            model2_confidence_dist[cat] = list()
-            HelperFunctions.check_and_mkdir(os.path.join(save_dir, cat))
+
+            model1_confidence_dist = dict()
+            model2_confidence_dist = dict()
+            for cat in categories:
+                model1_confidence_dist[cat] = list()
+                model2_confidence_dist[cat] = list()
+                HelperFunctions.check_and_mkdir(os.path.join(save_dir, cat))
 
         infer_result_dict = dict()
 
@@ -195,11 +201,8 @@ if __name__ == '__main__':
             # print(labels.shape)
 
             # Generate explanations
-            if RunningParams.XAI_method == RunningParams.GradCAM:
-                exit(-1)
-            elif RunningParams.XAI_method == RunningParams.NNs:
+            if RunningParams.XAI_method == RunningParams.NNs:
                 explanation = data[1]
-                # breakpoint()
                 explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
                 # Find the maximum value along each row
                 max_values, _ = torch.max(model1_p, dim=1)
@@ -220,14 +223,8 @@ if __name__ == '__main__':
 
                 # explanation = explanation[torch.randperm(explanation.size(0))]
 
-            if RunningParams.advising_network is True:
                 # Forward input, explanations, and softmax scores through MODEL2
-                if RunningParams.XAI_method == RunningParams.NO_XAI:
-                    output, _, _ = MODEL2(images=x, explanations=None, scores=model1_p)
-                else:
-                    output, query, i2e_attn, e2i_attn = MODEL2(images=x, explanations=explanation, scores=model1_score)
-                    # output, query, nns, emb_cos_sim = MODEL2(images=data[-1].cuda(), explanations=explanation,
-                    #                                         scores=model1_score)
+                output, query, i2e_attn, e2i_attn = MODEL2(images=x, explanations=explanation, scores=model1_score)
 
                 # convert logits to probabilities using sigmoid function
                 p = torch.sigmoid(output)
@@ -297,7 +294,7 @@ if __name__ == '__main__':
 
                 running_corrects += torch.sum(preds == labels.data)
 
-                VISUALIZE_TRANSFORMER_ATTN = False
+                VISUALIZE_TRANSFORMER_ATTN = RunningParams.VISUALIZE_TRANSFORMER_ATTN
                 if VISUALIZE_TRANSFORMER_ATTN is True:
                     i2e_attn = i2e_attn.mean(dim=1)  # bsx8x3x50
                     i2e_attn = i2e_attn[:, :, 1:]  # remove cls token --> bsx3x49
@@ -357,7 +354,6 @@ if __name__ == '__main__':
                     cmd = 'img2pdf -o /home/giang/Downloads/advising_network/attn_maps/cub/CorrectlyReject/output.pdf ' \
                           '--pagesize A4^T /home/giang/Downloads/advising_network/attn_maps/cub/CorrectlyReject/*.png'
                     os.system(cmd)
-
 
                 AI_DELEGATE = True
                 if AI_DELEGATE is True:
@@ -490,15 +486,7 @@ if __name__ == '__main__':
                 epoch_acc.item() * 100, precision, recall, f1))
             ################################################################
 
-        if RunningParams.MODEL2_ADVISING is True:
-            advising_acc = advising_crt_cnt.double() / len(image_datasets[ds])
-
-            print(
-                '{} - Binary Acc: {:.2f} - MODEL2 Yes Ratio: {:.2f} - Orig. Acc: {:.2f} - Correction Acc: {:.2f}'.format(
-                    os.path.basename(test_dir), epoch_acc * 100, yes_ratio * 100, true_ratio * 100, advising_acc * 100))
-            print('Original misclassified: {} - After correction: {}'.format(orig_wrong, adv_wrong))
-        else:
-            print('{} - Binary Acc: {:.2f} - MODEL2 Yes Ratio: {:.2f} - Orig. accuracy: {:.2f}'.format(
-                os.path.basename(test_dir), epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
+        print('{} - Binary Acc: {:.2f} - MODEL2 Yes Ratio: {:.2f} - Orig. accuracy: {:.2f}'.format(
+            os.path.basename(test_dir), epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
 
         np.save('confidence.npy', confidence_dict)

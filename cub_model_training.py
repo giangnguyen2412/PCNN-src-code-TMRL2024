@@ -24,12 +24,12 @@ from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
 
-if [RunningParams.IMAGENET_TRAINING, RunningParams.CUB_TRAINING].count(True) > 1:
+if [RunningParams.IMAGENET_TRAINING, RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING].count(True) > 1:
     print("There are more than one training datasets chosen, skipping training!!!")
     exit(-1)
 
@@ -37,25 +37,23 @@ from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
 resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+    'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
 resnet.load_state_dict(my_model_state_dict, strict=True)
 MODEL1 = resnet.cuda()
 MODEL1.eval()
 fc = list(MODEL1.children())[-1].cuda()
 fc = nn.DataParallel(fc)
 
-# Change this if you want to change the train dataset
-train_dataset = '/home/giang/Downloads/datasets/CUB/advnet/train_all_top10'
-val_dataset = '/home/giang/Downloads/datasets/CUB/advnet/val'
+train_dataset = RunningParams.aug_data_dir
 
 full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
                                      Dataset.data_transforms['train'])
 
 image_datasets = dict()
 image_datasets['train'] = ImageFolderForNNs(train_dataset, Dataset.data_transforms['train'])
-image_datasets['val'] = ImageFolderForNNs(val_dataset, Dataset.data_transforms['val'])
 
-dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
+
+dataset_sizes = {x: len(image_datasets[x]) for x in ['train']}
 
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
 feature_extractor.cuda()
@@ -67,7 +65,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
-    best_loss = float('inf')
     best_f1 = 0.0
 
     for epoch in range(num_epochs):
@@ -75,30 +72,30 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
         print('-' * 10)
 
         # Each epoch has a training and validation phase
-        # for phase in ['train', 'val']:
         for phase in ['train']:
             if phase == 'train':
                 shuffle = True
                 model.train()  # Training mode
                 drop_last = True
-
+                frozen = False
+                trainable = True
                 for param in model.module.conv_layers.parameters():
-                    param.requires_grad_(True)
+                    param.requires_grad_(trainable)
 
                 for param in model.module.transformer_feat_embedder.parameters():
-                    param.requires_grad_(True)
+                    param.requires_grad_(trainable)
 
                 for param in model.module.transformer.parameters():
-                    param.requires_grad_(True)
+                    param.requires_grad_(trainable)
 
                 for param in model.module.cross_transformer.parameters():
-                    param.requires_grad_(True)
+                    param.requires_grad_(trainable)
 
                 for param in model.module.branch3.parameters():
-                    param.requires_grad_(True)
+                    param.requires_grad_(trainable)
 
                 for param in model.module.agg_branch.parameters():
-                    param.requires_grad_(True)
+                    param.requires_grad_(trainable)
 
             else:
                 shuffle = False
@@ -120,10 +117,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             yes_cnt = 0
             true_cnt = 0
 
-            # if phase == 'val':
-            if True:
-                labels_val = []
-                preds_val = []
+            labels_val = []
+            preds_val = []
 
             for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
                 if RunningParams.XAI_method == RunningParams.NNs:
@@ -148,31 +143,25 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                 # MODEL1 Y/N label for input x
                 model2_gt = (predicted_ids == gts) * 1  # 0 and 1
-                labels = model2_gt
 
-                if phase == 'train':
-                    labels = data[2].cuda()
+                # Get the label (0/1) from the faiss npy file
+                labels = data[2].cuda()
+
+                if (sum(labels)/RunningParams.batch_size) > 0.7 or (sum(labels)/RunningParams.batch_size) < 0.3:
+                    print("Warning: The distribution of positive and negative in this batch is high skewed."
+                          "Beware of the loss function!")
 
                 #####################################################
 
-                if RunningParams.XAI_method == RunningParams.GradCAM:
-                    exit(-1)
-                elif RunningParams.XAI_method == RunningParams.NNs:
-                    if RunningParams.PRECOMPUTED_NN is True:
-                        explanation = data[1]
-                        explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
+                explanation = data[1]
+                explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
                 # zero the parameter gradients
                 optimizer.zero_grad()
 
                 with torch.set_grad_enabled(phase == 'train'):
-                    if RunningParams.XAI_method == RunningParams.NO_XAI:
-                        output, _, _ = model(images=x, explanations=None, scores=model1_p)
-                    else:
-                        if phase == 'train':
-                            output, query, nns, emb_cos_sim = model(images=data[-1], explanations=explanation, scores=score)
-                        else:
-                            output, query, nns, emb_cos_sim = model(images=x, explanations=explanation, scores=score)
+                    # data[-1] is the trivial augmented data
+                    output, query, nns, emb_cos_sim = model(images=data[-1], explanations=explanation, scores=score)
 
                     p = torch.sigmoid(output)
 
@@ -203,28 +192,25 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
             ################################################################
 
-            # if phase == 'val':
-            if True:
-                # Calculate precision, recall, and F1 score
-                preds_val = torch.cat(preds_val, dim=0)
-                labels_val = torch.cat(labels_val, dim=0)
+            # Calculate precision, recall, and F1 score
+            preds_val = torch.cat(preds_val, dim=0)
+            labels_val = torch.cat(labels_val, dim=0)
 
-                precision = precision_score(labels_val.cpu(), preds_val.cpu())
-                recall = recall_score(labels_val.cpu(), preds_val.cpu())
-                f1 = f1_score(labels_val.cpu(), preds_val.cpu())
-                confusion_matrix_ = confusion_matrix(labels_val.cpu(), preds_val.cpu())
-                print(confusion_matrix_)
+            precision = precision_score(labels_val.cpu(), preds_val.cpu())
+            recall = recall_score(labels_val.cpu(), preds_val.cpu())
+            f1 = f1_score(labels_val.cpu(), preds_val.cpu())
+            confusion_matrix_ = confusion_matrix(labels_val.cpu(), preds_val.cpu())
+            print(confusion_matrix_)
 
-                wandb.log(
-                    {'{}_precision'.format(phase): precision, '{}_recall'.format(phase): recall, '{}_f1'.format(phase): f1})
+            wandb.log(
+                {'{}_precision'.format(phase): precision, '{}_recall'.format(phase): recall, '{}_f1'.format(phase): f1})
 
-                print('{} - {} - Loss: {:.4f} - Acc: {:.2f} - Precision: {:.4f} - Recall: {:.4f} - F1: {:.4f}'.format(
-                    wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, precision, recall, f1))
+            print('{} - {} - Loss: {:.4f} - Acc: {:.2f} - Precision: {:.4f} - Recall: {:.4f} - F1: {:.4f}'.format(
+                wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, precision, recall, f1))
 
             ################################################################
 
-            if phase == 'train':
-                scheduler.step()
+            scheduler.step()
 
             wandb.log({'{}_accuracy'.format(phase): epoch_acc * 100, '{}_loss'.format(phase): epoch_loss})
 
@@ -232,7 +218,6 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, yes_ratio.item() * 100, true_ratio.item() * 100))
 
             # deep copy the model
-            # if phase == 'val' and f1 >= best_f1:
             if f1 >= best_f1:
                 best_f1 = f1
                 best_acc = epoch_acc
@@ -269,8 +254,7 @@ MODEL2 = Transformer_AdvisingNetwork()
 MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
 
-if RunningParams.UNBALANCED_TRAINING is True:
-    criterion = nn.BCEWithLogitsLoss().cuda()
+criterion = nn.BCEWithLogitsLoss().cuda()
 
 # Observe all parameters that are being optimized
 optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)
@@ -282,9 +266,7 @@ oneLR_scheduler = torch.optim.lr_scheduler.OneCycleLR(
     epochs=RunningParams.epochs)
 
 config = {"train": train_dataset,
-          "val": val_dataset,
           "train_size": dataset_sizes['train'],
-          "val_size": dataset_sizes['val'],
           "num_epochs": RunningParams.epochs,
           "batch_size": RunningParams.batch_size,
           "learning_rate": RunningParams.learning_rate,
