@@ -27,7 +27,7 @@ preprocess = transforms.Compose([transforms.Resize(256),
 DEVICE = torch.device("cuda")
 
 #
-train_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train'
+train_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/train'
 val_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
 
 from datasets import Dataset, StanfordDogsDataset, ImageFolderForNNs

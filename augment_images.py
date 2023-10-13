@@ -17,7 +17,6 @@ for root, dirs, files in os.walk(folder_path):
     for file in files:
         if file.lower().endswith(RunningParams.extension):
             file_path = os.path.join(root, file)
-
             for i in range(RunningParams.QK):
                 if i == 0:
                     for j in range(RunningParams.QK):  # Make up NN sets from top-1 predictions

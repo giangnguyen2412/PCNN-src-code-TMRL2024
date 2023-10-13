@@ -274,7 +274,6 @@ config = {"train": train_dataset,
           'k_value': RunningParams.k_value,
           'conv_layer': RunningParams.conv_layer,
           'HIGHPERFORMANCE_FEATURE_EXTRACTOR': RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR,
-          'HIGHPERFORMANCE_MODEL1': RunningParams.HIGHPERFORMANCE_MODEL1,
           'BOTTLENECK': RunningParams.BOTTLENECK,
           }
 

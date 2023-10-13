@@ -82,7 +82,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
             normalize,
         ])
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train',
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/Cars/Stanford-Cars-dataset/train',
                                      transform=data_transform)
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -147,7 +147,7 @@ MODEL1 = nn.DataParallel(MODEL1).eval()
 
 # data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/{}'.format(set)
 if set == 'train':
-    data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train'
+    data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/train'
 elif set == 'test':
     data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
 else:

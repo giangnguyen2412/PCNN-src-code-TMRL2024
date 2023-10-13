@@ -1,17 +1,12 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from torch.optim import lr_scheduler
 import torch.backends.cudnn as cudnn
 import numpy as np
 import matplotlib.pyplot as plt
 import time
 import os
-import copy
-import wandb
-import random
-import pdb
 import faiss
+import torchvision
 
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
@@ -28,9 +23,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-import torchvision
-normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
+
 if RunningParams.resnet == 50:
     model = torchvision.models.resnet50(pretrained=True).cuda()
 elif RunningParams.resnet == 34:
@@ -54,14 +47,17 @@ feature_extractor = nn.DataParallel(feature_extractor)
 in_features = model.fc.in_features
 print("Building FAISS index...! Training set is the knowledge base.")
 
-train_transform = transforms.Compose([transforms.Resize(256),
+normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+data_transform = transforms.Compose([transforms.Resize(256),
             transforms.CenterCrop(224),
             transforms.ToTensor(),
             normalize,
         ])
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train',
-                                     transform=train_transform)
+# faiss dataset contains images using as the knowledge based for KNN retrieval
+faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/Cars/Stanford-Cars-dataset/train',
+                                     transform=data_transform)
 
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
@@ -119,25 +115,8 @@ else:
 
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-set = 'test'
-# data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/{}'.format(set)
-data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
-# data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train'
-
-if set == 'train':
-    data_transform = train_transform
-elif set == 'test' or set == 'val':
-    val_transform = transforms.Compose([transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            normalize,
-        ])
-    data_transform = val_transform
-else:
-    exit(-1)
-
 image_datasets = dict()
-image_datasets['train'] = ImageFolderWithPaths(data_dir, data_transform)
+image_datasets['train'] = ImageFolderWithPaths(RunningParams.data_dir, data_transform)
 train_loader = torch.utils.data.DataLoader(
     image_datasets['train'],
     batch_size=128,
@@ -146,7 +125,7 @@ train_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-depth_of_pred = 1
+depth_of_pred = RunningParams.QK
 
 if set == 'test':
     depth_of_pred = 1
@@ -194,7 +173,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                 faiss_nn_dict[base_name] = nn_list
             else:
 
-                if i == 0:  # top-1 predictions --> Enrich top-1 prediction samples
+                if i == 0:  # top-1 predictions --> Enrich top-1 prediction samples --> Value Q
                     _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), faiss_index.ntotal)
 
                     if set == 'val':
@@ -225,6 +204,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                         faiss_nn_dict[key]['NNs'] = nn_list
                         faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
                         faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
+                        faiss_nn_dict[key]['input_gt'] = loader.dataset.dataset.classes[gt_id.item()]
 
                 else:
                     if predicted_idx == gt_id:
@@ -243,12 +223,57 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                     faiss_nn_dict[key]['NNs'] = nn_list
                     faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
                     faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
+                    faiss_nn_dict[key]['input_gt'] = loader.dataset.dataset.classes[gt_id.item()]
 
-print(set)
-print(depth_of_pred)
+file_name = RunningParams.faiss_npy_file
+np.save(file_name, faiss_nn_dict)
 print(len(faiss_nn_dict))
-np.save('faiss/cars/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1_rn50.npy'.format(depth_of_pred, RunningParams.k_value, set),
-        faiss_nn_dict)
-print('faiss/cars/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1_rn50.npy'.format(depth_of_pred, RunningParams.k_value, set))
+print(file_name)
 
+for k, v in faiss_nn_dict.items():
+    NN_class = os.path.basename(os.path.dirname(v['NNs'][0]))
+    if v['label'] == 1:
+        if NN_class.lower() in v['input_gt'].lower():
+            continue
+        else:
+            print('You retrieved wrong NNs. The label for the pair is positive but two images are from different classes!')
+            exit(-1)
+    else:
+        if NN_class.lower() not in v['input_gt'].lower():
+            continue
+        else:
+            print('You retrieved wrong NNs. The label for the pair is negative but two images are from same class!')
+            exit(-1)
 
+print('Passed sanity checks for extracting NNs!')
+
+################################################################
+
+new_dict = dict()
+for k, v in faiss_nn_dict.items():
+    for nn in v['NNs']:
+        base_name = os.path.basename(nn)
+        if base_name in k:
+            break
+        else:
+            new_dict[k] = v
+np.save(file_name, new_dict)
+print('DONE: Cleaning duplicates entries: query and NN being similar!')
+
+################################################################
+
+import shutil
+import os
+
+source_folder = RunningParams.data_dir
+destination_folder = RunningParams.aug_data_dir
+
+if os.path.exists(destination_folder):
+    shutil.rmtree(destination_folder)
+
+# Check if the destination folder already exists
+if os.path.exists(destination_folder):
+    print(f"Destination folder '{destination_folder}' already exists. Exiting to avoid overwriting.")
+else:
+    shutil.copytree(source_folder, destination_folder)
+    print(f"Copied '{source_folder}' to '{destination_folder}'")

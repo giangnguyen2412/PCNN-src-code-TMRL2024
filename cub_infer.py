@@ -77,29 +77,16 @@ if __name__ == '__main__':
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'])
     dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
 
-    HIGHPERFORMANCE_MODEL1 = RunningParams.HIGHPERFORMANCE_MODEL1
-    if HIGHPERFORMANCE_MODEL1 is True:
-        from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
-        resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-        my_model_state_dict = torch.load(
-            'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
-        resnet.load_state_dict(my_model_state_dict, strict=True)
-        MODEL1 = resnet.cuda()
-        MODEL1.eval()
+    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+    my_model_state_dict = torch.load(
+        'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+    resnet.load_state_dict(my_model_state_dict, strict=True)
+    MODEL1 = resnet.cuda()
+    MODEL1.eval()
 
-        categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_HIGH/combined'
-    else:
-        import torchvision
-
-        inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
-        inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
-        my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
-        inat_resnet.load_state_dict(my_model_state_dict, strict=True)
-        MODEL1 = inat_resnet
-        MODEL1.eval()
-
-        categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_LOW/combined'
+    categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_HIGH/combined'
 
     import random
 

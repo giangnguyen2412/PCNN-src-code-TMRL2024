@@ -78,7 +78,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
 
 train_data = ImageFolder(
     # ImageNet train folder
-    root="/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train", transform=data_transform
+    root="/home/giang/Downloads/Cars/Stanford-Cars-dataset/train", transform=data_transform
 )
 
 train_loader = torch.utils.data.DataLoader(

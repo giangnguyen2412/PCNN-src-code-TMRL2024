@@ -126,6 +126,9 @@ train_loader = torch.utils.data.DataLoader(
 )
 
 depth_of_pred = RunningParams.QK
+
+if set == 'test':
+    depth_of_pred = 1
 correct_cnt = 0
 total_cnt = 0
 
@@ -192,6 +195,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                         faiss_nn_dict[key]['NNs'] = nn_list
                         faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
                         faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
+                        faiss_nn_dict[key]['input_gt'] = loader.dataset.dataset.classes[gt_id.item()]
 
                 else:
                     if predicted_idx == gt_id:
@@ -210,6 +214,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                     faiss_nn_dict[key]['NNs'] = nn_list
                     faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
                     faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
+                    faiss_nn_dict[key]['input_gt'] = loader.dataset.dataset.classes[gt_id.item()]
 
 
 file_name = RunningParams.faiss_npy_file
@@ -218,15 +223,15 @@ print(len(faiss_nn_dict))
 print(file_name)
 
 for k, v in faiss_nn_dict.items():
-    NN_class = os.path.basename(os.path.dirname(v['NNs'][0])).split('.')[1]
+    NN_class = os.path.basename(os.path.dirname(v['NNs'][0]))
     if v['label'] == 1:
-        if NN_class.lower() in k.lower():
+        if NN_class.lower() in v['input_gt'].lower():
             continue
         else:
             print('You retrieved wrong NNs. The label for the pair is positive but two images are from different classes!')
             exit(-1)
     else:
-        if NN_class.lower() not in k.lower():
+        if NN_class.lower() not in v['input_gt'].lower():
             continue
         else:
             print('You retrieved wrong NNs. The label for the pair is negative but two images are from same class!')
@@ -255,7 +260,8 @@ import os
 source_folder = RunningParams.data_dir
 destination_folder = RunningParams.aug_data_dir
 
-shutil.rmtree(destination_folder)
+if os.path.exists(destination_folder):
+    shutil.rmtree(destination_folder)
 
 # Check if the destination folder already exists
 if os.path.exists(destination_folder):

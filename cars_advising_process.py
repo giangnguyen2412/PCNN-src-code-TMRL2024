@@ -25,7 +25,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
             transforms.ToTensor(),
             normalize,
         ])
-full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train',
+full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/Cars/Stanford-Cars-dataset/train',
                                      data_transform)
 
 if __name__ == '__main__':

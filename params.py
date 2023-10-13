@@ -43,7 +43,6 @@ class RunningParams(object):
             self.conv_layer_size = {4: 512}
 
         self.HIGHPERFORMANCE_FEATURE_EXTRACTOR = True
-        self.HIGHPERFORMANCE_MODEL1 = True
 
         # Training parameters
         if self.CUB_TRAINING is True:
@@ -75,21 +74,20 @@ class RunningParams(object):
             self.learning_rate = 1e-2
             self.k_value = 1
 
-            self.in_features = 2048
-
             # Retrieving NNs and sample positive and negative pairs
             # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
             set = 'train'
-            self.data_dir = ''
-            self.QK = 10  # Q and K values for building positives and negatives
+            self.data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/' + set
+
+            self.QK = 7  # Q and K values for building positives and negatives
             self.faiss_npy_file = 'faiss/cars/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1.npy'. \
                 format(self.QK, self.k_value, set)
-            self.aug_data_dir = os.path.join(self.data_dir, set + '_all' + f'_top{self.QK}')
+            self.aug_data_dir = os.path.join(self.data_dir + f'_top{self.QK}_rn{self.resnet}')
 
             self.N = 3
             self.M = 3
             self.L = 3
-            self.extension = '.jpeg'
+            self.extension = '.jpg'
 
         else:
             exit(-1)
