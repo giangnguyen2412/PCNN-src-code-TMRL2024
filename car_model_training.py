@@ -41,7 +41,7 @@ elif RunningParams.resnet == 18:
 model.fc = nn.Linear(model.fc.in_features, 196)
 
 my_model_state_dict = torch.load(
-        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.resnet), map_location=torch.device('cpu'))
+        '{}/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.prj_dir, RunningParams.resnet), map_location=torch.device('cpu'))
 model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
 model.eval()
 
@@ -229,8 +229,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 best_acc = epoch_acc
                 best_loss = epoch_loss
                 best_model_wts = copy.deepcopy(model.state_dict())
-                ckpt_path = '/home/giang/Downloads/advising_network/best_models/best_model_{}.pt' \
-                    .format(wandb.run.name)
+                ckpt_path = '{}/best_models/best_model_{}.pt' \
+                    .format(RunningParams.prj_dir, wandb.run.name)
                 torch.save({
                     'epoch': epoch + 1,
                     'model_state_dict': best_model_wts,

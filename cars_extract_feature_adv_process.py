@@ -45,7 +45,7 @@ if MODEL1_RESNET is True:
     model.fc = nn.Linear(model.fc.in_features, 196)
 
     my_model_state_dict = torch.load(
-        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.resnet), map_location=torch.device('cpu'))
+        '{}/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.prj_dir, RunningParams.resnet), map_location=torch.device('cpu'))
     model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
 else:
     model = torchvision.models.mobilenet_v2(pretrained=True).cuda()
@@ -54,7 +54,7 @@ else:
     model.classifier = new_classifier
 
     my_model_state_dict = torch.load(
-        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_mobilenet_v2.pth.tar', map_location=torch.device('cpu'))
+        f'{RunningParams.prj_dir}/PyTorch-Stanford-Cars-Baselines/model_best_mobilenet_v2.pth.tar', map_location=torch.device('cpu'))
     model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
 
 model.eval()
@@ -82,7 +82,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
             normalize,
         ])
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/Cars/Stanford-Cars-dataset/train',
+faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train',
                                      transform=data_transform)
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -145,11 +145,11 @@ else:
 
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
-# data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/{}'.format(set)
+# data_dir = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/{}'.format(set)
 if set == 'train':
-    data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/train'
+    data_dir = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train'
 elif set == 'test':
-    data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
+    data_dir = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/test'
 else:
     exit(-1)
 

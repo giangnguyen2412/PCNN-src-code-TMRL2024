@@ -67,7 +67,7 @@ feature_extractor = nn.DataParallel(feature_extractor)
 in_features = 2048
 print("Building FAISS index...! Training set is the knowledge base.")
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB/advnet/train',
+faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/datasets/CUB/advnet/train',
                                      transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -144,8 +144,8 @@ MODEL1.eval()
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
 set = 'train'
-# data_dir = '/home/giang/Downloads/datasets/CUB/advnet/{}'.format(set)
-data_dir = '/home/giang/Downloads/datasets/CUB/train1'  ##################################
+# data_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/{}'.format(set)
+data_dir = f'{RunningParams.parent_dir}/datasets/CUB/train1'  ##################################
 
 image_datasets = dict()
 image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])

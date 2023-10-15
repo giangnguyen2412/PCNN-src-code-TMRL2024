@@ -9,7 +9,7 @@ class_cnt = 0
 source_folder = '/home/lab/datasets/nabirds/images'
 split_file = '/home/lab/datasets/nabirds/train_test_split.txt'
 
-destination_folder = '/home/giang/Downloads/nabirds_scs_split_small_{}/'.format(sample_size)
+destination_folder = '{}/nabirds_scs_split_small_{}/'.format(RunningParams.parent_dir, sample_size)
 
 # Create the destination folders if they don't exist
 os.makedirs(destination_folder + 'test', exist_ok=True)

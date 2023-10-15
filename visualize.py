@@ -310,11 +310,11 @@ class Visualization(object):
     #
     #     if 'train' in filename:
     #         wnid = query.split('_')[0]
-    #         query = os.path.join('/home/giang/Downloads/datasets/Dogs_train', wnid, query)
+    #         query = os.path.join(f'{RunningParams.parent_dir}/datasets/Dogs_train', wnid, query)
     #     else:
-    #         path = glob.glob('/home/giang/Downloads/datasets/imagenet1k-val/**/{}'.format(query))
+    #         path = glob.glob(f'{RunningParams.parent_dir}/datasets/imagenet1k-val/**/{}'.format(query))
     #         wnid = path[0].split('/')[-2]
-    #         query = os.path.join('/home/giang/Downloads/datasets/Dogs_val', wnid, query)
+    #         query = os.path.join(f'{RunningParams.parent_dir}/datasets/Dogs_val', wnid, query)
     #
     #     gt_label = HelperFunctions.convert_imagenet_id_to_label(HelperFunctions.key_list, wnid)
     #     gt_label = HelperFunctions.label_map[gt_label]

@@ -86,8 +86,8 @@ np.save(filename, new_kbc)
 # pass
 # import os
 #
-# folder1 = "/home/giang/Downloads/nabirds_exact-match_split_small_50/train"
-# folder2 = "/home/giang/Downloads/nabirds_exact-match_split_small_50/test"
+# folder1 = f"{RunningParams.parent_dir}/nabirds_exact-match_split_small_50/train"
+# folder2 = f"{RunningParams.parent_dir}/nabirds_exact-match_split_small_50/test"
 #
 # jpg_files1 = set()
 # jpg_files2 = set()

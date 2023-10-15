@@ -28,7 +28,7 @@ from core import model, dataset
 from torch import nn
 from tqdm import tqdm
 net = model.attention_net(topN=6)
-ckpt = torch.load('/home/giang/Downloads/NTS-Net/model.ckpt')
+ckpt = torch.load(f'{RunningParams.parent_dir}/NTS-Net/model.ckpt')
 
 net.load_state_dict(ckpt['net_state_dict'])
 
@@ -55,7 +55,7 @@ data_transforms = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB/advnet/train',
+faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/datasets/CUB/advnet/train',
                                      transform=data_transforms)
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -114,7 +114,7 @@ else:
 
 
 net = model.attention_net(topN=6)
-ckpt = torch.load('/home/giang/Downloads/NTS-Net/model.ckpt')
+ckpt = torch.load(f'{RunningParams.parent_dir}/NTS-Net/model.ckpt')
 
 net.load_state_dict(ckpt['net_state_dict'])
 
@@ -125,7 +125,7 @@ MODEL1 = net
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
 set = 'test'
-data_dir = '/home/giang/Downloads/datasets/CUB/advnet/{}'.format(set)
+data_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/{}'.format(set)
 
 image_datasets = dict()
 image_datasets['train'] = ImageFolderWithPaths(data_dir, data_transforms)

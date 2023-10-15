@@ -24,13 +24,14 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 CATEGORY_ANALYSIS = False
 
-full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/Cars/Stanford-Cars-dataset/train',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train',
                                      Dataset.data_transforms['train'])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_robust-sunset-3158.pt',  # RN50 run 1
+                        default='best_model_' + RunningParams.wandb_sess_name + '.pt',
+                        # default='best_model_robust-sunset-3158.pt',  # RN50 run 1
                         # default='best_model_wandering-capybara-3189.pt',  # RN50 run 2
                         # default='best_model_different-lion-3192.pt',  # RN50 run 3
                         # default='best_model_spring-field-3157.pt',  # RN34
@@ -77,7 +78,7 @@ if __name__ == '__main__':
     model.fc = nn.Linear(model.fc.in_features, 196)
 
     my_model_state_dict = torch.load(
-        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.resnet), map_location=torch.device('cpu'))
+        '{}/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.prj_dir, RunningParams.resnet), map_location=torch.device('cpu'))
     model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
     model.eval()
 
@@ -94,8 +95,8 @@ if __name__ == '__main__':
 
     ################################################################
 
-    test_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
-    # test_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
+    test_dir = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/test'
+    # test_dir = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/test'
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, data_transform)
@@ -127,7 +128,7 @@ if __name__ == '__main__':
         confidence_dict = dict()
 
         categories = ['CorrectlyAccept', 'IncorrectlyAccept', 'CorrectlyReject', 'IncorrectlyReject']
-        save_dir = '/home/giang/Downloads/advising_network/vis/cars'
+        save_dir = f'{RunningParams.prj_dir}/vis/cars'
         if RunningParams.M2_VISUALIZATION is True:
             # HelperFunctions.check_and_rm(save_dir)
             HelperFunctions.check_and_mkdir(save_dir)
@@ -357,11 +358,11 @@ if __name__ == '__main__':
             true_cnt += sum(labels)
             np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
 
-        cmd = 'img2pdf -o /home/giang/Downloads/advising_network/vis/IncorrectlyAccept/output.pdf ' \
-              '--pagesize A4^T /home/giang/Downloads/advising_network/vis/IncorrectlyAccept/*.jpg'
+        cmd = f'img2pdf -o {RunningParams.prj_dir}/vis/IncorrectlyAccept/output.pdf ' \
+              f'--pagesize A4^T {RunningParams.prj_dir}/vis/IncorrectlyAccept/*.jpg'
         os.system(cmd)
-        cmd = 'img2pdf -o /home/giang/Downloads/advising_network/vis/IncorrectlyReject/output.pdf ' \
-              '--pagesize A4^T /home/giang/Downloads/advising_network/vis/IncorrectlyReject/*.jpg'
+        cmd = f'img2pdf -o {RunningParams.prj_dir}/vis/IncorrectlyReject/output.pdf ' \
+              f'--pagesize A4^T {RunningParams.prj_dir}/vis/IncorrectlyReject/*.jpg'
         os.system(cmd)
 
         epoch_acc = running_corrects.double() / len(image_datasets[ds])

@@ -14,7 +14,7 @@ Dataset = Dataset()
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
 
-full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
                                      Dataset.data_transforms['train'])
 
 if __name__ == '__main__':
@@ -48,8 +48,8 @@ if __name__ == '__main__':
 
     model.eval()
 
-    # test_dir = '/home/giang/Downloads/datasets/CUB/advnet/test'  ##################################
-    test_dir = '/home/giang/Downloads/datasets/CUB/test0'
+    # test_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/test'  ##################################
+    test_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
 
     import numpy as np
     file_name = 'faiss/advising_process_test_top1_HP_MODEL1_HP_FE.npy'

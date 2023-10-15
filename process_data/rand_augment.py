@@ -6,7 +6,7 @@ import torch
 
 augmenter = T.RandAugment()
 # Set the path to your dataset
-data_path = '/home/giang/Downloads/RN50_dataset_CUB_HP/tmp_train_randaugment/'
+data_path = f'{RunningParams.parent_dir}/RN50_dataset_CUB_HP/tmp_train_randaugment/'
 
 # Loop over each subfolder in the dataset
 for subfolder_name in os.listdir(data_path):

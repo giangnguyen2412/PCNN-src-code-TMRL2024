@@ -34,7 +34,7 @@ elif RunningParams.resnet == 18:
 model.fc = nn.Linear(model.fc.in_features, 196)
 
 my_model_state_dict = torch.load(
-    '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.resnet), map_location='cuda')
+    '{}/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.prj_dir, RunningParams.resnet), map_location='cuda')
 model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
 model.eval()
 
@@ -56,7 +56,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
         ])
 
 # faiss dataset contains images using as the knowledge based for KNN retrieval
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/Cars/Stanford-Cars-dataset/train',
+faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train',
                                      transform=data_transform)
 
 faiss_data_loader = torch.utils.data.DataLoader(

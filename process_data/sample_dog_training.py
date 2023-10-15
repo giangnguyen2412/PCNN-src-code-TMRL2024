@@ -3,9 +3,9 @@ import shutil
 import numpy as np
 
 # Define the paths for the train_tmp and val_tmp folders
-train_path = '/home/giang/Downloads/datasets/Dogs_train'
-val_path = '/home/giang/Downloads/datasets/Dogs_val'
-test_path = '/home/giang/Downloads/datasets/Dogs_test'
+train_path = f'{RunningParams.parent_dir}/datasets/Dogs_train'
+val_path = f'{RunningParams.parent_dir}/datasets/Dogs_val'
+test_path = f'{RunningParams.parent_dir}/datasets/Dogs_test'
 
 
 # Create the train_tmp and val_tmp folders if they don't exist
@@ -15,14 +15,14 @@ os.makedirs(test_path, exist_ok=True)
 all_files = []
 
 # Loop over the subfolders in the combined folder
-for folder_name in os.listdir('/home/giang/Downloads/datasets/clean_dog'):
+for folder_name in os.listdir(f'{RunningParams.parent_dir}/datasets/clean_dog'):
 
     # Skip non-directory files
-    if not os.path.isdir(os.path.join('/home/giang/Downloads/datasets/clean_dog', folder_name)):
+    if not os.path.isdir(os.path.join(f'{RunningParams.parent_dir}/datasets/clean_dog', folder_name)):
         continue
 
     # Get the list of files in the current folder, excluding the test files
-    files = os.listdir(os.path.join('/home/giang/Downloads/datasets/clean_dog', folder_name))
+    files = os.listdir(os.path.join(f'{RunningParams.parent_dir}/datasets/clean_dog', folder_name))
     tmp_list = []
     for file in files:
         tmp_list.append([folder_name, file])
@@ -37,21 +37,21 @@ test_files = all_files[4300:]
 
 # Move the train files to the train_tmp folder
 for folder_name, file_name in train_files:
-    src_path = os.path.join('/home/giang/Downloads/datasets/clean_dog', folder_name, file_name)
+    src_path = os.path.join(f'{RunningParams.parent_dir}/datasets/clean_dog', folder_name, file_name)
     os.makedirs(os.path.join(train_path, folder_name), exist_ok=True)
     dst_path = os.path.join(train_path, folder_name, file_name)
     shutil.copy(src_path, dst_path)
 
 # Move the val files to the val_tmp folder
 for folder_name, file_name in val_files:
-    src_path = os.path.join('/home/giang/Downloads/datasets/clean_dog', folder_name, file_name)
+    src_path = os.path.join(f'{RunningParams.parent_dir}/datasets/clean_dog', folder_name, file_name)
     os.makedirs(os.path.join(val_path, folder_name), exist_ok=True)
     dst_path = os.path.join(val_path, folder_name, file_name)
     shutil.copy(src_path, dst_path)
 
 # Move the val files to the val_tmp folder
 for folder_name, file_name in test_files:
-    src_path = os.path.join('/home/giang/Downloads/datasets/clean_dog', folder_name, file_name)
+    src_path = os.path.join(f'{RunningParams.parent_dir}/datasets/clean_dog', folder_name, file_name)
     os.makedirs(os.path.join(test_path, folder_name), exist_ok=True)
     dst_path = os.path.join(test_path, folder_name, file_name)
     shutil.copy(src_path, dst_path)

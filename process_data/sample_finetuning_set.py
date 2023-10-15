@@ -1,11 +1,12 @@
 import os
 import random
 import shutil
+from params import RunningParams
 
-
+RunningParams = RunningParams()
 set = 'test'
-source_folder = "/home/giang/Downloads/RN50_dataset_CUB_HIGH/val/Wrong"
-destination_folder = "/home/giang/Downloads/RN50_dataset_CUB_Finetuning/{}".format(set)
+source_folder = f"{RunningParams.parent_dir}/RN50_dataset_CUB_HIGH/val/Wrong"
+destination_folder = "{}/RN50_dataset_CUB_Finetuning/{}".format(RunningParams.parent_dir, set)
 if 'train' == set:
     num_files = 500
 elif 'val' == set:

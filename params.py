@@ -6,7 +6,11 @@ class RunningParams(object):
         self.CUB_TRAINING = True  # ----------------------------------------- IMPORTANT PARAM --------
         self.DOGS_TRAINING = False
         self.CARS_TRAINING = False
-        self.IMAGENET_TRAINING = False
+
+        self.parent_dir = '/home/giang/Downloads'
+        self.prj_dir = '/home/giang/Downloads/advising_network'
+
+        self.wandb_sess_name = 'oct132023-1'
 
         if self.CARS_TRAINING is True:
             self.resnet = 50
@@ -47,7 +51,7 @@ class RunningParams(object):
         # Training parameters
         if self.CUB_TRAINING is True:
             self.batch_size = 256
-            self.epochs = 100
+            self.epochs = 1
             self.learning_rate = 1e-3
             self.k_value = 1
 
@@ -56,16 +60,16 @@ class RunningParams(object):
             # Retrieving NNs and sample positive and negative pairs
             # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
             set = 'train'
-            self.data_dir = '/home/giang/Downloads/datasets/CUB/advnet/' + set
-            # self.data_dir = '/home/giang/Downloads/datasets/CUB/test0'  # CUB test folder
-            self.QK = 7  # Q and K values for building positives and negatives
+            self.data_dir = f'{self.parent_dir}/datasets/CUB/advnet/' + set
+            # self.data_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'  # CUB test folder
+            self.QK = 10  # Q and K values for building positives and negatives
             self.faiss_npy_file = 'faiss/cub/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}5k7_top1_HP_MODEL1_HP_FE.npy'. \
                 format(self.QK, self.k_value, set)
             self.aug_data_dir = self.data_dir +'_all' + f'_top{self.QK}'
 
-            self.N = 4
-            self.M = 4
-            self.L = 2
+            self.N = 1
+            self.M = 1
+            self.L = 1
             self.extension = '.jpg'
 
         elif self.CARS_TRAINING is True:
@@ -77,7 +81,7 @@ class RunningParams(object):
             # Retrieving NNs and sample positive and negative pairs
             # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
             set = 'train'
-            self.data_dir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/' + set
+            self.data_dir = f'{self.parent_dir}/Cars/Stanford-Cars-dataset/' + set
 
             self.QK = 7  # Q and K values for building positives and negatives
             self.faiss_npy_file = 'faiss/cars/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1.npy'. \

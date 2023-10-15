@@ -23,7 +23,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 CATEGORY_ANALYSIS = False
 
-full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
                                      Dataset.data_transforms['train'])
 
 if __name__ == '__main__':
@@ -54,9 +54,9 @@ if __name__ == '__main__':
     print(RunningParams.__dict__)
 
     MODEL2.eval()
-    # test_dir = '/home/giang/Downloads/datasets/CUB/advnet/val'  ##################################
-    # test_dir = '/home/giang/Downloads/datasets/CUB/advnet/test'  ##################################
-    test_dir = '/home/giang/Downloads/datasets/CUB/test0'  ##################################
+    # test_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/val'  ##################################
+    # test_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/test'  ##################################
+    test_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'  ##################################
 
     image_datasets = dict()
     nn_num = 5
@@ -75,7 +75,7 @@ if __name__ == '__main__':
     MODEL1 = resnet.cuda()
     MODEL1.eval()
 
-    categorized_path = '/home/giang/Downloads/RN50_dataset_CUB_HIGH/combined'
+    categorized_path = f'{RunningParams.parent_dir}/RN50_dataset_CUB_HIGH/combined'
 
 
     for ds in ['cub_test']:
@@ -111,7 +111,7 @@ if __name__ == '__main__':
         confidence_dict = dict()
 
         categories = ['CorrectlyAccept', 'IncorrectlyAccept', 'CorrectlyReject', 'IncorrectlyReject']
-        save_dir = '/home/giang/Downloads/advising_network/vis'
+        save_dir = f'{RunningParams.prj_dir}/vis'
         if RunningParams.M2_VISUALIZATION is True:
             HelperFunctions.check_and_rm(save_dir)
             HelperFunctions.check_and_mkdir(save_dir)
@@ -380,11 +380,11 @@ if __name__ == '__main__':
             true_cnt += sum(labels)
             np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
 
-        cmd = 'img2pdf -o /home/giang/Downloads/advising_network/vis/IncorrectlyAccept/output.pdf ' \
-              '--pagesize A4^T /home/giang/Downloads/advising_network/vis/IncorrectlyAccept/*.jpg'
+        cmd = f'img2pdf -o {RunningParams.prj_dir}/vis/IncorrectlyAccept/output.pdf ' \
+              f'--pagesize A4^T {RunningParams.prj_dir}/vis/IncorrectlyAccept/*.jpg'
         os.system(cmd)
-        cmd = 'img2pdf -o /home/giang/Downloads/advising_network/vis/IncorrectlyReject/output.pdf ' \
-              '--pagesize A4^T /home/giang/Downloads/advising_network/vis/IncorrectlyReject/*.jpg'
+        cmd = f'img2pdf -o {RunningParams.prj_dir}/vis/IncorrectlyReject/output.pdf ' \
+              f'--pagesize A4^T {RunningParams.prj_dir}/vis/IncorrectlyReject/*.jpg'
         os.system(cmd)
 
         epoch_acc = running_corrects.double() / len(image_datasets[ds])

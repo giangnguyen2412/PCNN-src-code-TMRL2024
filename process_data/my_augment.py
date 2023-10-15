@@ -39,7 +39,7 @@ transforms_list = [transform1, transform2, transform3, transform4, transform5]
 
 
 # Set the path to your dataset
-data_path = '/home/giang/Downloads/RN50_dataset_CUB_HP/tmp_train_selfaugmentv2'
+data_path = f'{RunningParams.parent_dir}/RN50_dataset_CUB_HP/tmp_train_selfaugmentv2'
 
 # Loop over each subfolder in the dataset
 for subfolder_name in os.listdir(data_path):

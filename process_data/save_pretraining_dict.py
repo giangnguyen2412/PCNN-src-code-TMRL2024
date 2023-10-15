@@ -2,7 +2,7 @@ import numpy as np
 import os
 
 # Define the path to the Pretraining folder
-pretraining_path = '/home/giang/Downloads/datasets/CUB/Pretraining'
+pretraining_path = f'{RunningParams.parent_dir}/datasets/CUB/Pretraining'
 
 # Define the train and val subfolder names
 train_folder = 'train'

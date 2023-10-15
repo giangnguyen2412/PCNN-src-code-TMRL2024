@@ -53,7 +53,7 @@ val_dataset_transform = transforms.Compose(
   transforms.ToTensor(),
   transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
-validation_folder = ImageFolderWithPaths(root='/home/giang/Downloads/datasets/CUB/test0', transform=val_dataset_transform)
+validation_folder = ImageFolderWithPaths(root=f'{RunningParams.parent_dir}/datasets/CUB/test0', transform=val_dataset_transform)
 val_loader        = DataLoader(validation_folder, batch_size=512, shuffle=True, num_workers=8, pin_memory=False)
 
 from params import RunningParams
@@ -69,7 +69,7 @@ inat_resnet.load_state_dict(my_model_state_dict, strict=True)
 inat_resnet.cuda()
 inat_resnet.eval()
 
-dataset_path = "/home/giang/Downloads/RN50_dataset_CUB_LOW"
+dataset_path = f"{RunningParams.parent_dir}/RN50_dataset_CUB_LOW"
 
 # check_and_rm(dataset_path)
 check_and_mkdir(dataset_path)

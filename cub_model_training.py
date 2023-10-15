@@ -29,7 +29,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 RunningParams = RunningParams()
 Dataset = Dataset()
 
-if [RunningParams.IMAGENET_TRAINING, RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING].count(True) > 1:
+if [RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING, RunningParams.CARS_TRAINING].count(True) > 1:
     print("There are more than one training datasets chosen, skipping training!!!")
     exit(-1)
 
@@ -37,7 +37,7 @@ from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
 resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
 resnet.load_state_dict(my_model_state_dict, strict=True)
 MODEL1 = resnet.cuda()
 MODEL1.eval()
@@ -46,7 +46,7 @@ fc = nn.DataParallel(fc)
 
 train_dataset = RunningParams.aug_data_dir
 
-full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
                                      Dataset.data_transforms['train'])
 
 image_datasets = dict()
@@ -224,8 +224,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 best_loss = epoch_loss
                 best_model_wts = copy.deepcopy(model.state_dict())
 
-                ckpt_path = '/home/giang/Downloads/advising_network/best_models/best_model_{}.pt' \
-                    .format(wandb.run.name)
+                ckpt_path = '{}/best_models/best_model_{}.pt' \
+                    .format(RunningParams.prj_dir, wandb.run.name)
 
                 torch.save({
                     'epoch': epoch + 1,
@@ -281,7 +281,8 @@ print(config)
 wandb.init(
     project="advising-network",
     entity="luulinh90s",
-    config=config
+    config=config,
+    name=RunningParams.wandb_sess_name,
 )
 
 wandb.save(os.path.basename(__file__), policy='now')

@@ -27,9 +27,9 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 RunningParams = RunningParams()
 Dataset = Dataset()
 
-assert (RunningParams.DOGS_TRAINING is False and RunningParams.IMAGENET_TRAINING is False)
+assert (RunningParams.DOGS_TRAINING is False and RunningParams.CARS_TRAINING is False)
 
-if [RunningParams.IMAGENET_TRAINING, RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING].count(True) > 1:
+if [RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING, RunningParams.CARS_TRAINING].count(True) > 1:
     print("There are more than one training datasets chosen, skipping training!!!")
     exit(-1)
 
@@ -41,7 +41,7 @@ from core import model, dataset
 from torch import nn
 from tqdm import tqdm
 net = model.attention_net(topN=6)
-ckpt = torch.load('/home/giang/Downloads/NTS-Net/model.ckpt')
+ckpt = torch.load(f'{RunningParams.parent_dir}/NTS-Net/model.ckpt')
 
 net.load_state_dict(ckpt['net_state_dict'])
 
@@ -52,9 +52,9 @@ MODEL1 = net
 MODEL1.eval()
 ################################################################
 
-train_dataset = '/home/giang/Downloads/datasets/CUB/advnet/CUB_train_all_NTSNet'
-val_dataset = '/home/giang/Downloads/datasets/CUB/advnet/val'
-full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
+train_dataset = f'{RunningParams.parent_dir}/datasets/CUB/advnet/CUB_train_all_NTSNet'
+val_dataset = f'{RunningParams.parent_dir}/datasets/CUB/advnet/val'
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
                                      Dataset.data_transforms['train'])
 
 if RunningParams.XAI_method == RunningParams.NNs:
@@ -206,8 +206,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 best_loss = epoch_loss
                 best_model_wts = copy.deepcopy(model.state_dict())
 
-                ckpt_path = '/home/giang/Downloads/advising_network/best_models/best_model_{}.pt' \
-                    .format(wandb.run.name)
+                ckpt_path = '{}/best_models/best_model_{}.pt' \
+                    .format(RunningParams.prj_dir, wandb.run.name)
 
                 torch.save({
                     'epoch': epoch + 1,

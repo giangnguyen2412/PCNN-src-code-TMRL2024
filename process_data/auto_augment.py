@@ -7,7 +7,7 @@ import torch
 augmenter = T.AutoAugment(T.AutoAugmentPolicy.IMAGENET)
 
 # Set the path to your dataset
-data_path = '/home/giang/Downloads/RN50_dataset_CUB_HP/tmp_train'
+data_path = f'{RunningParams.parent_dir}/RN50_dataset_CUB_HP/tmp_train'
 
 # Loop over each subfolder in the dataset
 for subfolder_name in os.listdir(data_path):

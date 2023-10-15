@@ -25,19 +25,19 @@ def merge_folders(src_folder, dest_folder):
                 os.makedirs(parent_folder)
             shutil.copy2(src_file_path, dest_file_path)
 
-train_dir = '/home/giang/Downloads/RN50_dataset_CUB_HP/val_tmp/'
-val_dir = '/home/giang/Downloads/RN50_dataset_CUB_HP/test_tmp/'
+train_dir = f'{RunningParams.parent_dir}/RN50_dataset_CUB_HP/val_tmp/'
+val_dir = f'{RunningParams.parent_dir}/RN50_dataset_CUB_HP/test_tmp/'
 
-merged_dir = '/home/giang/Downloads/RN50_dataset_CUB_HP/tmp/'
+merged_dir = f'{RunningParams.parent_dir}/RN50_dataset_CUB_HP/tmp/'
 merge_folders(train_dir, merged_dir)
 merge_folders(val_dir, merged_dir)
 
 ################################################################
 # Randomly split train and val to 83/13
 ################################################################
-# source_folder = '/home/giang/Downloads/RN50_dataset_CUB_HP/merged'
-# train_folder = '/home/giang/Downloads/RN50_dataset_CUB_HP/train_tmp'
-# val_folder = '/home/giang/Downloads/RN50_dataset_CUB_HP/val_tmp'
+# source_folder = f'{RunningParams.parent_dir}/RN50_dataset_CUB_HP/merged'
+# train_folder = f'{RunningParams.parent_dir}/RN50_dataset_CUB_HP/train_tmp'
+# val_folder = f'{RunningParams.parent_dir}/RN50_dataset_CUB_HP/val_tmp'
 #
 # train_ratio = 0.9  # adjust as needed
 # file_list = []

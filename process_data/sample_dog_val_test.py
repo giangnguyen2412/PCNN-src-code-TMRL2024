@@ -3,11 +3,11 @@ import shutil
 import random
 
 # Set the path to the original folder containing all the subfolders
-original_folder = '/home/giang/Downloads/datasets/Dogs_val'
+original_folder = f'{RunningParams.parent_dir}/datasets/Dogs_val'
 
 # Set the path to the new folders where we will move the files
-val_folder = '/home/giang/Downloads/datasets/Dogs_val_tmp'
-test_folder = '/home/giang/Downloads/datasets/Dogs_test_tmp'
+val_folder = f'{RunningParams.parent_dir}/datasets/Dogs_val_tmp'
+test_folder = f'{RunningParams.parent_dir}/datasets/Dogs_test_tmp'
 
 # Set the percentage split for training, validation, and test data
 val_split = 1084

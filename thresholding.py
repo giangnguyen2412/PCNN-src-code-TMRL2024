@@ -18,7 +18,7 @@ HelperFunctions = HelperFunctions()
 RunningParams = RunningParams()
 
 T_list = list(np.arange(0.0, 1.0, 0.05))
-imagenet_folders = glob.glob('/home/giang/Downloads/datasets/imagenet5k-1k/*')
+imagenet_folders = glob.glob(f'{RunningParams.parent_dir}/datasets/imagenet5k-1k/*')
 
 model = resnet18(pretrained=True).cuda()
 model.eval()

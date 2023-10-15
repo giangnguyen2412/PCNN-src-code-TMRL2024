@@ -3,12 +3,12 @@ import shutil
 import random
 
 # Set the path to the original folder containing all the subfolders
-original_folder = '/home/giang/Downloads/RN50_dataset_CUB_HP/merged'
+original_folder = f'{RunningParams.parent_dir}/RN50_dataset_CUB_HP/merged'
 
 # Set the path to the new folders where we will move the files
-train_folder = '/home/giang/Downloads/RN50_dataset_CUB_HP/train'
-val_folder = '/home/giang/Downloads/RN50_dataset_CUB_HP/val'
-test_folder = '/home/giang/Downloads/RN50_dataset_CUB_HP/test'
+train_folder = f'{RunningParams.parent_dir}/RN50_dataset_CUB_HP/train'
+val_folder = f'{RunningParams.parent_dir}/RN50_dataset_CUB_HP/val'
+test_folder = f'{RunningParams.parent_dir}/RN50_dataset_CUB_HP/test'
 
 # Set the percentage split for training, validation, and test data
 train_split = 1000

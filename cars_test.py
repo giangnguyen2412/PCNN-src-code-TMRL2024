@@ -27,8 +27,8 @@ preprocess = transforms.Compose([transforms.Resize(256),
 DEVICE = torch.device("cuda")
 
 #
-train_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/train'
-val_dataset = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
+train_dataset = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train'
+val_dataset = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/test'
 
 from datasets import Dataset, StanfordDogsDataset, ImageFolderForNNs
 
@@ -59,7 +59,7 @@ model = torchvision.models.resnet50(pretrained=True).cuda()
 model.fc = nn.Linear(model.fc.in_features, 196)
 
 my_model_state_dict = torch.load(
-    '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn50.pth.tar', map_location=torch.device('cpu'))
+    f'{RunningParams.prj_dir}/PyTorch-Stanford-Cars-Baselines/model_best_rn50.pth.tar', map_location=torch.device('cpu'))
 model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
 model.cuda()
 model.eval()

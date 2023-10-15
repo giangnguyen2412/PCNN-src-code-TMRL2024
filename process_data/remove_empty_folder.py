@@ -2,7 +2,7 @@ import os
 import glob
 
 # Define the path to the folder to remove empty subfolders from
-folder_path = "/home/giang/Downloads/datasets/CUB_val_hard"
+folder_path = f"{RunningParams.parent_dir}/datasets/CUB_val_hard"
 
 cnt = 0
 # Function to remove empty subfolders recursively

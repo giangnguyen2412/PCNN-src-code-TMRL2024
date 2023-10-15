@@ -34,7 +34,7 @@ if ORIGINAL_FE is True:
     model.fc = nn.Linear(model.fc.in_features, 196)
 
     my_model_state_dict = torch.load(
-        '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn50.pth.tar',
+        f'{RunningParams.prj_dir}/PyTorch-Stanford-Cars-Baselines/model_best_rn50.pth.tar',
         map_location=torch.device('cpu'))
     model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
 
@@ -78,7 +78,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
 
 train_data = ImageFolder(
     # ImageNet train folder
-    root="/home/giang/Downloads/Cars/Stanford-Cars-dataset/train", transform=data_transform
+    root=f"{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train", transform=data_transform
 )
 
 train_loader = torch.utils.data.DataLoader(
@@ -91,7 +91,7 @@ train_loader = torch.utils.data.DataLoader(
 
 val_data = ImageFolder(
     # ImageNet train folder
-    root="/home/giang/Downloads/Cars/Stanford-Cars-dataset/test", transform=data_transform
+    root=f"{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/test", transform=data_transform
 )
 
 test_loader = torch.utils.data.DataLoader(

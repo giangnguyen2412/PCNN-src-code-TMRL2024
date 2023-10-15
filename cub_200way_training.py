@@ -104,7 +104,7 @@ val_dataset_transform = transforms.Compose([
 ])
 
 training_folder = ImageFolderForNNs(
-    root="/home/giang/Downloads/datasets/CUB/train1/",
+    root=f"{RunningParams.parent_dir}/datasets/CUB/train1/",
     transform=train_dataset_transform,
 )
 train_loader = DataLoader(
@@ -112,7 +112,7 @@ train_loader = DataLoader(
 )
 
 validation_folder = ImageFolderForNNs(
-    root="/home/giang/Downloads/datasets/CUB/test0/", transform=train_dataset_transform
+    root=f"{RunningParams.parent_dir}/datasets/CUB/test0/", transform=train_dataset_transform
 )
 val_loader = DataLoader(
     validation_folder, batch_size=64, shuffle=False, num_workers=8, pin_memory=False
@@ -124,7 +124,7 @@ if TRAINING_FROM_SCRATCH is True:
     elif RN50:
         model = torchvision.models.resnet50(pretrained=PRETRAINED)
         if INAT is True:
-            model_dict = torch.load("/home/giang/Downloads/Cub-ResNet-iNat/resnet50_inat_pretrained_0.841.pth")
+            model_dict = torch.load(f"{RunningParams.parent_dir}/Cub-ResNet-iNat/resnet50_inat_pretrained_0.841.pth")
             model_dict = OrderedDict(
                 {name.replace("layers.", ""): value for name, value in model_dict.items()}
             )

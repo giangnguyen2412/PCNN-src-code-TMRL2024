@@ -70,7 +70,7 @@ class HelperFunctions(object):
         return:
         """
 
-        input_f = open("/home/giang/Downloads/kNN-classifiers/input_txt_files/imagenet_classes.txt")
+        input_f = open(f"{RunningParams.parent_dir}/kNN-classifiers/input_txt_files/imagenet_classes.txt")
         label_map = {}
         for line in input_f:
             parts = line.strip().split(": ")
@@ -87,7 +87,7 @@ class HelperFunctions(object):
         return;
         """
 
-        input_f = open("/home/giang/Downloads/KNN-ImageNet/synset_words.txt")
+        input_f = open(f"{RunningParams.parent_dir}/KNN-ImageNet/synset_words.txt")
         label_map = {}
         for line in input_f:
             parts = line.strip().split(" ")
@@ -125,7 +125,7 @@ class HelperFunctions(object):
 
     def load_imagenet_validation_gt(self):
         count = 0
-        input_f = open("/home/giang/Downloads/kNN-classifiers/input_txt_files/ILSVRC2012_validation_ground_truth.txt")
+        input_f = open(f"{RunningParams.parent_dir}/kNN-classifiers/input_txt_files/ILSVRC2012_validation_ground_truth.txt")
         gt_dict = {}
         while True:
             count += 1
@@ -143,7 +143,7 @@ class HelperFunctions(object):
 
     def load_imagenet_dog_label(self):
         dog_id_list = list()
-        input_f = open("/home/giang/Downloads/ImageNet_Dogs_dataset/dog_type.txt")
+        input_f = open(f"{RunningParams.parent_dir}/ImageNet_Dogs_dataset/dog_type.txt")
         for line in input_f:
             dog_id = (line.split('-')[0])
             dog_id_list.append(dog_id)

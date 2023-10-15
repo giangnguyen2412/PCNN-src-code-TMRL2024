@@ -5,7 +5,7 @@ from tqdm import tqdm
 
 # Added for loading ImageNet classes
 def load_imagenet_label_map():
-    input_f = open("/home/giang/Downloads/kNN-classifiers/input_txt_files/imagenet_classes.txt")
+    input_f = open(f"{RunningParams.parent_dir}/kNN-classifiers/input_txt_files/imagenet_classes.txt")
     label_map = {}
     for line in input_f:
         parts = line.strip().split(": ")
@@ -18,7 +18,7 @@ def load_imagenet_label_map():
 
 # Added for loading ImageNet classes
 def load_imagenet_id_map():
-    input_f = open("/home/giang/Downloads/kNN-classifiers/input_txt_files/synset_words.txt")
+    input_f = open(f"{RunningParams.parent_dir}/kNN-classifiers/input_txt_files/synset_words.txt")
     label_map = {}
     for line in input_f:
         parts = line.strip().split(" ")
@@ -31,7 +31,7 @@ def load_imagenet_id_map():
 
 def load_imagenet_validation_gt():
     count = 0
-    input_f = open("/home/giang/Downloads/kNN-classifiers/input_txt_files/ILSVRC2012_validation_ground_truth.txt")
+    input_f = open(f"{RunningParams.parent_dir}/kNN-classifiers/input_txt_files/ILSVRC2012_validation_ground_truth.txt")
     gt_dict = {}
     while True:
         count += 1
@@ -121,16 +121,16 @@ model = torchvision.models.resnet34(pretrained=True).cuda()
 model.eval()
 
 
-imagenet_folders = glob.glob("/home/giang/Downloads/val/*")
+imagenet_folders = glob.glob(f"{RunningParams.parent_dir}/val/*")
 
 TRAIN_DOG = True
 if TRAIN_DOG == True:
-    imagenet_folders = glob.glob('/home/giang/Downloads/SDogs_dataset/train/*')
+    imagenet_folders = glob.glob(f'{RunningParams.parent_dir}/SDogs_dataset/train/*')
 
     def load_imagenet_dog_label():
         count = 0
         dog_id_list = list()
-        input_f = open("/home/giang/Downloads/ImageNet_Dogs_dataset/dog_type.txt")
+        input_f = open(f"{RunningParams.parent_dir}/ImageNet_Dogs_dataset/dog_type.txt")
         for line in input_f:
             dog_id = (line.split('-')[0])
             dog_id_list.append(dog_id)
@@ -139,7 +139,7 @@ if TRAIN_DOG == True:
 
     dogs_id = load_imagenet_dog_label()
 
-dataset_path = "/home/giang/Downloads/RN34_SDogs_train"
+dataset_path = f"{RunningParams.parent_dir}/RN34_SDogs_train"
 
 
 check_and_rm(dataset_path)

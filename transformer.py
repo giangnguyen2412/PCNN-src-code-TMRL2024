@@ -248,7 +248,7 @@ elif RunningParams.CARS_TRAINING is True:
             model.fc = nn.Linear(model.fc.in_features, 196)
 
             my_model_state_dict = torch.load(
-                '/home/giang/Downloads/advising_network/PyTorch-Stanford-Cars-Baselines/model_best_rn50.pth.tar', map_location=torch.device('cpu'))
+                f'{RunningParams.prj_dir}/PyTorch-Stanford-Cars-Baselines/model_best_rn50.pth.tar', map_location=torch.device('cpu'))
             model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
             ################################################################
 

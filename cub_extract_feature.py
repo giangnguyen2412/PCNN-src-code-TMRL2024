@@ -29,7 +29,8 @@ from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
 resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+
 resnet.load_state_dict(my_model_state_dict, strict=True)
 # Freeze backbone (for training only)
 for param in list(resnet.parameters())[:-2]:
@@ -47,7 +48,7 @@ in_features = RunningParams.in_features
 print("Building FAISS index...! Training set is the knowledge base.")
 
 # faiss dataset contains images using as the knowledge based for KNN retrieval
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB/advnet/train',
+faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/datasets/CUB/advnet/train',
                                      transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -59,7 +60,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-INDEX_FILE = 'faiss/cub/NeurIPS22_faiss_CUB200_class_idx_dict_HP_extractor.npy'
+INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cub/NeurIPS22_faiss_CUB200_class_idx_dict_HP_extractor.npy'
 
 if os.path.exists(INDEX_FILE):
     print("FAISS class index exists!")
@@ -108,7 +109,7 @@ from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
 
 resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
 resnet.load_state_dict(my_model_state_dict, strict=True)
 MODEL1 = resnet.cuda()
 MODEL1.eval()

@@ -6,7 +6,7 @@ import torch
 
 augmenter = T.TrivialAugmentWide()
 # Set the path to your dataset
-data_path = '/home/giang/Downloads/datasets/CUB_train_aug'
+data_path = f'{RunningParams.parent_dir}/datasets/CUB_train_aug'
 
 # Loop over each subfolder in the dataset
 for subfolder_name in os.listdir(data_path):

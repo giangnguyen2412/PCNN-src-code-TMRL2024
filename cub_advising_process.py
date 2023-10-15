@@ -16,7 +16,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
 torch.manual_seed(42)
 
-full_cub_dataset = ImageFolderForNNs('/home/giang/Downloads/datasets/CUB/combined',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
                                      Dataset.data_transforms['train'])
 
 if __name__ == '__main__':
@@ -54,8 +54,8 @@ if __name__ == '__main__':
 
     model.eval()
 
-    # test_dir = '/home/giang/Downloads/datasets/CUB/advnet/test'  ##################################
-    test_dir = '/home/giang/Downloads/datasets/CUB/test0'
+    # test_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/test'  ##################################
+    test_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
 
 
     image_datasets = dict()

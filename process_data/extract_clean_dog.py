@@ -32,11 +32,11 @@ for key, val in real_labels.items():
         classs_id = val[0]
         class_wnid = HelperFunctions.key_list[classs_id]
 
-        src_dir = '/home/giang/Downloads/datasets/imagenet1k-val'
+        src_dir = f'{RunningParams.parent_dir}/datasets/imagenet1k-val'
         src_wnid = find_parent_folder(key, src_dir)
         src_path = os.path.join(src_dir, src_wnid, key)
 
-        dst_dir = '/home/giang/Downloads/datasets/clean_dog'
+        dst_dir = f'{RunningParams.parent_dir}/datasets/clean_dog'
         HelperFunctions.check_and_mkdir(os.path.join(dst_dir, class_wnid))
         dst_path = os.path.join(dst_dir, class_wnid, key)
         if class_wnid in dogs_id:

@@ -67,7 +67,7 @@ else:
 
 train_data = ImageFolder(
     # ImageNet train folder
-    root="/home/giang/Downloads/datasets/CUB/train1", transform=Dataset.data_transforms['train']
+    root=f"{RunningParams.parent_dir}/datasets/CUB/train1", transform=Dataset.data_transforms['train']
 )
 
 train_loader = torch.utils.data.DataLoader(
@@ -80,7 +80,7 @@ train_loader = torch.utils.data.DataLoader(
 
 val_data = ImageFolder(
     # ImageNet train folder
-    root="/home/giang/Downloads/datasets/CUB/test0", transform=Dataset.data_transforms['val']
+    root=f"{RunningParams.parent_dir}/datasets/CUB/test0", transform=Dataset.data_transforms['val']
 )
 
 test_loader = torch.utils.data.DataLoader(
