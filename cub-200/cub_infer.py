@@ -22,7 +22,7 @@ HelperFunctions = HelperFunctions()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "6,7"
 
 CATEGORY_ANALYSIS = False
 
@@ -32,9 +32,9 @@ full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/c
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        # default='best_model_' + RunningParams.wandb_sess_name + '.pt',
+                        default='best_model_' + RunningParams.wandb_sess_name + '.pt',
                         # default='best_model_different-grass-3212.pt', # Normal model
-                        default='best_model_blooming-sponge-3236.pt', # 2nd NNs
+                        # default='best_model_blooming-sponge-3236.pt', # 2nd NNs
                         # default='best_model_decent-pyramid-3156.pt', # Normal model
                         # default='best_model_avid-cosmos-3201.pt', # M=N=L=1 model
                         # default='best_model_serene-sound-3240.pt',  # M=N=L=2 model

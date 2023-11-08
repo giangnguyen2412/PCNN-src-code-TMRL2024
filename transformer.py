@@ -13,15 +13,17 @@ RunningParams = RunningParams()
 
 
 class BinaryMLP(nn.Module):
-    def __init__(self, input_dim, hidden_dim, dropout = 0.):
+    def __init__(self, input_dim, hidden_dim, dropout=0.0):  # Set default dropout to 0.2
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(input_dim, 512),
             nn.BatchNorm1d(512),
             nn.GELU(),
+            nn.Dropout(dropout),  # Add dropout after first activation
             nn.Linear(512, hidden_dim),
-            nn.BatchNorm1d(32),
+            nn.BatchNorm1d(hidden_dim),  # Make sure to use `hidden_dim` instead of fixed number
             nn.GELU(),
+            nn.Dropout(dropout),  # Add dropout after second activation
             nn.Linear(hidden_dim, 2),  # 2 for binary classification
         )
 
@@ -75,9 +77,9 @@ if RunningParams.CUB_TRAINING is True:
             transformer_depth = RunningParams.N
             cross_transformer_depth = RunningParams.M
             feat_dim = RunningParams.conv_layer_size[RunningParams.conv_layer]
-            self.transformer = Transformer(dim=feat_dim, depth=transformer_depth, heads=8, dim_head=64, mlp_dim=512, dropout=0.0)
+            self.transformer = Transformer(dim=feat_dim, depth=transformer_depth, heads=8, dim_head=64, mlp_dim=512, dropout=RunningParams.dropout)
             self.cross_transformer = CrossTransformer(sm_dim=feat_dim, lg_dim=feat_dim, depth=cross_transformer_depth, heads=8,
-                                                      dim_head=64, dropout=0.0)
+                                                      dim_head=64, dropout=RunningParams.dropout)
 
             print('Using transformer with depth {} and 8 heads'.format(transformer_depth))
             print('Using cross_transformer with depth {} and 8 heads'.format(cross_transformer_depth))

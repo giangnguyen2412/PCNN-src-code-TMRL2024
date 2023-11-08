@@ -17,7 +17,7 @@ import torchvision.transforms as T
 trivial_augmenter = T.TrivialAugmentWide()
 
 # Define the RandomApply transform to apply the TrivialAugmentWide transform with a probability of 0.5
-trivial_augmenter = T.RandomApply(torch.nn.ModuleList([trivial_augmenter]), p=1.0)
+trivial_augmenter = T.RandomApply(torch.nn.ModuleList([trivial_augmenter]), p=0.5)
 
 RunningParams = RunningParams()
 
