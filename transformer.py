@@ -35,10 +35,10 @@ if RunningParams.CUB_TRAINING is True:
             print("Using training network for Birds (CUB-200)")
             super(Transformer_AdvisingNetwork, self).__init__()
 
-            from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+            from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
             resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
             my_model_state_dict = torch.load(
-                'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+                f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
             resnet.load_state_dict(my_model_state_dict, strict=True)
 
             conv_features = list(resnet.children())[:RunningParams.conv_layer-6]  # delete the last fc layer

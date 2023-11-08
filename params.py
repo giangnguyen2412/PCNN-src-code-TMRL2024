@@ -10,7 +10,7 @@ class RunningParams(object):
         self.parent_dir = '/home/giang/Downloads'
         self.prj_dir = '/home/giang/Downloads/advising_network'
 
-        self.wandb_sess_name = 'oct132023-1'
+        self.wandb_sess_name = None
 
         if self.CARS_TRAINING is True:
             self.resnet = 50
@@ -51,25 +51,28 @@ class RunningParams(object):
         # Training parameters
         if self.CUB_TRAINING is True:
             self.batch_size = 256
-            self.epochs = 1
+            self.epochs = 100
             self.learning_rate = 1e-3
             self.k_value = 1
 
             self.in_features = 2048
 
+            self.negative_order = 1
+
             # Retrieving NNs and sample positive and negative pairs
             # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
-            set = 'train'
-            self.data_dir = f'{self.parent_dir}/datasets/CUB/advnet/' + set
-            # self.data_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'  # CUB test folder
+            self.set = 'test'
+            # self.data_dir = f'{self.parent_dir}/datasets/CUB/advnet/{self.set}'
+            self.data_dir = f'{self.parent_dir}/datasets/CUB/test0'  # CUB test folder
             self.QK = 10  # Q and K values for building positives and negatives
-            self.faiss_npy_file = 'faiss/cub/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}5k7_top1_HP_MODEL1_HP_FE.npy'. \
-                format(self.QK, self.k_value, set)
-            self.aug_data_dir = self.data_dir +'_all' + f'_top{self.QK}'
+            self.faiss_npy_file = '{}/faiss/cub/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}5k7_top1_HP_MODEL1_HP_FE_NN{}th.npy'. \
+                format(self.prj_dir, self.QK, self.k_value, self.set, self.negative_order)
+            self.aug_data_dir = self.data_dir +'_all' + f'_top{self.QK}_NN{self.negative_order}th'
 
-            self.N = 1
-            self.M = 1
-            self.L = 1
+
+            self.N = 2
+            self.M = 2
+            self.L = 2
             self.extension = '.jpg'
 
         elif self.CARS_TRAINING is True:
@@ -80,12 +83,12 @@ class RunningParams(object):
 
             # Retrieving NNs and sample positive and negative pairs
             # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
-            set = 'train'
+            self.set = 'train'
             self.data_dir = f'{self.parent_dir}/Cars/Stanford-Cars-dataset/' + set
 
             self.QK = 7  # Q and K values for building positives and negatives
-            self.faiss_npy_file = 'faiss/cars/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1.npy'. \
-                format(self.QK, self.k_value, set)
+            self.faiss_npy_file = '{}/faiss/cars/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}_top1.npy'. \
+                format(self.prj_dir, self.QK, self.k_value, self.set)
             self.aug_data_dir = os.path.join(self.data_dir + f'_top{self.QK}_rn{self.resnet}')
 
             self.N = 3

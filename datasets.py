@@ -33,12 +33,12 @@ class ImageFolderForAdvisingProcess(ImageFolder):
         # Load the pre-computed NNs
         if RunningParams.CUB_TRAINING is True:
             if 'test' in os.path.basename(root):
-                file_name = 'faiss/advising_process_test_top1_HP_MODEL1_HP_FE.npy'
+                file_name = f'{RunningParams.prj_dir}/faiss/advising_process_test_top1_HP_MODEL1_HP_FE.npy'
             else:
-                file_name = 'faiss/advising_process_val_top1_HP_MODEL1_HP_FE.npy'
+                file_name = f'{RunningParams.prj_dir}/faiss/advising_process_val_top1_HP_MODEL1_HP_FE.npy'
 
         elif RunningParams.CARS_TRAINING is True:
-            file_name = 'faiss/advising_process_test_Cars.npy'
+            file_name = f'{RunningParams.prj_dir}/faiss/advising_process_test_Cars.npy'
 
         print(file_name)
         self.faiss_nn_dict = np.load(file_name, allow_pickle=True, ).item()
@@ -80,7 +80,8 @@ class ImageFolderForAdvisingProcess(ImageFolder):
 
         # Iterate over the dictionary entries and transform the images
         for i, val in nns.items():
-            file_paths = val['NNs'][:nn_num]
+            # Only take either the first or second, or third NNs for the comparison
+            file_paths = val['NNs'][RunningParams.negative_order-1:RunningParams.negative_order]
             labels.append(val['Label'])
             for j, file_path in enumerate(file_paths):
                 # Load the image using the loader function
@@ -153,7 +154,8 @@ class ImageFolderForNNs(ImageFolder):
             if 'train' in os.path.basename(root):
                 file_name = RunningParams.faiss_npy_file
             elif 'test' in os.path.basename(root):
-                file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1_HP_MODEL1_HP_FE.npy'
+                # file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1_HP_MODEL1_HP_FE.npy'
+                file_name = RunningParams.faiss_npy_file
             else:
                 file_name = RunningParams.faiss_npy_file
 
@@ -192,7 +194,9 @@ class ImageFolderForNNs(ImageFolder):
                 nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
                 model2_target = self.faiss_nn_dict[base_name]['label']
             else:
-                nns = self.faiss_nn_dict[base_name]  # 6NNs here
+                # nns = self.faiss_nn_dict[base_name]  # 6NNs here
+                nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
+                model2_target = self.faiss_nn_dict[base_name]['label']
 
         # Transform NNs
         explanations = list()

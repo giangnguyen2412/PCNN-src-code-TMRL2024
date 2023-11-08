@@ -4,6 +4,9 @@ import numpy as np
 import os
 import argparse
 
+import sys
+sys.path.append('/home/giang/Downloads/advising_network')
+
 from tqdm import tqdm
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
@@ -19,7 +22,7 @@ HelperFunctions = HelperFunctions()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1,2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
 
 CATEGORY_ANALYSIS = False
 
@@ -29,9 +32,12 @@ full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/c
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_' + RunningParams.wandb_sess_name + '.pt',
+                        # default='best_model_' + RunningParams.wandb_sess_name + '.pt',
+                        # default='best_model_different-grass-3212.pt', # Normal model
+                        default='best_model_blooming-sponge-3236.pt', # 2nd NNs
                         # default='best_model_decent-pyramid-3156.pt', # Normal model
                         # default='best_model_avid-cosmos-3201.pt', # M=N=L=1 model
+                        # default='best_model_serene-sound-3240.pt',  # M=N=L=2 model
                         # default='best_model_rare-shadow-3213.pt', # M=N=L=1 model convs only
                         # default='best_model_decent-mountain-3215.pt', # M=N=L=1 model convs only, no SA
                         # default='best_model_legendary-durian-3216.pt', # Random data sampling
@@ -50,7 +56,7 @@ if __name__ == '__main__':
                         help='Model check point')
 
     args = parser.parse_args()
-    model_path = os.path.join('best_models', args.ckpt)
+    model_path = os.path.join(RunningParams.prj_dir, 'best_models', args.ckpt)
     print(args)
 
     MODEL2 = Transformer_AdvisingNetwork()
@@ -76,7 +82,7 @@ if __name__ == '__main__':
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'])
     dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
 
-    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+    from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(

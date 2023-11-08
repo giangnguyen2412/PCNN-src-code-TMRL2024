@@ -13,6 +13,9 @@ import random
 import pdb
 import faiss
 
+import sys
+sys.path.append('/home/giang/Downloads/advising_network')
+
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
 from params import RunningParams
@@ -23,23 +26,23 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
 
 Dataset = Dataset()
 RunningParams = RunningParams()
 
 MODEL1_RN50 = True
-depth_of_pred = 5
+depth_of_pred = 2
 set = 'test'
 
 torch.manual_seed(42)
 
 ################################################################################
-from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
 resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
 resnet.load_state_dict(my_model_state_dict, strict=True)
 # Freeze backbone (for training only)
 for param in list(resnet.parameters())[:-2]:
@@ -71,9 +74,9 @@ faiss_data_loader = torch.utils.data.DataLoader(
 )
 
 if MODEL1_RN50 is True:
-    INDEX_FILE = 'faiss/cub/INDEX_file_adv_process.npy'
+    INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cub/INDEX_file_adv_process.npy'
 else:
-    INDEX_FILE = 'faiss/cub/INDEX_file_adv_process_NTSNET.npy'
+    INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cub/INDEX_file_adv_process_NTSNET.npy'
 
 print(INDEX_FILE)
 
@@ -121,11 +124,11 @@ else:
 
 if MODEL1_RN50 is True:
     ################################################################
-    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+    from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
-        'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+        f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
     resnet.load_state_dict(my_model_state_dict, strict=True)
     # Freeze backbone (for training only)
     for param in list(resnet.parameters())[:-2]:
@@ -290,7 +293,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
         #     cnt += 1
 
 print(cnt)
-save_file = 'faiss/advising_process_{}_top1_HP_MODEL1_HP_FE.npy'.format(set)
+save_file = f'{RunningParams.prj_dir}/faiss/advising_process_{set}_top1_HP_MODEL1_HP_FE.npy'
 print(save_file)
 print(set)
 print(depth_of_pred)

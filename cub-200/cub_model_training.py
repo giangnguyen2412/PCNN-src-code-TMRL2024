@@ -15,6 +15,8 @@ import random
 import numpy as np
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
 
+import sys
+sys.path.append('/home/giang/Downloads/advising_network')
 
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
@@ -33,7 +35,7 @@ if [RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING, RunningParams.CARS_
     print("There are more than one training datasets chosen, skipping training!!!")
     exit(-1)
 
-from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
 resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
@@ -278,12 +280,20 @@ config = {"train": train_dataset,
           }
 
 print(config)
-wandb.init(
-    project="advising-network",
-    entity="luulinh90s",
-    config=config,
-    name=RunningParams.wandb_sess_name,
-)
+
+if RunningParams.wandb_sess_name is not None:
+    wandb.init(
+        project="advising-network",
+        entity="luulinh90s",
+        config=config,
+        name=RunningParams.wandb_sess_name,
+    )
+else:
+    wandb.init(
+        project="advising-network",
+        entity="luulinh90s",
+        config=config,
+    )
 
 wandb.save(os.path.basename(__file__), policy='now')
 wandb.save('params.py', policy='now')

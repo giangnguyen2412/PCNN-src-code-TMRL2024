@@ -3,6 +3,9 @@ import torch.nn as nn
 import os
 import argparse
 
+import sys
+sys.path.append('/home/giang/Downloads/advising_network')
+
 from tqdm import tqdm
 from params import RunningParams
 from datasets import Dataset, ImageFolderForAdvisingProcess, ImageFolderForNNs
@@ -12,35 +15,37 @@ RunningParams = RunningParams()
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
 
 torch.manual_seed(42)
 
-from torchvision import datasets, models, transforms
-
-normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
-data_transform = transforms.Compose([transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            normalize,
-        ])
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train',
-                                     data_transform)
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
+                                     Dataset.data_transforms['train'])
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        # default='best_model_zesty-mountain-3152.pt',
-                        # default='best_model_spring-field-3157.pt',
-                        # default='best_model_robust-sunset-3158.pt',
-                        # default='best_model_divine-cherry-3160.pt',
-                        # default='best_model_wandering-capybara-3189.pt',  # RN50 run 2
-                        default='best_model_different-lion-3192.pt',  # RN50 run 3
+                        # default='best_model_serene-field-3176.pt',
+                        # default='best_model_cosmic-waterfall-3174.pt',  # no CA --> have no cross attn to visualize
+                        # default='best_model_young-planet-3170.pt',  # no SA --> clear heatmaps
+                        # default='best_model_avid-cosmos-3201.pt',  # M=N=L=1 model
+                        default='best_model_serene-sound-3240.pt',  # M=N=L=2 model
+                        # default='best_model_misty-sky-3239.pt',  # 1st NNs
+                        # default='best_model_blooming-sponge-3236.pt',  # 2nd NNs
+                        # default='best_model_lilac-waterfall-3238.pt',  # 3rd NNs
+                        # default='best_model_lilac-bird-3237.pt',  # 5th NNs
+
+                        # default='best_model_genial-plasma-3125.pt',
+                        # default='best_model_decent-pyramid-3156.pt',
+                        # default='best_model_eager-field-3187.pt',  # Normal model, top10, run2
+                        # default='best_model_light-cosmos-3188.pt',  # Normal model, top10, run3
+                        # default='best_model_faithful-rain-3211.pt',
+                        # default='best_model_legendary-durian-3216.pt',  # M=N=L=1 model convs only, no SA
                         help='Model check point')
 
     args = parser.parse_args()
-    model_path = os.path.join('best_models', args.ckpt)
+    model_path = os.path.join(RunningParams.prj_dir, 'best_models', args.ckpt)
+
     print(args)
 
     model = Transformer_AdvisingNetwork()
@@ -54,14 +59,18 @@ if __name__ == '__main__':
     epoch = checkpoint['epoch']
     loss = checkpoint['val_loss']
     acc = checkpoint['val_acc']
+
     f1 = checkpoint['best_f1']
+    print(epoch)
 
     print('Validation accuracy: {:.4f}'.format(acc))
     print('F1 score: {:.4f}'.format(f1))
 
     model.eval()
 
-    test_dir = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/test'  ##################################
+    # test_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/test'  ##################################
+    test_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
+
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])
@@ -70,7 +79,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=16,
+            batch_size=17,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -91,7 +100,7 @@ if __name__ == '__main__':
             x = data[0].cuda()
             labels = data[-1].cuda()
 
-            if len(data_loader.dataset.classes) < 120:
+            if len(data_loader.dataset.classes) < 200:
                 for sample_idx in range(x.shape[0]):
                     tgt = gt[sample_idx].item()
                     class_name = data_loader.dataset.classes[tgt]
@@ -107,7 +116,6 @@ if __name__ == '__main__':
                 explanation = data[1][:, class_idx, :, :, :, :]
                 explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
-                # print(explanation.shape)
                 output, _, _, _ = model(images=x, explanations=explanation, scores=model1_score)
                 output = output.squeeze()
                 output_tensors.append(output)

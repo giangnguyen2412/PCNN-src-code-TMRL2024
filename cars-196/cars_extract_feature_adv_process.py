@@ -13,6 +13,9 @@ import random
 import pdb
 import faiss
 
+import sys
+sys.path.append('/home/giang/Downloads/advising_network')
+
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
 from params import RunningParams

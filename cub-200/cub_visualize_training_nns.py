@@ -1,4 +1,3 @@
-# V2: POSITIVES FROM GT CLASS AND NEGATIVES FROM RANDOM CLASSES
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -14,6 +13,9 @@ import random
 import pdb
 import faiss
 
+import sys
+sys.path.append('/home/giang/Downloads/advising_network')
+
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
 from params import RunningParams
@@ -24,7 +26,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
 
 Dataset = Dataset()
@@ -33,7 +35,7 @@ RunningParams = RunningParams()
 
 HIGHPERFORMANCE_FEATURE_EXTRACTOR = RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR
 if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+    from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
@@ -68,7 +70,7 @@ feature_extractor = nn.DataParallel(feature_extractor)
 in_features = 2048
 print("Building FAISS index...! Training set is the knowledge base.")
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB/advnet/train',
+faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/datasets/CUB/advnet/train',
                                      transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -128,7 +130,7 @@ else:
         faiss_loader_dict[class_id] = class_id_loader
     np.save(INDEX_FILE, faiss_nns_class_dict)
 
-from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
 resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
@@ -145,15 +147,15 @@ MODEL1.eval()
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
 set = 'train'
-# data_dir = '/home/giang/Downloads/datasets/CUB/advnet/{}'.format(set)
-data_dir = '/home/giang/Downloads/datasets/CUB/train1'  ##################################
+# data_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/{}'.format(set)
+data_dir = f'{RunningParams.parent_dir}/datasets/CUB/train1'  ##################################
 
 image_datasets = dict()
 image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
 train_loader = torch.utils.data.DataLoader(
     image_datasets['train'],
     batch_size=128,
-    shuffle=False,  # Don't turn shuffle to False --> model works wrongly
+    shuffle=True,  # Don't turn shuffle to False --> model works wrongly
     num_workers=16,
     pin_memory=True,
 )
@@ -164,13 +166,15 @@ total_cnt = 0
 
 MODEL1.eval()
 
-def generate_tensor(size, max_val=200, exclude=None):
-    tensor = torch.randint(0, max_val-1, size=(size,), device='cuda:0')
-    tensor[tensor == exclude] += 1
-    return tensor
+seed = 102
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
 
 faiss_nn_dict = dict()
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
+    if batch_idx == 1:
+        break
     if len(train_loader.dataset.classes) < 200:
         for sample_idx in range(data.shape[0]):
             tgt = label[sample_idx].item()
@@ -189,12 +193,14 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
         base_name = os.path.basename(paths[sample_idx])
         gt_id = label[sample_idx]
 
-        index[sample_idx][0] = label[sample_idx]
-        # 200 FOR CUB, 196 for CARS
-        index[sample_idx][1:] = generate_tensor(depth_of_pred - 1, 200, label[sample_idx])
+        # correct_cnt += torch.sum(index.squeeze() == label.cuda())
+        # total_cnt += data.shape[0]
+
+        key = paths[sample_idx]
+        val = list()
 
         for i in range(depth_of_pred):
-            # Get the top-k predicted label -- MAKE UP THE INDEX TENSOR
+            # Get the top-k predicted label
             predicted_idx = index[sample_idx][i].item()
 
             # Dataloader and knowledge base upon the predicted class
@@ -208,8 +214,11 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                 for id in range(indices.shape[1]):
                     id = loader.dataset.indices[indices[0, id]]
                     nn_list.append(loader.dataset.dataset.imgs[id][0])
-                faiss_nn_dict[base_name] = nn_list
+                faiss_nn_dict[paths[sample_idx]] = nn_list[0]
             else:
+
+                # key = base_name
+
 
                 if i == 0:  # top-1 predictions --> Enrich top-1 prediction samples
                     _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), faiss_index.ntotal)
@@ -218,11 +227,9 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                         nn_list = list()
 
                         if predicted_idx == gt_id:
-                            key = 'Correct_{}_{}_'.format(i, j) + base_name
                             min_id = (j * RunningParams.k_value) + 1  # 3 NNs for one NN set
                             max_id = ((j * RunningParams.k_value) + RunningParams.k_value) + 1
                         else:
-                            key = 'Wrong_{}_{}_'.format(i, j) + base_name
                             min_id = j * RunningParams.k_value  # 3 NNs for one NN set
                             max_id = (j * RunningParams.k_value) + RunningParams.k_value
 
@@ -230,32 +237,74 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                             id = loader.dataset.indices[indices[0, id]]
                             nn_list.append(loader.dataset.dataset.imgs[id][0])
 
-                        faiss_nn_dict[key] = dict()
-                        faiss_nn_dict[key]['NNs'] = nn_list
-                        faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
-                        faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
+                        val.append(nn_list[0])
 
                 else:
                     if predicted_idx == gt_id:
-                        key = 'Correct_{}_'.format(i) + base_name
                         _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), RunningParams.k_value+1)
                         indices = indices[:, 1:]  # skip the first NN
                     else:
-                        key = 'Wrong_{}_'.format(i) + base_name
                         _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), RunningParams.k_value)
 
                     for id in range(indices.shape[1]):
                         id = loader.dataset.indices[indices[0, id]]
                         nn_list.append(loader.dataset.dataset.imgs[id][0])
 
-                    faiss_nn_dict[key] = dict()
-                    faiss_nn_dict[key]['NNs'] = nn_list
-                    faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
-                    faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
+                    val.append(nn_list[0])
+
+        faiss_nn_dict[key] = val
 
 
-print(len(faiss_nn_dict))
-file_name = 'faiss/cub/rd_negatives_top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}5k7_top1_HP_MODEL1_HP_FE.npy'.format(depth_of_pred, RunningParams.k_value, set)
-np.save(file_name,
-        faiss_nn_dict)
-print(file_name)
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+from PIL import Image
+# Your dictionary
+image_dict = faiss_nn_dict.copy()
+
+# Get the first key-value pair in the dictionary
+first_key = list(image_dict.keys())[0]
+first_value = image_dict[first_key]
+
+# Get the parent directory name of the query image file
+query_dir_name = os.path.basename(os.path.dirname(first_key))
+
+# Load and resize the query image
+query_img = Image.open(first_key)
+query_img = query_img.resize((400, 400))
+
+# Create a new figure with 3 rows
+fig = plt.figure(figsize=(32, 10), dpi=200)
+
+# Plot the query image in the first row
+ax = plt.subplot(3, 1, 1)
+plt.subplots_adjust(hspace=0.05)
+ax.imshow(query_img)
+ax.set_title(f'Query: {os.path.basename(os.path.dirname(first_value[0]))}', fontsize=18, color='green', weight='bold')
+ax.axis('off')
+
+# Plot the first 10 images in the second row
+for i in range(10):
+    img = Image.open(first_value[i])
+    img_resized = img.resize((300, 300))
+    img_resized = np.array(img_resized)
+    ax = plt.subplot(3, 10, i+11)  # Starting from 11th position
+    ax.imshow(img_resized)
+    if i == 4:
+        ax.set_title('Top-1: {}'.format(os.path.basename(os.path.dirname(first_value[i]))), fontsize=16, weight='bold')
+    ax.axis('off')  # Hide axes
+
+# Plot the last 9 images in the third row
+for i in range(9):
+    img = Image.open(first_value[i+10])
+    img_resized = img.resize((300, 300))
+    img_resized = np.array(img_resized)
+    ax = plt.subplot(3, 10, i+22)  # Starting from 21st position
+    ax.imshow(img_resized)
+    ax.set_title('Top-{}: {}'.format(i+2, os.path.basename(os.path.dirname(first_value[i+10]))), fontsize=10)
+    ax.axis('off')  # Hide axes
+
+# Adjust the spacing between rows to minimize white spaces
+plt.subplots_adjust(hspace=0.1)
+
+# Save the figure as a PDF
+plt.savefig("final_image.pdf", bbox_inches='tight', pad_inches=0.25)

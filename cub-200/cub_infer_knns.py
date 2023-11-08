@@ -4,6 +4,9 @@ import numpy as np
 import os
 import argparse
 
+import sys
+sys.path.append('/home/giang/Downloads/advising_network')
+
 from tqdm import tqdm
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
@@ -66,7 +69,7 @@ if __name__ == '__main__':
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'], nn_dict=file_name)
     dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
 
-    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+    from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(

@@ -2,6 +2,10 @@ import torch
 import torch.nn as nn
 import os
 import argparse
+from torch.nn.functional import cosine_similarity
+
+import sys
+sys.path.append('/home/giang/Downloads/advising_network')
 
 from tqdm import tqdm
 from params import RunningParams
@@ -12,51 +16,30 @@ RunningParams = RunningParams()
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
 
 torch.manual_seed(42)
 
 full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
                                      Dataset.data_transforms['train'])
 
+from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--ckpt', type=str,
-                        # default='best_model_genial-plasma-3125.pt',
-                        # default='best_model_decent-pyramid-3156.pt',
-                        # default='best_model_eager-field-3187.pt',  # Normal model, top10, run2
-                        # default='best_model_light-cosmos-3188.pt',  # Normal model, top10, run3
-                        # default='best_model_faithful-rain-3211.pt',
-                        default='best_model_legendary-durian-3216.pt',  # M=N=L=1 model convs only, no SA
-                        help='Model check point')
 
-    args = parser.parse_args()
-    model_path = os.path.join('best_models', args.ckpt)
-    print(args)
+    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+    my_model_state_dict = torch.load(
+        f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+    resnet.load_state_dict(my_model_state_dict, strict=True)
 
-    model = Transformer_AdvisingNetwork()
+    conv_features = list(resnet.children())[:RunningParams.conv_layer - 5]  # delete the last fc layer
+    model = nn.Sequential(*conv_features)
+
     model = nn.DataParallel(model).cuda()
-
-    checkpoint = torch.load(model_path)
-    running_params = checkpoint['running_params']
-    RunningParams.XAI_method = running_params.XAI_method
-
-    model.load_state_dict(checkpoint['model_state_dict'])
-    epoch = checkpoint['epoch']
-    loss = checkpoint['val_loss']
-    acc = checkpoint['val_acc']
-
-    f1 = checkpoint['best_f1']
-    print(epoch)
-
-    print('Validation accuracy: {:.4f}'.format(acc))
-    print('F1 score: {:.4f}'.format(f1))
-
-    model.eval()
 
     # test_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/test'  ##################################
     test_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
-
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])
@@ -65,7 +48,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=20,
+            batch_size=17,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -93,17 +76,17 @@ if __name__ == '__main__':
                     id = full_cub_dataset.class_to_idx[class_name]
                     gt[sample_idx] = id
 
-            # Make a dummy confidence score
-            model1_score = torch.zeros([data[1].shape[0], 1]).cuda()
 
             output_tensors = []
             # Loop to get the logit for each class
             for class_idx in range(data[1].shape[1]):
                 explanation = data[1][:, class_idx, :, :, :, :]
-                explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
+                explanation = explanation[:, 0:RunningParams.k_value, :, :, :].squeeze()
 
-                output, _, _, _ = model(images=x, explanations=explanation, scores=model1_score)
-                output = output.squeeze()
+                x_conv = model(x).squeeze()
+                ex_conv = model(explanation).squeeze()
+
+                output = cosine_similarity(x_conv, ex_conv, dim=1)
                 output_tensors.append(output)
 
             logits = torch.stack(output_tensors, dim=1)

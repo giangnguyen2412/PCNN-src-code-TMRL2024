@@ -59,7 +59,7 @@ val_loader        = DataLoader(validation_folder, batch_size=512, shuffle=True, 
 from params import RunningParams
 RunningParams = RunningParams()
 
-from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
 inat_resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(

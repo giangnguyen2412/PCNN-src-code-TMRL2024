@@ -5,11 +5,13 @@ from itertools import count
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
 from torch.utils.data import DataLoader
-import torchvision.transforms as T
-from torchvision import models
-from datasets import StanfordDogsDataset
+
+import sys
+sys.path.append('/home/giang/Downloads/advising_network')
+
+from params import RunningParams
+RunningParams = RunningParams()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "4"

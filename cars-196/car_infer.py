@@ -3,8 +3,11 @@ import torch.nn as nn
 import numpy as np
 import os
 import argparse
-
 from tqdm import tqdm
+
+import sys
+sys.path.append('/home/giang/Downloads/advising_network')
+
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions

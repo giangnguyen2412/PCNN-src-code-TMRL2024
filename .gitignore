@@ -28,4 +28,7 @@ core/
 PyTorch-Stanford-Cars-Baselines/
 stanford-dogs/
 attn_maps/
+corrections/
 config.py
+after.jpeg
+before.jpeg

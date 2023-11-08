@@ -1,4 +1,6 @@
 import os
+import sys
+sys.path.append('/home/giang/Downloads/advising_network')
 from params import RunningParams
 RunningParams = RunningParams()
 
@@ -131,7 +133,7 @@ if TRAINING_FROM_SCRATCH is True:
             model.load_state_dict(model_dict, strict=False)
     ################################################################
     if USING_CLASS_EMBEDDING is True:
-        from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+        from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
         resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
         my_model_state_dict = torch.load(

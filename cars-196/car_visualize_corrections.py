@@ -3,6 +3,9 @@ import torch.nn as nn
 import os
 import argparse
 
+import sys
+sys.path.append('/home/giang/Downloads/advising_network')
+
 from tqdm import tqdm
 from params import RunningParams
 from datasets import Dataset, ImageFolderForAdvisingProcess, ImageFolderForNNs
@@ -12,16 +15,29 @@ RunningParams = RunningParams()
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
-                                     Dataset.data_transforms['train'])
+torch.manual_seed(42)
+
+from torchvision import datasets, models, transforms
+
+normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+data_transform = transforms.Compose([transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            normalize,
+        ])
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train',
+                                     data_transform)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        # default='best_model_genial-plasma-3125.pt',
-                        default='best_model_decent-pyramid-3156.pt',
+                        # default='best_model_zesty-mountain-3152.pt',
+                        # default='best_model_spring-field-3157.pt',
+                        default='best_model_robust-sunset-3158.pt',
+                        # default='best_model_divine-cherry-3160.pt',
                         help='Model check point')
 
     args = parser.parse_args()
@@ -39,8 +55,8 @@ if __name__ == '__main__':
     epoch = checkpoint['epoch']
     loss = checkpoint['val_loss']
     acc = checkpoint['val_acc']
-
     f1 = checkpoint['best_f1']
+
     print('best model found at epoch {}'.format(epoch))
 
     print('Validation accuracy: {:.4f}'.format(acc))
@@ -48,11 +64,11 @@ if __name__ == '__main__':
 
     model.eval()
 
-    # test_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/test'  ##################################
-    test_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
+    test_dir = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/test'  ##################################
 
     import numpy as np
-    file_name = 'faiss/advising_process_test_top1_HP_MODEL1_HP_FE.npy'
+
+    file_name = 'faiss/advising_process_test_Cars.npy'
     faiss_nn_dict = np.load(file_name, allow_pickle=True, ).item()
 
     image_datasets = dict()
@@ -90,7 +106,7 @@ if __name__ == '__main__':
             x = data[0].cuda()
             labels = data[-1].cuda()
 
-            if len(data_loader.dataset.classes) < 200:
+            if len(data_loader.dataset.classes) < 120:
                 for sample_idx in range(x.shape[0]):
                     tgt = gt[sample_idx].item()
                     class_name = data_loader.dataset.classes[tgt]
@@ -106,6 +122,7 @@ if __name__ == '__main__':
                 explanation = data[1][:, class_idx, :, :, :, :]
                 explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
+                # print(explanation.shape)
                 output, _, _, _ = model(images=x, explanations=explanation, scores=model1_score)
                 output = output.squeeze()
                 output_tensors.append(output)
@@ -118,14 +135,12 @@ if __name__ == '__main__':
             # Compute top-1 predictions and accuracy
             score, index = torch.topk(p, 1, dim=1)
             index = labels[torch.arange(len(index)), index.flatten()]
-            # breakpoint()
 
+            ########################################################################
             # Get the sorted indices along each row
             _, indices = torch.sort(logits, dim=1, descending=True)
-
             # Now use these indices to rearrange each row of labels
             refined_labels = labels.gather(1, indices)
-
             for sample_idx in range(x.shape[0]):
                 path = pths[sample_idx]
                 base_name = os.path.basename(path)
@@ -139,7 +154,6 @@ if __name__ == '__main__':
                 # If the new top1 matches the GT  && If the new top1 is different from the old top 1
                 if index[sample_idx].item() == gt[sample_idx].item() and \
                         original_preds[0].item() != refined_preds[0].item():
-
                     import matplotlib.pyplot as plt
                     from PIL import Image
                     import numpy as np
@@ -158,7 +172,6 @@ if __name__ == '__main__':
                         image = image.crop((left, top, right, bottom))
                         return image
 
-
                     # Convert the tensors to lists
                     original_preds = original_preds.tolist()
                     refined_preds = refined_preds.tolist()
@@ -167,13 +180,16 @@ if __name__ == '__main__':
                     # Prepare figure and axes, increase the figsize to make sub-images larger
                     fig, axs = plt.subplots(1, 6, figsize=(30, 5))
                     fig.subplots_adjust(wspace=0.15, hspace=0.3)
-                    fig.suptitle('Initial class ranking by pretrained classifier C', color='red', size=20)  # Add this line
+                    fig.suptitle('Initial class ranking by pretrained classifier C', color='red',
+                                 size=20)  # Add this line
 
                     # Load and plot the original image
                     original_img = Image.open(path)
                     original_img = resize_and_crop(original_img)
                     axs[0].imshow(np.array(original_img))
-                    axs[0].set_title('Query: {}'.format(data_loader.dataset.classes[gt[sample_idx].item()].split('.')[1].replace('_',' ')), color='green', fontsize=18)
+                    axs[0].set_title('Query: {}'.format(data_loader.dataset.classes[gt[sample_idx].item()]), color='green', fontsize=12)
+
+
                     axs[0].set_xticks([])
                     axs[0].set_yticks([])
 
@@ -185,20 +201,20 @@ if __name__ == '__main__':
                         # axs[i + 1].set_title(
                         #     f'Top{i + 1} {data_loader.dataset.classes[pred]}, Confidence: {sim_scores[i]:.2f}')
 
-                        class_name = data_loader.dataset.classes[pred].split('.')[1].replace('_',' ')
                         if data_loader.dataset.classes[pred] == data_loader.dataset.classes[gt[sample_idx].item()]:
                             color = 'green'
                         else:
                             color = 'black'
                         # Set the title for the plot (at the top by default)
-                        axs[i + 1].set_title(f'Top{i + 1}: {class_name}', color=color, fontsize=18)
+                        axs[i + 1].set_title(f'Top{i + 1}: {data_loader.dataset.classes[pred]}', color=color, fontsize=12)
 
                         # Add the confidence at the bottom of the image
-                        # axs[i + 1].text(0.5, -0.07, f'AdvNet\'s Confidence: {sim_scores[i]:.2f}', size=18, ha="center",
+                        # axs[i + 1].text(0.5, -0.07, f'AdvNet\'s Confidence: {sim_scores[i]:.2f}', size=18,
+                        #                 ha="center",
                         #                 transform=axs[i + 1].transAxes)
 
                         conf = nn_dict[i]['C_confidence']
-                        axs[i + 1].text(0.5, -0.07, f'C\'s Confidence: {conf.item():.2f}', size=18, ha="center",
+                        axs[i + 1].text(0.5, -0.07, f'C\'s Confidence: {conf:.2f}', size=18, ha="center",
                                         transform=axs[i + 1].transAxes)
 
                         axs[i + 1].set_xticks([])
@@ -241,14 +257,12 @@ if __name__ == '__main__':
                         pred_img = resize_and_crop(pred_img)
                         axs[i + 1].imshow(np.array(pred_img))
 
-                        class_name = data_loader.dataset.classes[pred].split('.')[1].replace('_',' ')
                         if data_loader.dataset.classes[pred] == data_loader.dataset.classes[gt[sample_idx].item()]:
                             color = 'green'
                         else:
                             color = 'black'
-
                         # Set the title for the plot (at the top by default)
-                        axs[i + 1].set_title(f'Top{i + 1}: {class_name}', color=color, fontsize=18)
+                        axs[i + 1].set_title(f'Top{i + 1}: {data_loader.dataset.classes[pred]}', color=color, fontsize=12)
 
                         sim_scores = sorted(sim_scores, reverse=True)
 
@@ -272,17 +286,19 @@ if __name__ == '__main__':
                     #     'convert before.png after.png -append corrections/stacked.png', shell=True)
 
                     subprocess.call(
-                        'montage before.jpeg after.jpeg -tile 1x2 -geometry +20+20 corrections/cub/{}_{}_{}.jpeg'.
-                        format(data_loader.dataset.classes[gt[sample_idx].item()], batch_idx, sample_idx), shell=True)
+                        'montage before.jpeg after.jpeg -tile 1x2 -geometry +20+20 corrections/cars/{}_{}_{}.jpeg'.
+                        format(data_loader.dataset.classes[gt[sample_idx].item()].replace(' ', '_'), batch_idx, sample_idx),
+                        shell=True)
 
-                    jpeg_path = 'corrections/cub/{}_{}_{}.jpeg'.format(
-                        data_loader.dataset.classes[gt[sample_idx].item()], batch_idx, sample_idx)
+                    jpeg_path = 'corrections/cars/{}_{}_{}.jpeg'.format(
+                        data_loader.dataset.classes[gt[sample_idx].item()].replace(' ', '_'), batch_idx, sample_idx)
                     pdf_path = jpeg_path.replace('.jpeg', '.pdf')
 
                     subprocess.call('convert {} {}'.format(jpeg_path, pdf_path), shell=True)
+                    os.remove(jpeg_path)
+            ########################################################################
 
             running_corrects += torch.sum(index.squeeze() == gt.cuda())
             total_cnt += data[0].shape[0]
-
             print(cnt)
             print("Top-1 Accuracy: {}".format(running_corrects * 100 / total_cnt))

@@ -25,7 +25,7 @@ Dataset = Dataset()
 
 ORIGINAL_FE = False
 if ORIGINAL_FE is True:
-    from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+    from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
