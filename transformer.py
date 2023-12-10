@@ -238,6 +238,67 @@ if RunningParams.CUB_TRAINING is True:
                 else:
                     return output, input_feat, i2e_attns, e2i_attns
 
+    class CNN_AdvisingNetwork(nn.Module):
+        def __init__(self):
+            print("Using training network for Birds (CUB-200)")
+            super(CNN_AdvisingNetwork, self).__init__()
+
+            from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+            resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+            my_model_state_dict = torch.load(
+                'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+            resnet.load_state_dict(my_model_state_dict, strict=True)
+
+            conv_features = list(resnet.children())[:RunningParams.conv_layer-6]  # delete the last fc layer
+            self.conv_layers = nn.Sequential(*conv_features)
+
+            self.pooling_layer = nn.AdaptiveAvgPool2d(output_size=(1, 1))
+
+            self.branch3 = BinaryMLP(
+                2 * RunningParams.conv_layer_size[RunningParams.conv_layer] + 2, 32)
+
+            if RunningParams.k_value == 1:
+                self.agg_branch = nn.Linear(2, 1).cuda()
+            else:
+                self.agg_branch = nn.Linear(RunningParams.k_value*2, 1).cuda()
+
+            # initialize all fc layers to xavier
+            for m in self.modules():
+                if isinstance(m, nn.Linear):
+                    torch.nn.init.xavier_normal_(m.weight, gain=1)
+
+        def forward(self, images, explanations, scores):
+            # Process the input images
+            input_spatial_feats = self.conv_layers(images)
+            input_feat = self.pooling_layer(input_spatial_feats).squeeze()
+
+            # Process the nearest neighbors
+            explanations = explanations.squeeze()
+            explanation_spatial_feats = self.conv_layers(explanations)
+
+            ################################
+            exp_feat = self.pooling_layer(explanation_spatial_feats).squeeze()
+            ################################
+
+            sep_token = torch.zeros([explanations.shape[0], 1], requires_grad=False).cuda()
+
+            ################################
+            x = self.branch3(
+                torch.cat([sep_token, input_feat, sep_token, exp_feat], dim=1))
+            ################################
+
+            output3 = self.agg_branch(x)
+
+            output = output3
+
+            if RunningParams.XAI_method == RunningParams.NO_XAI:
+                return output, None, None
+            elif RunningParams.XAI_method == RunningParams.NNs:
+                if RunningParams.k_value == 1:
+                    return output, input_feat, None, None
+                else:
+                    return output, input_feat, None, None
+
 elif RunningParams.CARS_TRAINING is True:
     class Transformer_AdvisingNetwork(nn.Module):
         def __init__(self):
