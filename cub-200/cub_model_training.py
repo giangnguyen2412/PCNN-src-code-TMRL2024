@@ -16,8 +16,9 @@ import numpy as np
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
 
 import sys
-sys.path.append('/home/giang/Downloads/advising_network')
+sys.path.append('/home/daoduyhung/hicehehe/xai/advising_network')
 
+import global_settings
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
 from transformer import *
@@ -26,7 +27,7 @@ from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = global_settings.CUDA_VISIBLE_DEVICES
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -48,7 +49,7 @@ fc = nn.DataParallel(fc)
 
 train_dataset = RunningParams.aug_data_dir
 
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
+full_cub_dataset = ImageFolderForNNs(global_settings.cub_full_path,
                                      Dataset.data_transforms['train'])
 
 image_datasets = dict()

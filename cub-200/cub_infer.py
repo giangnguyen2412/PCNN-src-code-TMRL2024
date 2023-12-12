@@ -5,7 +5,9 @@ import os
 import argparse
 
 import sys
-sys.path.append('/home/giang/Downloads/advising_network')
+sys.path.append('/home/daoduyhung/hicehehe/xai/advising_network')
+
+import global_settings
 
 from tqdm import tqdm
 from params import RunningParams
@@ -22,11 +24,11 @@ HelperFunctions = HelperFunctions()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = global_settings.CUDA_VISIBLE_DEVICES
 
 CATEGORY_ANALYSIS = False
 
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
+full_cub_dataset = ImageFolderForNNs(global_settings.cub_full_path,
                                      Dataset.data_transforms['train'])
 
 if __name__ == '__main__':
@@ -467,7 +469,7 @@ if __name__ == '__main__':
             preds_val = torch.cat(preds_val, dim=0)
             labels_val = torch.cat(labels_val, dim=0)
 
-            precision = precision_score(labels_val.cpu(), preds_val.cpu())
+            precision = precision_score(labels_val.cpu(), preds_val.cpu()).npy
             recall = recall_score(labels_val.cpu(), preds_val.cpu())
             f1 = f1_score(labels_val.cpu(), preds_val.cpu())
             confusion_matrix_ = confusion_matrix(labels_val.cpu(), preds_val.cpu())

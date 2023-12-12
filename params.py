@@ -1,4 +1,5 @@
 import os
+import paths
 
 class RunningParams(object):
     def __init__(self):
@@ -9,7 +10,7 @@ class RunningParams(object):
 
         # TODO
         self.parent_dir = '/home/giang/Downloads'
-        self.prj_dir = '/home/giang/Downloads/advising_network'
+        self.prj_dir = paths.project_path
 
         self.dropout = 0.0
 
@@ -67,9 +68,9 @@ class RunningParams(object):
             # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
             self.set = 'train'
             if self.set == 'test':
-                self.data_dir = f'{self.parent_dir}/datasets/CUB/test0'  # CUB test folder
+                self.data_dir = paths.cub_test_path  # CUB test folder
             else:
-                self.data_dir = f'{self.parent_dir}/datasets/CUB/advnet/{self.set}'  # CUB train folder
+                self.data_dir = paths.cub_train_path  # CUB train folder
 
             self.QK = 10  # Q and K values for building positives and negatives
             self.faiss_npy_file = '{}/faiss/cub/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}5k7_top1_HP_MODEL1_HP_FE_NN{}th.npy'. \

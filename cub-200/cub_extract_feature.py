@@ -11,7 +11,10 @@ import faiss
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
 import sys
-sys.path.append('/home/giang/Downloads/advising_network')
+
+sys.path.append('/home/daoduyhung/hicehehe/xai/advising_network')
+
+import global_settings
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
@@ -20,7 +23,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = global_settings.CUDA_VISIBLE_DEVICES
 
 
 Dataset = Dataset()
@@ -31,7 +34,7 @@ from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
 resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth') #TODO: missing this file
 
 resnet.load_state_dict(my_model_state_dict, strict=True)
 # Freeze backbone (for training only)
@@ -49,8 +52,8 @@ feature_extractor = nn.DataParallel(feature_extractor)
 in_features = RunningParams.in_features
 print("Building FAISS index...! Training set is the knowledge base.")
 
-# faiss dataset contains images using as the knowledge based for KNN retrieval
-faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/datasets/CUB/advnet/train',
+# faiss dataset (train dataset) contains images using as the knowledge based for KNN retrieval
+faiss_dataset = datasets.ImageFolder(global_settings.cub_train_path,
                                      transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -111,7 +114,7 @@ from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
 resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth') # TODO: missing this file
 resnet.load_state_dict(my_model_state_dict, strict=True)
 MODEL1 = resnet.cuda()
 MODEL1.eval()
