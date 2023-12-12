@@ -251,6 +251,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     model.load_state_dict(best_model_wts)
     return model, best_acc
 
+# TODO: change to CNN_AdvisingNetwork()
 MODEL2 = Transformer_AdvisingNetwork()
 
 MODEL2 = MODEL2.cuda()

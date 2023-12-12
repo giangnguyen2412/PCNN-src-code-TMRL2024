@@ -7,6 +7,7 @@ class RunningParams(object):
         self.DOGS_TRAINING = False
         self.CARS_TRAINING = False
 
+        # TODO
         self.parent_dir = '/home/giang/Downloads'
         self.prj_dir = '/home/giang/Downloads/advising_network'
 
@@ -52,7 +53,7 @@ class RunningParams(object):
 
         # Training parameters
         if self.CUB_TRAINING is True:
-            self.batch_size = 128
+            self.batch_size = 128 #TODO: 64, 32 if not enough memory
             self.epochs = 100
             self.learning_rate = 1e-3
             self.k_value = 1
