@@ -43,7 +43,7 @@ if RunningParams.CUB_TRAINING is True:
                 f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
             resnet.load_state_dict(my_model_state_dict, strict=True)
 
-            conv_features = list(resnet.children())[:RunningParams.conv_layer-6]  # delete the last fc layer
+            conv_features = list(resnet.children())[:RunningParams.conv_layer-6]  # delete the last fc layer and avgpool
             self.conv_layers = nn.Sequential(*conv_features)
 
             if RunningParams.BOTTLENECK is True:
@@ -243,10 +243,12 @@ if RunningParams.CUB_TRAINING is True:
             print("Using training network for Birds (CUB-200)")
             super(CNN_AdvisingNetwork, self).__init__()
 
-            from FeatureExtractors import ResNet_AvgPool_classifier, Bottleneck
+            from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
             resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-            my_model_state_dict = torch.load(
-                'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+            # my_model_state_dict = torch.load(
+            #     'pretrained_models/Forzen_Method1-iNaturalist_avgpool_200way1_85.83_Manuscript.pth')
+            my_model_state_dict = torch.load('pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+
             resnet.load_state_dict(my_model_state_dict, strict=True)
 
             conv_features = list(resnet.children())[:RunningParams.conv_layer-6]  # delete the last fc layer
@@ -291,9 +293,9 @@ if RunningParams.CUB_TRAINING is True:
 
             output = output3
 
-            if RunningParams.XAI_method == RunningParams.NO_XAI:
-                return output, None, None
-            elif RunningParams.XAI_method == RunningParams.NNs:
+            # if RunningParams.XAI_method == RunningParams.NO_XAI:
+            #     return output, None, None
+            if RunningParams.XAI_method == RunningParams.NNs:
                 if RunningParams.k_value == 1:
                     return output, input_feat, None, None
                 else:

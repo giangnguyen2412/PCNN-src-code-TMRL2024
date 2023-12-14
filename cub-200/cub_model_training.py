@@ -30,6 +30,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = global_settings.CUDA_VISIBLE_DEVICES
 
 RunningParams = RunningParams()
+RunningParams.set = 'train'
 Dataset = Dataset()
 
 if [RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING, RunningParams.CARS_TRAINING].count(True) > 1:
@@ -85,14 +86,15 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 for param in model.module.conv_layers.parameters():
                     param.requires_grad_(trainable)
 
-                for param in model.module.transformer_feat_embedder.parameters():
-                    param.requires_grad_(trainable)
+                if not global_settings.CNN_ADVISING_NET:
+                    for param in model.module.transformer_feat_embedder.parameters():
+                        param.requires_grad_(trainable)
 
-                for param in model.module.transformer.parameters():
-                    param.requires_grad_(trainable)
+                    for param in model.module.transformer.parameters():
+                        param.requires_grad_(trainable)
 
-                for param in model.module.cross_transformer.parameters():
-                    param.requires_grad_(trainable)
+                    for param in model.module.cross_transformer.parameters():
+                        param.requires_grad_(trainable)
 
                 for param in model.module.branch3.parameters():
                     param.requires_grad_(trainable)
@@ -164,6 +166,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                 with torch.set_grad_enabled(phase == 'train'):
                     # data[-1] is the trivial augmented data
+                    # output generated after agg_branch (MLPs in advisingnet)
                     output, query, nns, emb_cos_sim = model(images=data[-1], explanations=explanation, scores=score)
 
                     p = torch.sigmoid(output)
@@ -229,6 +232,10 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                 ckpt_path = '{}/best_models/best_model_{}.pt' \
                     .format(RunningParams.prj_dir, wandb.run.name)
+                
+                if os.path.exists(os.path.dirname(ckpt_path)) is False:
+                    os.makedirs(os.path.dirname(ckpt_path))
+
 
                 torch.save({
                     'epoch': epoch + 1,
@@ -252,8 +259,11 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     model.load_state_dict(best_model_wts)
     return model, best_acc
 
-# TODO: change to CNN_AdvisingNetwork()
-MODEL2 = Transformer_AdvisingNetwork()
+
+if global_settings.CNN_ADVISING_NET:
+    MODEL2 = CNN_AdvisingNetwork()
+else:
+    MODEL2 = Transformer_AdvisingNetwork()
 
 MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
@@ -286,22 +296,23 @@ print(config)
 if RunningParams.wandb_sess_name is not None:
     wandb.init(
         project="advising-network",
-        entity="luulinh90s",
+        entity="hicehehe",
         config=config,
         name=RunningParams.wandb_sess_name,
     )
 else:
     wandb.init(
         project="advising-network",
-        entity="luulinh90s",
+        entity="hicehehe",
         config=config,
     )
 
 wandb.save(os.path.basename(__file__), policy='now')
 wandb.save('params.py', policy='now')
 wandb.save('datasets.py', policy='now')
-wandb.save('cub_model_training.py', policy='now')
+wandb.save('cub-200/cub_model_training.py', policy='now')
 wandb.save('transformer.py', policy='now')
+wandb.save('global_settings.py', policy='now')
 
 _, best_acc = train_model(
     MODEL2,

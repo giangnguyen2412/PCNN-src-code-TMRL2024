@@ -143,6 +143,18 @@ class ImageFolderWithPaths(ImageFolder):
 class ImageFolderForNNs(ImageFolder):
     """Custom dataset that includes image file paths. Extends
     torchvision.datasets.ImageFolder
+    - Train: return (query, explanations, model2_target, aug_query), target, query_path
+        - query: the query image in tensor format
+        - explanations: the NNs of the query image (tensor)
+        - model2_target: the label of the query image (tensor)
+        - aug_query: the augmented query image (tensor)
+        - target: the label of the query image (tensor)
+        - query_path: the path of the query image (str)
+    - Test:
+        - CAR or DOG:
+            - return ((query, explanations, model2_target, aug_query), target, query_path)
+        - CUB:
+            - return ((query, explanations, aug_query), target, query_path)
     """
 
     def __init__(self, root, transform=None, nn_dict=None):
@@ -189,7 +201,7 @@ class ImageFolderForNNs(ImageFolder):
 
                 nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
                 model2_target = self.faiss_nn_dict[base_name]['label']
-            elif 'val' in os.path.basename(self.root) and (RunningParams.CARS_TRAINING is True or
+            elif 'test' in os.path.basename(self.root) and (RunningParams.CARS_TRAINING is True or
                                                          RunningParams.DOGS_TRAINING is True):
                 nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
                 model2_target = self.faiss_nn_dict[base_name]['label']
@@ -229,7 +241,7 @@ class ImageFolderForNNs(ImageFolder):
         # make a new tuple that includes original and the path
         if 'train' in os.path.basename(self.root):
                 tuple_with_path = ((query, explanations, model2_target, aug_query), target, query_path)
-        elif 'val' in os.path.basename(self.root) and (RunningParams.CARS_TRAINING is True or
+        elif 'test' in os.path.basename(self.root) and (RunningParams.CARS_TRAINING is True or
                                                        RunningParams.DOGS_TRAINING is True):
             tuple_with_path = ((query, explanations, model2_target, aug_query), target, query_path)
         else:
@@ -247,7 +259,7 @@ class Dataset(object):
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             ]),
-            'val': transforms.Compose([
+            'test': transforms.Compose([
                 transforms.Resize(256),
                 transforms.CenterCrop(224),
                 transforms.ToTensor(),

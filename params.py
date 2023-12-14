@@ -1,5 +1,8 @@
 import os
-import paths
+import sys
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import global_settings
 
 class RunningParams(object):
     def __init__(self):
@@ -10,11 +13,11 @@ class RunningParams(object):
 
         # TODO
         self.parent_dir = '/home/giang/Downloads'
-        self.prj_dir = paths.project_path
+        self.prj_dir = global_settings.project_path
 
         self.dropout = 0.0
 
-        self.wandb_sess_name = f'nov-8-23-1-bs128-p0_5-dropout-{self.dropout}'
+        self.wandb_sess_name = f'dec-14-23-1-bs128-p0_5-dropout-{self.dropout}-cnnadvisingnet'
 
         if self.CARS_TRAINING is True:
             self.resnet = 50
@@ -66,11 +69,16 @@ class RunningParams(object):
 
             # Retrieving NNs and sample positive and negative pairs
             # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
-            self.set = 'train'
-            if self.set == 'test':
-                self.data_dir = paths.cub_test_path  # CUB test folder
+            # Set it to 'test' if you want to get faiss_dict for test set
+            if global_settings.EXTRACT_FEATURE_TEST_DATASET:
+                self.set = 'test'
             else:
-                self.data_dir = paths.cub_train_path  # CUB train folder
+                self.set = 'train'
+
+            if self.set == 'test':
+                self.data_dir = global_settings.cub_test_path  # CUB test folder
+            else:
+                self.data_dir = global_settings.cub_train_path  # CUB train folder
 
             self.QK = 10  # Q and K values for building positives and negatives
             self.faiss_npy_file = '{}/faiss/cub/top{}_k{}_enriched_NeurIPS_Finetuning_faiss_{}5k7_top1_HP_MODEL1_HP_FE_NN{}th.npy'. \

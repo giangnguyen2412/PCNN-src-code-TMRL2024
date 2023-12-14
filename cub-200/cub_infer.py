@@ -78,10 +78,10 @@ if __name__ == '__main__':
     print(RunningParams.__dict__)
 
     MODEL2.eval()
-    test_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'  ##################################
+    test_dir = global_settings.cub_test_path  ##################################
 
     image_datasets = dict()
-    image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'])
+    image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['test'])
     dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
 
     from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
@@ -469,7 +469,7 @@ if __name__ == '__main__':
             preds_val = torch.cat(preds_val, dim=0)
             labels_val = torch.cat(labels_val, dim=0)
 
-            precision = precision_score(labels_val.cpu(), preds_val.cpu()).npy
+            precision = precision_score(labels_val.cpu(), preds_val.cpu())
             recall = recall_score(labels_val.cpu(), preds_val.cpu())
             f1 = f1_score(labels_val.cpu(), preds_val.cpu())
             confusion_matrix_ = confusion_matrix(labels_val.cpu(), preds_val.cpu())

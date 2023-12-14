@@ -28,13 +28,16 @@ os.environ["CUDA_VISIBLE_DEVICES"] = global_settings.CUDA_VISIBLE_DEVICES
 
 Dataset = Dataset()
 RunningParams = RunningParams()
+# Set this value to 'train' or 'test' to extract NNs for training or test set
+RunningParams.set = global_settings.EXTRACT_FEATURE_DATASET
 
+# use pretrained resnet50 on iNaturalist
 
 from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
 resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth') #TODO: missing this file
+    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
 
 resnet.load_state_dict(my_model_state_dict, strict=True)
 # Freeze backbone (for training only)
@@ -68,13 +71,16 @@ faiss_data_loader = torch.utils.data.DataLoader(
 INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cub/NeurIPS22_faiss_CUB200_class_idx_dict_HP_extractor.npy'
 
 if os.path.exists(INDEX_FILE):
+    # faiss_nns_class_dict: dict of {class_id: faiss_gpu_index of each class}
+    # faiss_gpu_index: carries the feature vectors of the class and their corresponding indices
+    # faiss_loader_dict:  dict of {class_id: dataloader of each class}
     print("FAISS class index exists!")
     faiss_nns_class_dict = np.load(INDEX_FILE, allow_pickle="False", ).item()
     targets = faiss_data_loader.dataset.targets
     faiss_data_loader_ids_dict = dict()
     faiss_loader_dict = dict()
     for class_id in tqdm(range(len(faiss_data_loader.dataset.class_to_idx))):
-        faiss_data_loader_ids_dict[class_id] = [x for x in range(len(targets)) if targets[x] == class_id] # check this value
+        faiss_data_loader_ids_dict[class_id] = [x for x in range(len(targets)) if targets[x] == class_id] # list of indices of images in the class
         class_id_subset = torch.utils.data.Subset(faiss_dataset, faiss_data_loader_ids_dict[class_id])
         class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
         faiss_loader_dict[class_id] = class_id_loader
@@ -98,12 +104,13 @@ else:
         stack_embeddings = np.concatenate(stack_embeddings, axis=0)
         descriptors = np.vstack(stack_embeddings)
 
+        # create the index with type of L2 distance
         cpu_index = faiss.IndexFlatL2(in_features)
         # faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
         #     cpu_index
         # )
         faiss_gpu_index = cpu_index
-
+        # add feature vectors to the index
         faiss_gpu_index.add(descriptors)
         faiss_nns_class_dict[class_id] = faiss_gpu_index
         faiss_loader_dict[class_id] = class_id_loader
@@ -114,7 +121,7 @@ from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
 resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth') # TODO: missing this file
+    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
 resnet.load_state_dict(my_model_state_dict, strict=True)
 MODEL1 = resnet.cuda()
 MODEL1.eval()
@@ -131,6 +138,7 @@ train_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
+# depth_of_pred: top-k predictions of the input
 depth_of_pred = RunningParams.QK
 
 if RunningParams.set == 'test':
@@ -143,6 +151,7 @@ MODEL1.eval()
 faiss_nn_dict = dict()
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
     if len(train_loader.dataset.classes) < 200:
+        # if not CUB200 dataset convert label from class name to class id
         for sample_idx in range(data.shape[0]):
             tgt = label[sample_idx].item()
             class_name = train_loader.dataset.classes[tgt]
@@ -157,11 +166,20 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
     model1_p = torch.nn.functional.softmax(out, dim=1)
     score, index = torch.topk(model1_p, depth_of_pred, dim=1)
     for sample_idx in range(data.shape[0]):
+        # faiss_nn_dict
+        # with each sample, we have a list of top-k predictions
+        # faiss_nn_dict['NNs']: get NNs for each top-k prediction
+        # faiss_nn_dict['label']: 1 if the prediction is correct, 0 otherwise
+        # faiss_nn_dict['conf']: confidence score of the prediction
+        # faiss_nn_dict['input_gt']: ground truth of the input image
+
+        # in case if top-k with k > 1
+        # if the first prediction is correct, we retrieve top-k NN
         base_name = os.path.basename(paths[sample_idx])
         gt_id = label[sample_idx]
 
         for i in range(depth_of_pred):
-            # Get the top-k predicted label
+            # Get predicted class id in top-k predictions
             predicted_idx = index[sample_idx][i].item()
 
             # Dataloader and knowledge base upon the predicted class
@@ -170,6 +188,8 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             nn_list = list()
 
             if depth_of_pred == 1:  # For val and test sets
+                # retrieve NNs for each top-k prediction RunningParams.negative_order is the number of NNs to retrieve
+                # RunningParams.negative_order determines if you want to use 1st, 2nd or 3rd NNs (in each class) to pair with your input
                 _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), RunningParams.negative_order)
 
                 indices = indices[:, RunningParams.negative_order - 1:]
@@ -189,6 +209,9 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             else:
 
                 if i == 0:  # top-1 predictions --> Enrich top-1 prediction samples --> value Q
+                    # if top-1 prediction is correct, retrieve Q=K groups of NNs from gt class (# of NNs in each group = RunningParams.k_value)
+                    # if top-1 prediction is wrong, still retrieve Q=K groups of NNs from gt class but with
+                    # negative_order to determine if you want to use 1st, 2nd or 3rd NNs (in each class) to pair with your input
                     _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), faiss_index.ntotal)
 
                     for j in range(depth_of_pred):  # Make up x NN sets from top-1 predictions
@@ -214,6 +237,9 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                         faiss_nn_dict[key]['input_gt'] = loader.dataset.dataset.classes[gt_id.item()]
 
                 else:
+                    # for top-k predictions with k > 1
+                    # if the prediction is correct, retrieve top-negative_order NNs from gt class except the first NN and label it as positive
+                    # if the prediction is wrong, retrieve top-negative_order NNs from gt class except the first NN and label it as negative
                     if predicted_idx == gt_id:
                         key = 'Correct_{}_'.format(i) + base_name
                         _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), RunningParams.negative_order)
