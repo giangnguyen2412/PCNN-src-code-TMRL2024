@@ -32,7 +32,7 @@ Dataset = Dataset()
 RunningParams = RunningParams()
 
 MODEL1_RN50 = True
-depth_of_pred = 2
+depth_of_pred = 10
 set = 'test'
 
 torch.manual_seed(42)
@@ -225,12 +225,17 @@ else:
 ########################################################################
 
 correct_cnt = 0
-total_cnt = 0
+total_cnt = 5794
 
 MODEL1.eval()
 
 faiss_nn_dict = dict()
 cnt = 0
+
+# Number of buckets
+M = 20
+bucket_limits = torch.linspace(0, 1, M + 1)
+bucket_data = {'accuracies': torch.zeros(M), 'confidences': torch.zeros(M), 'counts': torch.zeros(M)}
 
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
 # for (data, label, paths), (data2, label2, paths2) in tqdm(zip(train_loader, std_train_loader)):
@@ -257,6 +262,77 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
     model1_p = torch.nn.functional.softmax(out, dim=1)
 
     score_top1, index_top1 = torch.topk(model1_p, 1, dim=1)
+
+#     # For ECE calculation: Get the maximum predicted probability and its corresponding label
+#     max_probs, preds = torch.max(model1_p, 1)
+#     correct = preds.eq(label.cuda()).float()
+#
+#     max_probs = max_probs.detach().cpu()
+#     preds = preds.detach().cpu()
+#     correct = correct.detach().cpu()
+#
+#     # Sort the confidences into buckets
+#     for i in range(M):
+#         in_bucket = max_probs.gt(bucket_limits[i]) & max_probs.le(bucket_limits[i + 1])
+#         bucket_data['counts'][i] += in_bucket.float().sum()
+#         bucket_data['accuracies'][i] += (in_bucket.float() * correct).sum()
+#         bucket_data['confidences'][i] += (in_bucket.float() * max_probs).sum()
+#
+# # Calculate the average accuracy and confidence for each bucket
+# for i in range(M):
+#     if bucket_data['counts'][i] > 0:
+#         bucket_data['accuracies'][i] /= bucket_data['counts'][i]
+#         bucket_data['confidences'][i] /= bucket_data['counts'][i]
+#
+# # Calculate ECE
+# ece = 0.0
+# for i in range(M):
+#     ece += (bucket_data['counts'][i] / total_cnt) * torch.abs(
+#         bucket_data['accuracies'][i] - bucket_data['confidences'][i])
+#
+# print(total_cnt)
+# print("Expected Calibration Error (ECE): {:.4f}".format(100*ece.item()))
+#
+# import matplotlib.pyplot as plt
+#
+# # Assuming bucket_data is already computed as in the provided code snippet
+# # We will create a similar plot to the uploaded one using the calculated ECE and bucket data
+#
+# # Extract the average accuracy and average confidence for each bucket
+# accuracies = bucket_data['accuracies'].cpu().numpy()
+# confidences = bucket_data['confidences'].cpu().numpy()
+# counts = bucket_data['counts'].cpu().numpy()
+# total_count = counts.sum()
+#
+# # Normalize counts to get the proportion of data points in each bucket
+# proportions = counts / total_count
+#
+# # Create the reliability diagram
+# fig, ax = plt.subplots(figsize=(6, 6))
+#
+# # Add the bars indicating the confidence for each bin
+# ax.bar(confidences, accuracies, width=1.0/M, edgecolor='black', alpha=0.5, label='Outputs')
+#
+# # Add the identity line
+# ax.plot([0, 1], [0, 1], '--', label='Perfectly calibrated')
+#
+# # Annotate ECE on the plot
+# ece_percentage = 100 * ece.item()  # ECE as a percentage
+# # ax.text(0.1, 0.9, f'ECE: {ece_percentage:.2f}%', fontsize=12, bbox=dict(facecolor='red', alpha=0.5))
+#
+# # Set the limits and labels
+# ax.set_xlim(0, 1)
+# ax.set_ylim(0, 1)
+# ax.set_xlabel('Confidence')
+# ax.set_ylabel('Accuracy')
+#
+# # Set the title and legend
+# ax.set_title(f'Reliability Diagram: ECE: {ece_percentage:.2f}%')
+# ax.legend()
+#
+# plt.show()
+# plt.savefig(f'{RunningParams.prj_dir}/Reliability_Diagram_{set}_top1_HP_MODEL1_HP_FE.png')
+
 
     score, index = torch.topk(model1_p, depth_of_pred, dim=1)
 
@@ -286,11 +362,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             faiss_nn_dict[base_name][key]['NNs'] = nn_list
             faiss_nn_dict[base_name][key]['Label'] = predicted_idx
             faiss_nn_dict[base_name][key]['C_confidence'] = score[sample_idx][key]
-        # faiss_nn_dict[base_name]['Correctness'] = (gt_id == index_top1[sample_idx])
-        # print((gt_id == index_top1[sample_idx]).item())
-        #
-        # if (((gt_id == index_top1[sample_idx]).item())) is True:
-        #     cnt += 1
+
 
 print(cnt)
 save_file = f'{RunningParams.prj_dir}/faiss/advising_process_{set}_top1_HP_MODEL1_HP_FE.npy'

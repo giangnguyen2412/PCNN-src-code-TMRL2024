@@ -11,7 +11,8 @@ import faiss
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
 import sys
-sys.path.append('/home/giang/Downloads/advising_network')
+sys.path.insert(0, '/home/giang/Downloads/advising_network')
+
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
@@ -20,7 +21,7 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 
 Dataset = Dataset()

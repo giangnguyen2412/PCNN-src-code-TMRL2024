@@ -26,7 +26,7 @@ from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -81,17 +81,19 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 drop_last = True
                 frozen = False
                 trainable = True
+
+                if RunningParams.TRANSFORMER_ARCH:
+                    for param in model.module.transformer_feat_embedder.parameters():
+                        param.requires_grad_(trainable)
+
+                    for param in model.module.transformer.parameters():
+                        param.requires_grad_(trainable)
+
+                    for param in model.module.cross_transformer.parameters():
+                        param.requires_grad_(trainable)
+
                 for param in model.module.conv_layers.parameters():
-                    param.requires_grad_(trainable)
-
-                for param in model.module.transformer_feat_embedder.parameters():
-                    param.requires_grad_(trainable)
-
-                for param in model.module.transformer.parameters():
-                    param.requires_grad_(trainable)
-
-                for param in model.module.cross_transformer.parameters():
-                    param.requires_grad_(trainable)
+                    param.requires_grad_(frozen)
 
                 for param in model.module.branch3.parameters():
                     param.requires_grad_(trainable)
@@ -251,7 +253,10 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     model.load_state_dict(best_model_wts)
     return model, best_acc
 
-MODEL2 = Transformer_AdvisingNetwork()
+if RunningParams.TRANSFORMER_ARCH == True:
+    MODEL2 = Transformer_AdvisingNetwork()
+else:
+    MODEL2 = CNN_AdvisingNetwork()
 
 MODEL2 = MODEL2.cuda()
 MODEL2 = nn.DataParallel(MODEL2)
