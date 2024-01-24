@@ -1,3 +1,5 @@
+# Compute the topk accuracy of a pretrained Cars classifier
+
 import math
 import time
 import os
@@ -111,9 +113,3 @@ print('-' * 10)
 for k in range(1, 11):
     topk_acc = 100.0 * topk_corrects[k] / total_samples
     print(f'Top-{k} Acc: {topk_acc:.4f}')
-#
-# epoch_acc = running_corrects.double() / dataset_sizes['validation'] * 100
-# print(epoch_acc)
-################################################################
-import numpy as np
-# np.save('SCars_preds_dict.npy', preds_dict)

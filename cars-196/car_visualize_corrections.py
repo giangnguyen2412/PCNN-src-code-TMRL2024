@@ -1,3 +1,5 @@
+# Visualize AdvNet corrections after re-ranking
+
 import torch
 import torch.nn as nn
 import os
@@ -15,7 +17,7 @@ RunningParams = RunningParams()
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 torch.manual_seed(42)
 

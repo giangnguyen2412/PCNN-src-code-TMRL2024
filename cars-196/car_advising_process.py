@@ -1,28 +1,37 @@
 # Run advising process using AdvNet
+
 import torch
 import torch.nn as nn
 import os
 import argparse
 
 import sys
-sys.path.insert(0, '/home/giang/Downloads/advising_network')
-
+sys.path.append('/home/giang/Downloads/advising_network')
 
 from tqdm import tqdm
 from params import RunningParams
 from datasets import Dataset, ImageFolderForAdvisingProcess, ImageFolderForNNs
-from transformer import Transformer_AdvisingNetwork, CNN_AdvisingNetwork
+from transformer import Transformer_AdvisingNetwork
 
 RunningParams = RunningParams()
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-# os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 torch.manual_seed(42)
 
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
-                                     Dataset.data_transforms['train'])
+from torchvision import datasets, models, transforms
+
+normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+data_transform = transforms.Compose([transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            normalize,
+        ])
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train',
+                                     data_transform)
 
 PRODUCT_OF_EXPERTS = False
 depth = 0
@@ -30,78 +39,44 @@ depth = 0
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        # default='best_model_' + RunningParams.wandb_sess_name + '.pt',
-                        # default='best_model_serene-field-3176.pt',
-                        # default='best_model_cub_rn50_bs256-p1.0-dropout-0.0-NNth-1.pt', # RN50 ImageNet pretrained CUB
-                        # default='best_model_cub_rn34_bs256-p1.0-dropout-0.0-NNth-1.pt', # RN34 ImageNet pretrained CUB
-                        # default='best_model_cub_rn18_bs256-p1.0-dropout-0.0-NNth-1.pt', # RN18 ImageNet pretrained CUB
-                        # default='best_model_cosmic-waterfall-3174.pt',  # no CA --> have no cross attn to visualize
-                        # default='best_model_young-planet-3170.pt',  # no SA --> clear heatmaps
-                        # default='best_model_avid-cosmos-3201.pt',  # M=N=L=1 model
-                        # default='best_model_serene-sound-3240.pt',  # M=N=L=2 model
-                        # default='best_model_misty-sky-3239.pt',  # 1st NNs
-                        # default='best_model_blooming-sponge-3236.pt',  # 2nd NNs
-                        # default='best_model_lilac-waterfall-3238.pt',  # 3rd NNs
-                        # default='best_model_lilac-bird-3237.pt',  # 5th NNs
-
-                        # default='best_model_different-grass-3212.pt',
-                        # default='best_model_bs256-p1.0-dropout-0.0-NNth-3.pt',
-
-                        # default='best_model_genial-plasma-3125.pt',
-                        default='best_model_decent-pyramid-3156.pt', # Normal model, top10, run1
-                        # default='best_model_eager-field-3187.pt',  # Normal model, top10, run2
-                        # default='best_model_light-cosmos-3188.pt',  # Normal model, top10, run3
-                        # default='best_model_faithful-rain-3211.pt',
-                        # default='best_model_legendary-durian-3216.pt',  # M=N=L=1 model convs only, no SA
+                        # default='best_model_zesty-mountain-3152.pt',
+                        # default='best_model_spring-field-3157.pt',  # RN34
+                        # default='best_model_robust-sunset-3158.pt',  # RN50
+                        # default='best_model_divine-cherry-3160.pt',  # RN18
+                        # default='best_model_wandering-capybara-3189.pt',  # RN50 run 2
+                        default='best_model_different-lion-3192.pt',  # RN50 run 3
                         help='Model check point')
 
     args = parser.parse_args()
+    # model_path = os.path.join('best_models', args.ckpt)
     model_path = os.path.join(RunningParams.prj_dir, 'best_models', args.ckpt)
-
-    if PRODUCT_OF_EXPERTS is True:
-        ################################################################################
-        from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
-        from torchvision import datasets, models, transforms
-
-        resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-        my_model_state_dict = torch.load(
-            f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
-
-        if RunningParams.resnet == 50 and RunningParams.RN50_INAT is False:
-            resnet = models.resnet50(pretrained=True)
-            resnet.fc = nn.Sequential(nn.Linear(2048, 200))
-            my_model_state_dict = torch.load(
-                f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
-        elif RunningParams.resnet == 34:
-            resnet = models.resnet34(pretrained=True)
-            resnet.fc = nn.Sequential(nn.Linear(512, 200))
-            my_model_state_dict = torch.load(
-                f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
-        elif RunningParams.resnet == 18:
-            resnet = models.resnet18(pretrained=True)
-            resnet.fc = nn.Sequential(nn.Linear(512, 200))
-            my_model_state_dict = torch.load(
-                f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
-
-        resnet.load_state_dict(my_model_state_dict, strict=True)
-        if RunningParams.resnet == 34 or RunningParams.resnet == 18 or (
-                RunningParams.resnet == 50 and RunningParams.RN50_INAT is False):
-            resnet.fc = resnet.fc[0]
-
-        MODEL1 = resnet
-        MODEL1 = nn.DataParallel(MODEL1).cuda()
-        MODEL1.eval()
-        correct_cnt_model1 = 0
-
-        ###############################################################################
 
     print(args)
 
-    if RunningParams.TRANSFORMER_ARCH == True:
-        MODEL2 = Transformer_AdvisingNetwork()
-    else:
-        MODEL2 = CNN_AdvisingNetwork()
-    model = nn.DataParallel(MODEL2).cuda()
+    if PRODUCT_OF_EXPERTS is True:
+        import torchvision
+        if RunningParams.resnet == 50:
+            model = torchvision.models.resnet50(pretrained=True).cuda()
+        elif RunningParams.resnet == 34:
+            model = torchvision.models.resnet34(pretrained=True).cuda()
+        elif RunningParams.resnet == 18:
+            model = torchvision.models.resnet18(pretrained=True).cuda()
+
+        model.fc = nn.Linear(model.fc.in_features, 196)
+
+        my_model_state_dict = torch.load(
+            '{}/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.prj_dir,
+                                                                                RunningParams.resnet),
+            map_location='cuda')
+        model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
+        model.eval()
+
+        MODEL1 = model.cuda()
+
+    model = Transformer_AdvisingNetwork()
+    model = nn.DataParallel(model).cuda()
+
+    correct_cnt_model1 = 0
 
     checkpoint = torch.load(model_path)
     running_params = checkpoint['running_params']
@@ -111,20 +86,17 @@ if __name__ == '__main__':
     epoch = checkpoint['epoch']
     loss = checkpoint['val_loss']
     acc = checkpoint['val_acc']
-
     f1 = checkpoint['best_f1']
-    print(epoch)
 
     print('Validation accuracy: {:.4f}'.format(acc))
     print('F1 score: {:.4f}'.format(f1))
 
     print(f'PRODUCT_OF_EXPERTS: {PRODUCT_OF_EXPERTS}')
 
+
     model.eval()
 
-    # test_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/test'  ##################################
-    test_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
-
+    test_dir = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/test'  ##################################
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])
@@ -133,7 +105,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=17,
+            batch_size=16,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -148,18 +120,18 @@ if __name__ == '__main__':
         true_cnt = 0
         confidence_dict = dict()
 
-        infer_result_dict = dict()
-
         # Number of buckets
         M = 20
         bucket_limits = torch.linspace(0, 1, M + 1)
         bucket_data = {'accuracies': torch.zeros(M), 'confidences': torch.zeros(M), 'counts': torch.zeros(M)}
 
+        infer_result_dict = dict()
+
         for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
             x = data[0].cuda()
             labels = data[-1].cuda()
 
-            if len(data_loader.dataset.classes) < 200:
+            if len(data_loader.dataset.classes) < 120:
                 for sample_idx in range(x.shape[0]):
                     tgt = gt[sample_idx].item()
                     class_name = data_loader.dataset.classes[tgt]
@@ -181,8 +153,6 @@ if __name__ == '__main__':
                 correct_cnt_model1 += (top1_pred == gt).sum().item()
                 ########################################################
 
-            # score, index = torch.topk(model1_p, depth_of_pred, dim=1)
-
             output_tensors = []
             depth = data[1].shape[1]
             # Loop to get the logit for each class
@@ -190,6 +160,7 @@ if __name__ == '__main__':
                 explanation = data[1][:, class_idx, :, :, :, :]
                 explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
+                # print(explanation.shape)
                 output, _, _, _ = model(images=x, explanations=explanation, scores=None)
                 output = output.squeeze()
                 output_tensors.append(output)
@@ -237,8 +208,6 @@ if __name__ == '__main__':
                 bucket_data['accuracies'][i] += (in_bucket.float() * correct).sum()
                 bucket_data['confidences'][i] += (in_bucket.float() * max_probs).sum()
 
-                # breakpoint()
-
         # Calculate the average accuracy and confidence for each bucket
         for i in range(M):
             if bucket_data['counts'][i] > 0:
@@ -253,7 +222,7 @@ if __name__ == '__main__':
                 bucket_data['accuracies'][i] - bucket_data['confidences'][i])
 
         print(total_cnt)
-        print("Expected Calibration Error (ECE): {:.4f}".format(100*ece.item()))
+        print("Expected Calibration Error (ECE): {:.4f}".format(100 * ece.item()))
 
         import matplotlib.pyplot as plt
 
@@ -294,5 +263,4 @@ if __name__ == '__main__':
 
         plt.show()
         plt.savefig(f'{RunningParams.prj_dir}/Reliability_AdvNet_Diagram_test_top1_HP_MODEL1_HP_FE.png')
-
 

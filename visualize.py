@@ -86,45 +86,6 @@ class Visualization(object):
                                                   confidence2: int,
                                                   prototypes: list,
                                                   ):
-        # from PIL import Image
-        #
-        # # Load and resize the query image
-        # query_img = Image.open(query)
-        # query_img = query_img.resize((400, 400))
-        #
-        # # Create a new figure
-        # fig, ax = plt.subplots()
-        # ax.imshow(query_img)
-        # ax.set_title(f'Query: {gt_label}', fontsize=16, color='green',
-        #              weight='bold')
-        # ax.axis('off')
-        # plt.savefig("query.jpg", bbox_inches='tight', pad_inches=0.15)
-        #
-        # # Load and resize the query image
-        # prototype_img = Image.open(prototypes[0])
-        # prototype_img = prototype_img.resize((400, 400))
-        #
-        # # Create a new figure
-        # fig, ax = plt.subplots()
-        # ax.imshow(prototype_img)
-        # if gt_label == pred_label:
-        #     color = 'green'
-        # else:
-        #     color = 'red'
-        # ax.set_title(f'C\'s top-1: {pred_label}', fontsize=16, color=color,
-        #              weight='bold')
-        #
-        # color = 'red'
-        # # Add the confidence at the bottom of the image
-        # ax.text(0.5, -0.07, f'AdvNet\'s Confidence: {confidence2:.2f}%', size=12, ha="center",
-        #                 transform=ax.transAxes, weight='bold', color=color)
-        #
-        # ax.axis('off')
-        # plt.savefig("prototype.jpg", bbox_inches='tight', pad_inches=0.15)
-        #
-        # cmd = 'montage query.jpg prototype.jpg -tile 2x1 -geometry +2+2 {}'.format(save_path)
-        # os.system(cmd)
-
         from PIL import Image
 
         # Load and resize the query image
@@ -149,12 +110,12 @@ class Visualization(object):
             color = 'green'
         else:
             color = 'red'
-        axes[1].set_title(f"C's top-1: {pred_label}", fontsize=16, color=color, weight='bold')
+        axes[1].set_title(f"Top-1 predicted: {pred_label}", fontsize=16, color=color, weight='bold')
 
-        color = 'red'
+        # color = 'red'
         # Add the confidence at the bottom of the image
-        axes[1].text(0.5, -0.07, f"AdvNet's Confidence: {confidence2:.2f}%", size=24, ha="center",
-                     transform=axes[1].transAxes, weight='bold', color=color)
+        axes[1].text(0.5, -0.07, f"Similarity score of S: {confidence2:.2f}", size=24, ha="center",
+                     transform=axes[1].transAxes, weight='bold')
 
         axes[1].axis('off')
 

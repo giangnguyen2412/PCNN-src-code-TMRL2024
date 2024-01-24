@@ -1,3 +1,4 @@
+# Training script for CUB AdvNet
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -26,7 +27,7 @@ from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
 RunningParams = RunningParams()
 Dataset = Dataset()
@@ -34,17 +35,6 @@ Dataset = Dataset()
 if [RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING, RunningParams.CARS_TRAINING].count(True) > 1:
     print("There are more than one training datasets chosen, skipping training!!!")
     exit(-1)
-
-from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
-
-resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-my_model_state_dict = torch.load(
-    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
-resnet.load_state_dict(my_model_state_dict, strict=True)
-MODEL1 = resnet.cuda()
-MODEL1.eval()
-fc = list(MODEL1.children())[-1].cuda()
-fc = nn.DataParallel(fc)
 
 train_dataset = RunningParams.aug_data_dir
 
@@ -54,13 +44,7 @@ full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/c
 image_datasets = dict()
 image_datasets['train'] = ImageFolderForNNs(train_dataset, Dataset.data_transforms['train'])
 
-
 dataset_sizes = {x: len(image_datasets[x]) for x in ['train']}
-
-feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
-feature_extractor.cuda()
-feature_extractor = nn.DataParallel(feature_extractor)
-
 
 def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     since = time.time()
@@ -82,18 +66,22 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 frozen = False
                 trainable = True
 
-                if RunningParams.TRANSFORMER_ARCH:
-                    for param in model.module.transformer_feat_embedder.parameters():
-                        param.requires_grad_(trainable)
+                if RunningParams.VisionTransformer is True:
+                    for param in model.module.feature_extractor.parameters():
+                        param.requires_grad_(trainable) # frozen#TODO
+                else:
+                    if RunningParams.TRANSFORMER_ARCH:
+                        for param in model.module.transformer_feat_embedder.parameters():
+                            param.requires_grad_(trainable)
 
-                    for param in model.module.transformer.parameters():
-                        param.requires_grad_(trainable)
+                        for param in model.module.transformer.parameters():
+                            param.requires_grad_(trainable)
 
-                    for param in model.module.cross_transformer.parameters():
-                        param.requires_grad_(trainable)
+                        for param in model.module.cross_transformer.parameters():
+                            param.requires_grad_(trainable)
 
-                for param in model.module.conv_layers.parameters():
-                    param.requires_grad_(frozen)
+                    for param in model.module.conv_layers.parameters():
+                        param.requires_grad_(trainable)
 
                 for param in model.module.branch3.parameters():
                     param.requires_grad_(trainable)
@@ -136,23 +124,10 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                         id = full_cub_dataset.class_to_idx[class_name]
                         gt[sample_idx] = id
 
-                gts = gt.cuda()
-
-                embeddings = feature_extractor(x).flatten(start_dim=1)  # 512x1 for RN 18
-
-                out = fc(embeddings)
-                model1_p = torch.nn.functional.softmax(out, dim=1)
-                score, index = torch.topk(model1_p, 1, dim=1)
-                predicted_ids = index.squeeze()
-
-                # MODEL1 Y/N label for input x
-                model2_gt = (predicted_ids == gts) * 1  # 0 and 1
-
-                # Get the label (0/1) from the faiss npy file
                 labels = data[2].cuda()
 
                 if (sum(labels)/RunningParams.batch_size) > 0.7 or (sum(labels)/RunningParams.batch_size) < 0.3:
-                    print("Warning: The distribution of positive and negative in this batch is high skewed."
+                    print("Warning: The distribution of positive and negative in this batch is highly skewed."
                           "Beware of the loss function!")
 
                 #####################################################
@@ -165,7 +140,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
 
                 with torch.set_grad_enabled(phase == 'train'):
                     # data[-1] is the trivial augmented data
-                    output, query, nns, emb_cos_sim = model(images=data[-1], explanations=explanation, scores=score)
+                    # breakpoint()
+                    output, query, nns, emb_cos_sim = model(images=data[-1], explanations=explanation, scores=None)
 
                     p = torch.sigmoid(output)
 
@@ -213,8 +189,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
                 wandb.run.name, phase, epoch_loss, epoch_acc.item() * 100, precision, recall, f1))
 
             ################################################################
-
-            scheduler.step()
+            if scheduler is not None:
+                scheduler.step()
 
             wandb.log({'{}_accuracy'.format(phase): epoch_acc * 100, '{}_loss'.format(phase): epoch_loss})
 
@@ -253,24 +229,35 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
     model.load_state_dict(best_model_wts)
     return model, best_acc
 
-if RunningParams.TRANSFORMER_ARCH == True:
-    MODEL2 = Transformer_AdvisingNetwork()
+if RunningParams.VisionTransformer is True:
+    MODEL2 = ViT_AdvisingNetwork()
 else:
-    MODEL2 = CNN_AdvisingNetwork()
-
-MODEL2 = MODEL2.cuda()
-MODEL2 = nn.DataParallel(MODEL2)
+    if RunningParams.TRANSFORMER_ARCH == True:
+        MODEL2 = Transformer_AdvisingNetwork()
+    else:
+        MODEL2 = CNN_AdvisingNetwork()
 
 criterion = nn.BCEWithLogitsLoss().cuda()
 
 # Observe all parameters that are being optimized
-optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)
+if RunningParams.VisionTransformer is True:
+    optimizer_ft = optim.SGD([
+        {'params': MODEL2.feature_extractor.parameters(), 'lr': 3e-4},
+        {'params': MODEL2.branch3.parameters(), 'lr': 1e-2},
+        {'params': MODEL2.agg_branch.parameters(), 'lr': 1e-2}
+    ], momentum=0.9)
+    oneLR_scheduler = None
+else:
+    optimizer_ft = optim.SGD(MODEL2.parameters(), lr=RunningParams.learning_rate, momentum=0.9)
 
-max_lr = RunningParams.learning_rate * 10
-oneLR_scheduler = torch.optim.lr_scheduler.OneCycleLR(
-    optimizer_ft, max_lr=max_lr,
-    steps_per_epoch=dataset_sizes['train'] // RunningParams.batch_size,
-    epochs=RunningParams.epochs)
+    max_lr = RunningParams.learning_rate * 10
+    oneLR_scheduler = torch.optim.lr_scheduler.OneCycleLR(
+        optimizer_ft, max_lr=max_lr,
+        steps_per_epoch=dataset_sizes['train'] // RunningParams.batch_size,
+        epochs=RunningParams.epochs)
+
+MODEL2 = MODEL2.cuda()
+MODEL2 = nn.DataParallel(MODEL2)
 
 config = {"train": train_dataset,
           "train_size": dataset_sizes['train'],
@@ -301,16 +288,24 @@ else:
     )
 
 wandb.save(os.path.basename(__file__), policy='now')
-wandb.save('params.py', policy='now')
-wandb.save('datasets.py', policy='now')
+wandb.save('../params.py', policy='now')
+wandb.save('../datasets.py', policy='now')
 wandb.save('cub_model_training.py', policy='now')
-wandb.save('transformer.py', policy='now')
+wandb.save('../transformer.py', policy='now')
 
-_, best_acc = train_model(
-    MODEL2,
-    criterion,
-    optimizer_ft,
-    oneLR_scheduler,
-    config["num_epochs"])
+if RunningParams.VisionTransformer is True:
+    _, best_acc = train_model(
+        MODEL2,
+        criterion,
+        optimizer_ft,
+        None,
+        config["num_epochs"])
+else:
+    _, best_acc = train_model(
+        MODEL2,
+        criterion,
+        optimizer_ft,
+        oneLR_scheduler,
+        config["num_epochs"])
 
 wandb.finish()

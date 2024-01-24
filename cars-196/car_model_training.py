@@ -1,3 +1,5 @@
+# Training script for CUB AdvNet
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -290,11 +292,10 @@ wandb.init(
 )
 
 wandb.save(os.path.basename(__file__), policy='now')
-wandb.save('params.py', policy='now')
-wandb.save('datasets.py', policy='now')
+wandb.save('../params.py', policy='now')
+wandb.save('../datasets.py', policy='now')
 wandb.save('car_model_training.py', policy='now')
-wandb.save('transformer.py', policy='now')
-
+wandb.save('../transformer.py', policy='now')
 
 _, best_acc = train_model(
     MODEL2,

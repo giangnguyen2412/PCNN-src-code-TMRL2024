@@ -1,3 +1,4 @@
+# Visualize AdvNet corrections after re-ranking
 import torch
 import torch.nn as nn
 import os
@@ -15,7 +16,7 @@ RunningParams = RunningParams()
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
 
 full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
                                      Dataset.data_transforms['train'])
@@ -28,7 +29,8 @@ if __name__ == '__main__':
                         help='Model check point')
 
     args = parser.parse_args()
-    model_path = os.path.join('best_models', args.ckpt)
+    model_path = os.path.join(RunningParams.prj_dir, 'best_models', args.ckpt)
+
     print(args)
 
     model = Transformer_AdvisingNetwork()
@@ -55,7 +57,8 @@ if __name__ == '__main__':
     test_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
 
     import numpy as np
-    file_name = 'faiss/advising_process_test_top1_HP_MODEL1_HP_FE.npy'
+    file_name = f'{RunningParams.prj_dir}/faiss/advising_process_test_top1_HP_MODEL1_HP_FE.npy'
+
     faiss_nn_dict = np.load(file_name, allow_pickle=True, ).item()
 
     image_datasets = dict()
@@ -118,24 +121,31 @@ if __name__ == '__main__':
             p = torch.softmax(logits, dim=1)
             p_sigmoid = torch.sigmoid(logits)
 
-            # Compute top-1 predictions and accuracy
-            score, index = torch.topk(p, 1, dim=1)
-            index = labels[torch.arange(len(index)), index.flatten()]
-            # breakpoint()
+            # # Compute top-1 predictions and accuracy
+            # score, index = torch.topk(p, 1, dim=1)
+            # index = labels[torch.arange(len(index)), index.flatten()]
 
             # Get the sorted indices along each row
-            _, indices = torch.sort(logits, dim=1, descending=True)
-
-            # Now use these indices to rearrange each row of labels
-            refined_labels = labels.gather(1, indices)
+            # _, indices = torch.sort(logits, dim=1, descending=True)
+            #
+            # # Now use these indices to rearrange each row of labels
+            # refined_labels = labels.gather(1, indices)
 
             for sample_idx in range(x.shape[0]):
                 path = pths[sample_idx]
                 base_name = os.path.basename(path)
                 original_preds = labels[sample_idx]
                 sim_scores = p_sigmoid[sample_idx]
-                refined_preds = refined_labels[sample_idx]
+
+                breakpoint()
+
                 nn_dict = faiss_nn_dict[base_name]
+                model1_scores = torch.tensor([nn_dict[i]['C_confidence'].item() for i in range(len(nn_dict))])
+                poe_score = model1_scores*sim_scores.cpu()
+                scores, indices = torch.sort(poe_score, dim=0, descending=True)
+                original_labels = labels[sample_idx]
+                refined_preds = original_labels[indices]
+
                 nns = list()
                 for k, v in nn_dict.items():
                     nns.append(v['NNs'][0])
@@ -149,7 +159,6 @@ if __name__ == '__main__':
                     import subprocess
                     import os
 
-
                     # Function to resize and crop the image
                     def resize_and_crop(image):
                         image = image.resize((256, 256))
@@ -160,7 +169,6 @@ if __name__ == '__main__':
                         bottom = (height + 224) / 2
                         image = image.crop((left, top, right, bottom))
                         return image
-
 
                     # Convert the tensors to lists
                     original_preds = original_preds.tolist()
@@ -201,7 +209,7 @@ if __name__ == '__main__':
                         #                 transform=axs[i + 1].transAxes)
 
                         conf = nn_dict[i]['C_confidence']
-                        axs[i + 1].text(0.5, -0.07, f'C\'s Confidence: {conf.item():.2f}', size=18, ha="center",
+                        axs[i + 1].text(0.5, -0.07, f'Classifier C: {int(conf.item()*100)}%', size=18, ha="center",
                                         transform=axs[i + 1].transAxes)
 
                         axs[i + 1].set_xticks([])
@@ -214,7 +222,7 @@ if __name__ == '__main__':
                     # Repeat the same steps for the refined predictions
                     fig, axs = plt.subplots(1, 6, figsize=(30, 5))
                     fig.subplots_adjust(wspace=0.15, hspace=0.3)
-                    fig.suptitle('Refined class ranking by AdvisingNet', color='green', size=20)  # Add this line
+                    fig.suptitle('Refined class ranking by S', color='green', size=20)  # Add this line
 
                     # # Load and plot the original image again
                     # original_img = Image.open(path)
@@ -255,7 +263,7 @@ if __name__ == '__main__':
 
                         sim_scores = sorted(sim_scores, reverse=True)
 
-                        axs[i + 1].text(0.5, -0.07, f'AdvNet\'s Confidence: {sim_scores[i]:.2f}', size=18, ha="center",
+                        axs[i + 1].text(0.5, -0.07, f'Image comparator S: {sim_scores[i]:.2f}', size=18, ha="center",
                                         transform=axs[i + 1].transAxes)
 
                         axs[i + 1].set_xticks([])
@@ -275,11 +283,11 @@ if __name__ == '__main__':
                     #     'convert before.png after.png -append corrections/stacked.png', shell=True)
 
                     subprocess.call(
-                        'montage before.jpeg after.jpeg -tile 1x2 -geometry +20+20 corrections/cub/{}_{}_{}.jpeg'.
-                        format(data_loader.dataset.classes[gt[sample_idx].item()], batch_idx, sample_idx), shell=True)
+                        'montage before.jpeg after.jpeg -tile 1x2 -geometry +20+20 {}/corrections/cub/{}_{}_{}.jpeg'.
+                        format(RunningParams.prj_dir, data_loader.dataset.classes[gt[sample_idx].item()], batch_idx, sample_idx), shell=True)
 
-                    jpeg_path = 'corrections/cub/{}_{}_{}.jpeg'.format(
-                        data_loader.dataset.classes[gt[sample_idx].item()], batch_idx, sample_idx)
+                    jpeg_path = '{}/corrections/cub/{}_{}_{}.jpeg'.format(
+                        RunningParams.prj_dir, data_loader.dataset.classes[gt[sample_idx].item()], batch_idx, sample_idx)
                     pdf_path = jpeg_path.replace('.jpeg', '.pdf')
 
                     subprocess.call('convert {} {}'.format(jpeg_path, pdf_path), shell=True)

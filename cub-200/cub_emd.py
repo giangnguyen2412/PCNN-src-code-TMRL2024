@@ -1,3 +1,4 @@
+# Using EMD distance to do reranking instead of using AdvNet
 import numpy as np
 import torch
 import torch.nn as nn

@@ -16,10 +16,11 @@ import torchvision.transforms as T
 # Define the TrivialAugmentWide transform
 trivial_augmenter = T.TrivialAugmentWide()
 
-# Define the RandomApply transform to apply the TrivialAugmentWide transform with a probability of 0.5
-trivial_augmenter = T.RandomApply(torch.nn.ModuleList([trivial_augmenter]), p=0.5)
-
 RunningParams = RunningParams()
+
+
+# Define the RandomApply transform to apply the TrivialAugmentWide transform with a probability of 0.5
+trivial_augmenter = T.RandomApply(torch.nn.ModuleList([trivial_augmenter]), p=RunningParams.trivial_aument_p)
 
 class ImageFolderForAdvisingProcess(ImageFolder):
     """Custom dataset that includes image file paths. Extends
@@ -38,7 +39,10 @@ class ImageFolderForAdvisingProcess(ImageFolder):
                 file_name = f'{RunningParams.prj_dir}/faiss/advising_process_val_top1_HP_MODEL1_HP_FE.npy'
 
         elif RunningParams.CARS_TRAINING is True:
-            file_name = f'{RunningParams.prj_dir}/faiss/advising_process_test_Cars.npy'
+            file_name = f'{RunningParams.prj_dir}/faiss/advising_process_top1_Cars.npy'
+
+        elif RunningParams.DOGS_TRAINING is True:
+            file_name = f'{RunningParams.prj_dir}/faiss/advising_process_top1_SDogs.npy'
 
         print(file_name)
         self.faiss_nn_dict = np.load(file_name, allow_pickle=True, ).item()
@@ -154,7 +158,6 @@ class ImageFolderForNNs(ImageFolder):
             if 'train' in os.path.basename(root):
                 file_name = RunningParams.faiss_npy_file
             elif 'test' in os.path.basename(root):
-                # file_name = 'faiss/cub/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1_HP_MODEL1_HP_FE.npy'
                 file_name = RunningParams.faiss_npy_file
             else:
                 file_name = RunningParams.faiss_npy_file
@@ -163,7 +166,15 @@ class ImageFolderForNNs(ImageFolder):
             if 'train' in os.path.basename(root):
                 file_name = RunningParams.faiss_npy_file
             elif 'test' in os.path.basename(root):
-                file_name = 'faiss/cars/top1_k1_enriched_NeurIPS_Finetuning_faiss_test_top1.npy'
+                file_name = RunningParams.faiss_npy_file
+            else:
+                file_name = RunningParams.faiss_npy_file
+
+        elif RunningParams.DOGS_TRAINING is True:
+            if 'train' in os.path.basename(root):
+                file_name = RunningParams.faiss_npy_file
+            elif 'test' in os.path.basename(root):
+                file_name = RunningParams.faiss_npy_file
             else:
                 file_name = RunningParams.faiss_npy_file
 
@@ -207,6 +218,8 @@ class ImageFolderForNNs(ImageFolder):
             if nn_base_name in base_name:
                 dup = True
                 continue
+
+            # if RunningParams.VisionTransformer is False:
             if 'train' in os.path.basename(self.root):
                 sample = trivial_augmenter(sample)
 
@@ -223,6 +236,9 @@ class ImageFolderForNNs(ImageFolder):
         sample = self.loader(query_path)
         query = self.transform(sample)
 
+        # if RunningParams.VisionTransformer is False:
+        #     aug_query = query
+        # else:
         aug_query = trivial_augmenter(sample)
         aug_query = self.transform(aug_query)
 
@@ -247,6 +263,7 @@ class Dataset(object):
                 transforms.ToTensor(),
                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
             ]),
+
             'val': transforms.Compose([
                 transforms.Resize(256),
                 transforms.CenterCrop(224),

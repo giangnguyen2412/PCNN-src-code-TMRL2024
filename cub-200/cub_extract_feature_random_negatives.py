@@ -1,4 +1,5 @@
-# V2: POSITIVES FROM GT CLASS AND NEGATIVES FROM RANDOM CLASSES
+# Extract NNs for training AdvNets
+# Details: POSITIVES FROM GT CLASS AND NEGATIVES FROM RANDOM CLASSES
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -32,7 +33,6 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
 
 Dataset = Dataset()
 RunningParams = RunningParams()
-
 
 HIGHPERFORMANCE_FEATURE_EXTRACTOR = RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR
 if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:

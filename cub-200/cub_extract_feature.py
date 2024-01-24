@@ -1,3 +1,4 @@
+# Extract NNs for training AdvNets
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
@@ -21,33 +22,93 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
 
 
 Dataset = Dataset()
 RunningParams = RunningParams()
 
+if RunningParams.VisionTransformer is True:
+    import timm
+    from torchvision import datasets, transforms
 
-from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
-resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-my_model_state_dict = torch.load(
-    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+    class CustomViT(nn.Module):
+        def __init__(self, base_model):
+            super(CustomViT, self).__init__()
+            self.base_model = base_model
 
-resnet.load_state_dict(my_model_state_dict, strict=True)
-# Freeze backbone (for training only)
-for param in list(resnet.parameters())[:-2]:
-    param.requires_grad = False
-# to CUDA
-inat_resnet = resnet.cuda()
-MODEL1 = inat_resnet
+        def forward(self, x):
+            # Get the features from the base ViT model
+            x = self.base_model.forward_features(x)
+            # Extract the CLS token (first token)
+            cls_token = x[:, 0]
+            # Pass the features through the classifier
+            output = self.base_model.head(cls_token)
+            return output, cls_token
+
+    # Initialize the base model and load the trained weights
+    base_model = timm.create_model('vit_base_patch16_224', pretrained=False, num_classes=200)
+    model_path = "./vit_base_patch16_224_cub_200way.pth"
+    state_dict = torch.load(model_path, map_location=torch.device("cuda"))
+    new_state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+    base_model.load_state_dict(new_state_dict)
+
+    # Wrap the base model in the custom model
+    model = CustomViT(base_model)
+    MODEL1 = model.cuda()
+else:
+
+    from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
+
+    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+    my_model_state_dict = torch.load(
+        f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+
+    # TODO: Define INAT and IMAGENET features to be used in two cases of using RN50
+
+    if RunningParams.resnet == 50 and RunningParams.RN50_INAT is False:
+        resnet = models.resnet50(pretrained=True)
+        resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
+        my_model_state_dict = torch.load(
+            f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
+    elif RunningParams.resnet == 34:
+        resnet = models.resnet34(pretrained=True)
+        resnet.fc = nn.Sequential(nn.Linear(512, 200)).cuda()
+        my_model_state_dict = torch.load(
+            f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
+    elif RunningParams.resnet == 18:
+        resnet = models.resnet18(pretrained=True)
+        resnet.fc = nn.Sequential(nn.Linear(512, 200)).cuda()
+        my_model_state_dict = torch.load(
+            f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
+
+    resnet.load_state_dict(my_model_state_dict, strict=True)
+    if RunningParams.resnet == 34 or RunningParams.resnet == 18 or (
+            RunningParams.resnet == 50 and RunningParams.RN50_INAT is False):
+        resnet.fc = resnet.fc[0]
+
+    MODEL1 = resnet.cuda()
+
 MODEL1.eval()
 
-feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
+if RunningParams.VisionTransformer is True:
+    feature_extractor = MODEL1
+else:
+    # Conv layers and the avg pooling layer
+    feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
+
 feature_extractor.cuda()
 feature_extractor = nn.DataParallel(feature_extractor)
 
-in_features = RunningParams.in_features
+if RunningParams.VisionTransformer is True:
+    in_features = 768
+else:
+    if RunningParams.resnet == 34 or RunningParams.resnet == 18:
+        in_features = resnet.fc.in_features
+    elif RunningParams.resnet == 50:
+        in_features = 2048
+
 print("Building FAISS index...! Training set is the knowledge base.")
 
 # faiss dataset contains images using as the knowledge based for KNN retrieval
@@ -63,7 +124,12 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cub/NeurIPS22_faiss_CUB200_class_idx_dict_HP_extractor.npy'
+if RunningParams.VisionTransformer is True:
+    INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cub/ViT_faiss_CUB200_class_idx_dict_HP_extractor.npy'
+else:
+    INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cub/INAT{RunningParams.RN50_INAT}_RN{RunningParams.resnet}_faiss_CUB200_class_idx_dict_HP_extractor.npy'
+
+print(INDEX_FILE)
 
 if os.path.exists(INDEX_FILE):
     print("FAISS class index exists!")
@@ -89,8 +155,12 @@ else:
         stack_embeddings = []
         for batch_idx, (data, label) in enumerate(class_id_loader):
             input_data = data.detach()
-            embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
-            embeddings = torch.flatten(embeddings, start_dim=1)
+
+            if RunningParams.VisionTransformer is True:
+                _, embeddings = feature_extractor(data.cuda()) # 768 for ViT-B-16
+            else:
+                embeddings = feature_extractor(data.cuda())
+                embeddings = torch.flatten(embeddings, start_dim=1)
 
             stack_embeddings.append(embeddings.cpu().detach().numpy())
         stack_embeddings = np.concatenate(stack_embeddings, axis=0)
@@ -108,14 +178,14 @@ else:
     np.save(INDEX_FILE, faiss_nns_class_dict)
 
 
-from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
-
-resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-my_model_state_dict = torch.load(
-    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
-resnet.load_state_dict(my_model_state_dict, strict=True)
-MODEL1 = resnet.cuda()
-MODEL1.eval()
+# from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
+#
+# resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+# my_model_state_dict = torch.load(
+#     f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+# resnet.load_state_dict(my_model_state_dict, strict=True)
+# MODEL1 = resnet.cuda()
+# MODEL1.eval()
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
 image_datasets = dict()
@@ -136,8 +206,6 @@ if RunningParams.set == 'test':
 correct_cnt = 0
 total_cnt = 0
 
-MODEL1.eval()
-
 faiss_nn_dict = dict()
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
     if len(train_loader.dataset.classes) < 200:
@@ -147,13 +215,29 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             id = faiss_dataset.class_to_idx[class_name]
             label[sample_idx] = id
 
-    embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
-    embeddings = torch.flatten(embeddings, start_dim=1)
+    if RunningParams.VisionTransformer is True:
+        out, embeddings = feature_extractor(data.cuda())  # 768 for ViT-B-16
+    else:
+        embeddings = feature_extractor(data.cuda())
+        embeddings = torch.flatten(embeddings, start_dim=1)
+
     embeddings = embeddings.cpu().detach().numpy()
 
-    out = MODEL1(data.cuda())
+    if RunningParams.VisionTransformer is True:
+        pass
+    else:
+        out = MODEL1(data.cuda())
+
     model1_p = torch.nn.functional.softmax(out, dim=1)
     score, index = torch.topk(model1_p, depth_of_pred, dim=1)
+
+    # Top-1 prediction is the first element in each row of 'index'
+    top1_pred = index[:, 0]
+
+    # Increment correct count if prediction matches label
+    correct_cnt += (top1_pred == label.cuda()).sum().item()
+    total_cnt += label.size(0)
+
     for sample_idx in range(data.shape[0]):
         base_name = os.path.basename(paths[sample_idx])
         gt_id = label[sample_idx]
@@ -232,13 +316,21 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
                     faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
                     faiss_nn_dict[key]['input_gt'] = loader.dataset.dataset.classes[gt_id.item()]
 
+# Calculate top-1 accuracy
+top1_accuracy = correct_cnt / total_cnt * 100
+print(f"Top-1 {RunningParams.set} accuracy of the Classifier: {top1_accuracy:.2f}%")
 
 file_name = RunningParams.faiss_npy_file
 np.save(file_name, faiss_nn_dict)
 print(len(faiss_nn_dict))
 print(file_name)
 
+empty_cnt = 0
 for k, v in faiss_nn_dict.items():
+    # breakpoint()
+    if len(v['NNs']) == 0:
+        empty_cnt += 1
+        continue
     NN_class = os.path.basename(os.path.dirname(v['NNs'][0]))
     if v['label'] == 1:
         if NN_class.lower() in v['input_gt'].lower():
@@ -254,6 +346,7 @@ for k, v in faiss_nn_dict.items():
             exit(-1)
 
 print('Passed sanity checks for extracting NNs!')
+print(f'faiss NULL retrieval count: {empty_cnt}')
 
 ################################################################
 
@@ -266,6 +359,7 @@ for k, v in faiss_nn_dict.items():
         else:
             new_dict[k] = v
 np.save(file_name, new_dict)
+print(file_name)
 print('DONE: Cleaning duplicates entries: query and NN being similar!')
 
 ################################################################

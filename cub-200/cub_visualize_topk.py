@@ -28,6 +28,7 @@ import numpy as np
 import subprocess
 import os
 
+TOP1_NN = False
 PRODUCT_OF_EXPERTS = True
 
 # Function to resize and crop the image
@@ -45,7 +46,7 @@ import matplotlib.backends.backend_pdf
 
 correct_figures = []
 incorrect_figures = []
-sample_num = 5
+sample_num = 300
 # Dictionary to track the correctness of each figure
 correctness_dict = {}
 metadata = {}
@@ -94,9 +95,9 @@ if __name__ == '__main__':
 
     import random
 
-    random.seed(43)
-    np.random.seed(43)
-    torch.manual_seed(43)
+    random.seed(100)
+    np.random.seed(100)
+    torch.manual_seed(100)
 
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
@@ -184,6 +185,11 @@ if __name__ == '__main__':
                     for k, v in nn_dict.items():
                         nns.append(v['NNs'][0])
 
+                    if TOP1_NN is True:
+                        id = final_preds[0].item()
+                        top1_data = nn_dict[id]
+                        top1_nns = top1_data['NNs']
+
                     # Convert the tensors to lists
                     # original_preds = original_preds.tolist()
                     # refined_preds = refined_preds.tolist()
@@ -199,7 +205,7 @@ if __name__ == '__main__':
 
                     # Prepare figure and axes, increase the figsize to make sub-images larger
                     fig, axs = plt.subplots(1, 6, figsize=(30, 5), gridspec_kw={'width_ratios': [1.5, 1, 1, 1, 1, 1]})
-                    fig.subplots_adjust(wspace=0.1, hspace=0.3)
+                    fig.subplots_adjust(wspace=0.03, hspace=0.3)
                     # fig.suptitle(f'Visual explanation by showing top{data[1].shape[1]}-predicted-class training nearest neighbors', color='blue', size=20)  # Add this line
 
                     # Load and plot the original image
@@ -214,7 +220,10 @@ if __name__ == '__main__':
 
                     # For each original prediction, load the corresponding image, plot it, and show the similarity score
                     for i, pred in enumerate(final_preds):
-                        pred_img = Image.open(nns[original_preds.index(pred)])
+                        if TOP1_NN is True:
+                            pred_img = Image.open(top1_nns[i])
+                        else:
+                            pred_img = Image.open(nns[original_preds.index(pred)])
                         pred_img = resize_and_crop(pred_img)
                         axs[i + 1].imshow(np.array(pred_img))
 
@@ -225,7 +234,12 @@ if __name__ == '__main__':
                             score_for_question = score[i].item()
 
                         # Set the title for the plot (at the top by default)
-                        axs[i + 1].set_title(f'Top{i + 1}: {class_name}', color=color, fontsize=14)
+
+                        if TOP1_NN is True:
+                            axs[i + 1].set_title(f'{class_name_for_question}', color=color, fontsize=14)
+                        else:
+                            # axs[i + 1].set_title(f'Top{i + 1}: {class_name}', color=color, fontsize=14)
+                            axs[i + 1].set_title(f'{class_name}', color=color, fontsize=14)
 
                         # if PRODUCT_OF_EXPERTS is True:
                         #     conf = score[i].item()
@@ -252,7 +266,7 @@ if __name__ == '__main__':
                     # Save the figure before clear
                     class_name = data_loader.dataset.classes[gt[sample_idx].item()]
                     save_path = f'{RunningParams.prj_dir}/corrections/cub/{class_name}_{batch_idx}_{sample_idx}.jpeg'
-                    plt.savefig(save_path)
+                    plt.savefig(save_path, bbox_inches='tight', pad_inches=0)
                     plt.close()
 
                     correctness_dict[f'{batch_idx}-{sample_idx}'] = is_correct
@@ -288,7 +302,7 @@ if __name__ == '__main__':
         # save_figures_to_pdf(correct_figures[:sample_num], f'{RunningParams.prj_dir}/correct_predictions.pdf')
         # save_figures_to_pdf(incorrect_figures[:sample_num], f'{RunningParams.prj_dir}/incorrect_predictions.pdf')
 
-        random.seed(42)
+        random.seed(100)
         figures = correct_figures[:sample_num] + incorrect_figures[:sample_num]
         random.shuffle(figures)
         # save_figures_to_pdf(figures, f'{RunningParams.prj_dir}/predictions.pdf')

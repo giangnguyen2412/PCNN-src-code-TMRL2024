@@ -1,3 +1,4 @@
+# Compute the topk accuracy of a pretrained CUB classifier
 import os.path
 import random
 random.seed(43)
@@ -8,6 +9,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
+from params import RunningParams
 import torchvision.transforms as transforms
 
 from datasets import ImageFolderWithPaths
@@ -15,31 +17,7 @@ from datasets import ImageFolderWithPaths
 import torchvision
 import shutil
 
-def check_and_mkdir(f):
-    if not os.path.exists(f):
-        os.mkdir(f)
-    else:
-        pass
-
-
-def check_and_rm(f):
-    if os.path.exists(f):
-        shutil.rmtree(f)
-    else:
-        pass
-
-
-# Pre-process the image and convert into a tensor
-transform = torchvision.transforms.Compose(
-    [
-        torchvision.transforms.Resize(256),
-        torchvision.transforms.CenterCrop(224),
-        torchvision.transforms.ToTensor(),
-        torchvision.transforms.Normalize(
-            mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]
-        ),
-    ]
-)
+RunningParams = RunningParams()
 
 
 concat = lambda x: np.concatenate(x, axis=0)
@@ -63,34 +41,14 @@ from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
 inat_resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+    '/home/giang/Downloads/advising_network/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
 inat_resnet.load_state_dict(my_model_state_dict, strict=True)
 # to CUDA
 inat_resnet.cuda()
 inat_resnet.eval()
 
-dataset_path = f"{RunningParams.parent_dir}/RN50_dataset_CUB_LOW"
 
-# check_and_rm(dataset_path)
-check_and_mkdir(dataset_path)
-correct, wrong = 0, 0
-
-train_path = "{}/train".format(dataset_path)
-test_path = "{}/val".format(dataset_path)
-correct_train_path = "{}/train/Correct".format(dataset_path)
-wrong_train_path = "{}/train/Wrong".format(dataset_path)
-correct_test_path = "{}/val/Correct".format(dataset_path)
-wrong_test_path = "{}/val/Wrong".format(dataset_path)
-
-check_and_mkdir(train_path)
-check_and_mkdir(test_path)
-check_and_mkdir(correct_train_path)
-check_and_mkdir(wrong_train_path)
-check_and_mkdir(correct_test_path)
-check_and_mkdir(wrong_test_path)
-
-
-def test_cub(model):
+def compute_topk_acc(model):
     model.eval()
 
     # Initialize variables to store top-k accuracies
@@ -123,4 +81,4 @@ def test_cub(model):
         topk_acc = 100.0 * topk_corrects[k] / total_samples
         print(f'Top-{k} Acc: {topk_acc:.4f}')
 
-test_cub(inat_resnet)
+compute_topk_acc(inat_resnet)

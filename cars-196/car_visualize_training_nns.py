@@ -1,3 +1,5 @@
+# Visualize training NNs for AdvNet Cars-196
+
 import torch
 import torch.nn as nn
 import torch.optim as optim

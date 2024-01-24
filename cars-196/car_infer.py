@@ -23,7 +23,7 @@ HelperFunctions = HelperFunctions()
 Visualization = Visualization()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 CATEGORY_ANALYSIS = False
 
@@ -33,8 +33,8 @@ full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/Cars/Stanford-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
-                        default='best_model_' + RunningParams.wandb_sess_name + '.pt',
-                        # default='best_model_robust-sunset-3158.pt',  # RN50 run 1
+                        # default='best_model_' + RunningParams.wandb_sess_name + '.pt',
+                        default='best_model_robust-sunset-3158.pt',  # RN50 run 1
                         # default='best_model_wandering-capybara-3189.pt',  # RN50 run 2
                         # default='best_model_different-lion-3192.pt',  # RN50 run 3
                         # default='best_model_spring-field-3157.pt',  # RN34
@@ -43,7 +43,7 @@ if __name__ == '__main__':
                         help='Model check point')
 
     args = parser.parse_args()
-    model_path = os.path.join('best_models', args.ckpt)
+    model_path = os.path.join(RunningParams.prj_dir, 'best_models', args.ckpt)
     print(args)
 
     MODEL2 = Transformer_AdvisingNetwork()
@@ -330,15 +330,19 @@ if __name__ == '__main__':
                     gt_label = full_cub_dataset.classes[gts[sample_idx].item()]
                     pred_label = full_cub_dataset.classes[predicted_ids[sample_idx].item()]
 
-                    model1_confidence = int(model1_score[sample_idx].item() * 100)
-                    model2_confidence = int(model2_score[sample_idx].item() * 100)
+                    # model1_confidence = int(model1_score[sample_idx].item() * 100)
+                    # model2_confidence = int(model2_score[sample_idx].item() * 100)
+
+                    model1_confidence = model1_score[sample_idx].item()
+                    model2_confidence = model2_score[sample_idx].item()
+
                     model1_confidence_dist[model2_decision].append(model1_confidence)
                     model2_confidence_dist[model2_decision].append(model2_confidence)
 
                     # Finding the extreme cases
                     # if (action == 'Accept' and confidence < 50) or (action == 'Reject' and confidence > 80):
                     if correctness == 'Incorrectly':
-                        prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
+                        prototypes = data_loader.dataset.faiss_nn_dict[base_name]['NNs'][0:RunningParams.k_value]
                         Visualization.visualize_model2_decision_with_prototypes(query,
                                                                                 gt_label,
                                                                                 pred_label,
@@ -359,7 +363,7 @@ if __name__ == '__main__':
 
             yes_cnt += sum(preds)
             true_cnt += sum(labels)
-            np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
+            # np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
 
         cmd = f'img2pdf -o {RunningParams.prj_dir}/vis/IncorrectlyAccept/output.pdf ' \
               f'--pagesize A4^T {RunningParams.prj_dir}/vis/IncorrectlyAccept/*.jpg'

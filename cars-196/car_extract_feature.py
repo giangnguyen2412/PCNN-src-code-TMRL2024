@@ -1,3 +1,4 @@
+# Extract NNs for training AdvNets
 import torch
 import torch.nn as nn
 import torch.backends.cudnn as cudnn
@@ -20,12 +21,11 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
 
 Dataset = Dataset()
 RunningParams = RunningParams()
-
 
 if RunningParams.resnet == 50:
     model = torchvision.models.resnet50(pretrained=True).cuda()
@@ -71,7 +71,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-INDEX_FILE = 'faiss/cars/NeurIPS22_faiss_Car196_class_idx_dict_rn{}.npy'.format(RunningParams.resnet)
+INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cars/NeurIPS22_faiss_Car196_class_idx_dict_rn{RunningParams.resnet}.npy'
 print(INDEX_FILE)
 
 if os.path.exists(INDEX_FILE):
@@ -130,6 +130,7 @@ train_loader = torch.utils.data.DataLoader(
 
 depth_of_pred = RunningParams.QK
 
+set = RunningParams.set
 if set == 'test':
     depth_of_pred = 1
 
@@ -168,12 +169,23 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             nn_list = list()
 
             if depth_of_pred == 1:  # For val and test sets
-                _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), RunningParams.k_value)
+                _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]),
+                                                RunningParams.negative_order)
+
+                indices = indices[:, RunningParams.negative_order - 1:]
 
                 for id in range(indices.shape[1]):
                     id = loader.dataset.indices[indices[0, id]]
                     nn_list.append(loader.dataset.dataset.imgs[id][0])
-                faiss_nn_dict[base_name] = nn_list
+
+                key = base_name
+                # faiss_nn_dict[base_name] = nn_list
+
+                faiss_nn_dict[key] = dict()
+                faiss_nn_dict[key]['NNs'] = nn_list
+                faiss_nn_dict[key]['label'] = int(predicted_idx == gt_id)
+                faiss_nn_dict[key]['conf'] = score[sample_idx][i].item()
+                faiss_nn_dict[key]['input_gt'] = loader.dataset.dataset.classes[gt_id.item()]
             else:
 
                 if i == 0:  # top-1 predictions --> Enrich top-1 prediction samples --> Value Q

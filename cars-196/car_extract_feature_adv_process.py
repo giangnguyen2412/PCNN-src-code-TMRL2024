@@ -1,3 +1,6 @@
+# Extract NNs for advising process. Go into each top-predicted class,
+# and extract the NNs for the input image in that class and put into a dictionary.
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -25,13 +28,15 @@ torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-depth_of_pred = 5
+depth_of_pred = 10
 set = 'test'
+
+print(depth_of_pred, set)
 
 MODEL1_RESNET = True
 import torchvision
@@ -98,9 +103,9 @@ faiss_data_loader = torch.utils.data.DataLoader(
 )
 
 if MODEL1_RESNET is True:
-    INDEX_FILE = 'faiss/cars/INDEX_file_adv_process_for_Cars_rn{}.npy'.format(RunningParams.resnet)
+    INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cars/INDEX_file_adv_process_for_Cars_rn{RunningParams.resnet}.npy'
 else:
-    INDEX_FILE = 'faiss/cars/INDEX_file_adv_process_for_Cars_mobilenet_v2.npy'
+    INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cars/INDEX_file_adv_process_for_Cars_mobilenet_v2.npy'
 
 print(INDEX_FILE)
 
@@ -218,7 +223,8 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             faiss_nn_dict[base_name][key]['C_confidence'] = score[sample_idx][key].item()
             # breakpoint()
 
-save_file = 'faiss/advising_process_{}_Cars.npy'.format(set)
+save_file = f'{RunningParams.prj_dir}/faiss/advising_process_top1_Cars.npy'
 print(save_file)
+print(set)
 print(depth_of_pred)
 np.save(save_file, faiss_nn_dict)

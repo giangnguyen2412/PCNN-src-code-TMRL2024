@@ -1,3 +1,4 @@
+# Training CUB classifiers using NNs by concatenating the NNs with the input image
 import os
 import sys
 sys.path.append('/home/giang/Downloads/advising_network')
@@ -5,11 +6,13 @@ from params import RunningParams
 RunningParams = RunningParams()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 TRAINING_FROM_SCRATCH = True
 USE_INPUT_AS_EXPLANATION = False
+BLACK_EXPLANATION = False
 
 RN18 = False
+RN34 = False
 RN50 = True
 
 PRETRAINED = True
@@ -19,6 +22,13 @@ if RN18 is True:
         network = 'ImageNet RN18 pretrained'
     else:
         network = 'RN18 untrained'
+
+elif RN34 is True:
+    if PRETRAINED is True:
+        network = 'ImageNet RN34 pretrained'
+    else:
+        network = 'RN34 untrained'
+
 elif RN50 is True:
     INAT = True
     IMAGENET = False
@@ -30,32 +40,6 @@ elif RN50 is True:
     else:
         network = 'RN50 untrained'
 
-BLACK_EXPLANATION = False
-USING_CLASS_EMBEDDING = RunningParams.USING_CLASS_EMBEDDING
-if USING_CLASS_EMBEDDING is True:
-    action = 'Using'
-    FIXED = RunningParams.FIXED
-    LEARNABLE = RunningParams.LEARNABLE
-
-    if FIXED is True:
-        optim = 'fixed'
-    elif LEARNABLE is True:
-        optim = 'learnable'
-else:
-    action = 'NOT Using'
-
-
-if USING_CLASS_EMBEDDING is True:
-    commit = "Run k={} for {}. {} {} class embedding and point-wise adding. I used OneLR scheduler".format(
-        RunningParams.k_value, network, action, optim)
-else:
-    commit = "Run k={} for {}. {} class embedding and point-wise adding".format(
-        RunningParams.k_value, network, action)
-
-print(commit)
-if len(commit) == 0:
-    print("Please commit before running!")
-    exit(-1)
 
 import argparse
 import os
@@ -74,7 +58,7 @@ from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
 from tqdm import tqdm
-from datasets import ImageFolderForNNs
+from datasets import *
 import random
 import tqdm
 import wandb
@@ -92,7 +76,7 @@ concat = lambda x: np.concatenate(x, axis=0)
 to_np = lambda x: x.data.to("cpu").numpy()
 
 train_dataset_transform = transforms.Compose([
-    transforms.Scale((224,224)),
+    transforms.Resize((224,224)),
     transforms.RandomCrop(224, padding=4),
     transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
@@ -100,12 +84,12 @@ train_dataset_transform = transforms.Compose([
 ])
 
 val_dataset_transform = transforms.Compose([
-    transforms.Scale((224,224)),
+    transforms.Resize((224,224)),
     transforms.ToTensor(),
     transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
 ])
 
-training_folder = ImageFolderForNNs(
+training_folder = ImageFolderWithPaths(
     root=f"{RunningParams.parent_dir}/datasets/CUB/train1/",
     transform=train_dataset_transform,
 )
@@ -113,7 +97,7 @@ train_loader = DataLoader(
     training_folder, batch_size=64, shuffle=True, num_workers=8, pin_memory=False
 )
 
-validation_folder = ImageFolderForNNs(
+validation_folder = ImageFolderWithPaths(
     root=f"{RunningParams.parent_dir}/datasets/CUB/test0/", transform=train_dataset_transform
 )
 val_loader = DataLoader(
@@ -122,49 +106,30 @@ val_loader = DataLoader(
 
 if TRAINING_FROM_SCRATCH is True:
     if RN18 is True:
-        model = torchvision.models.resnet18(pretrained=PRETRAINED)
+        model = torchvision.models.resnet18(weights=PRETRAINED)
+    elif RN34 is True:
+        model = torchvision.models.resnet34(weights=PRETRAINED)
     elif RN50:
-        model = torchvision.models.resnet50(pretrained=PRETRAINED)
+        model = torchvision.models.resnet50(weights=PRETRAINED)
         if INAT is True:
             model_dict = torch.load(f"{RunningParams.parent_dir}/Cub-ResNet-iNat/resnet50_inat_pretrained_0.841.pth")
             model_dict = OrderedDict(
                 {name.replace("layers.", ""): value for name, value in model_dict.items()}
             )
             model.load_state_dict(model_dict, strict=False)
-    ################################################################
-    if USING_CLASS_EMBEDDING is True:
-        from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
-
-        resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-        my_model_state_dict = torch.load(
-            'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
-        resnet.load_state_dict(my_model_state_dict, strict=True)
-        class_emd_matrix = resnet.classifier.weight
-
-        if LEARNABLE is True:
-            if RN18 is True:
-                class_emd_matrix = class_emd_matrix.unsqueeze(dim=1)
-                # Define the 1D average pooling layer
-                avg_pool = nn.AvgPool1d(kernel_size=4, stride=4)
-                learnable_emd_matrix = avg_pool(class_emd_matrix).squeeze().detach().clone()
-                learnable_emd_matrix.requires_grad = True
-            elif RN50 is True:
-                learnable_emd_matrix = class_emd_matrix
-        elif FIXED is True:
-            if RN18 is True:
-                class_emd_matrix = class_emd_matrix.unsqueeze(dim=1)
-                # Define the 1D average pooling layer
-                avg_pool = nn.AvgPool1d(kernel_size=4, stride=4)
-                class_emd_matrix = avg_pool(class_emd_matrix).squeeze()
-            else:
-                class_emd_matrix = class_emd_matrix
-    #################################################################
 
 
 # TODO: a) Dont need to use nn.Sequential and b) construct again the model because we may have two
 #  FC layers in the model.
 # Fortunately, we are doing feature_extractor then fc so we did not have error
 if RN18 is True:
+    fc = nn.Sequential(nn.Linear(512*(RunningParams.k_value + 1) + RunningParams.k_value, 512),
+                   nn.ReLU(),
+                   nn.Dropout(0.0),
+                   nn.Linear(512, 200),
+                   nn.Dropout(0.0)
+                   ).cuda()
+elif RN34 is True:
     fc = nn.Sequential(nn.Linear(512*(RunningParams.k_value + 1) + RunningParams.k_value, 512),
                    nn.ReLU(),
                    nn.Dropout(0.0),
@@ -199,9 +164,6 @@ criterion = nn.CrossEntropyLoss()
 
 if TRAINING_FROM_SCRATCH is True:
     params = list(fc.parameters()) + list(feature_extractor.parameters())
-
-    if USING_CLASS_EMBEDDING is True and LEARNABLE is True:
-        params.append(learnable_emd_matrix)
 
     optimizer = optim.SGD([
         {'params': params, 'lr': RunningParams.learning_rate},
@@ -241,32 +203,10 @@ def test_model(model):
                 explanations_l = []
                 sep_token = torch.zeros([RunningParams.k_value, 1, 1, 1], requires_grad=False).cuda()
                 for sample_idx in range(explanations.shape[0]):
-                    if USING_CLASS_EMBEDDING is True:
-                        # Extract class embedding for prototypes
-                        query_base_name = os.path.basename(pths[sample_idx])
-                        # TODO: val_loader here
-                        prototype_list = val_loader.dataset.faiss_nn_dict[query_base_name]
-                        # TODO: Dont skip the first prototype in test
-                        prototype_classes = [prototype_list[i].split('/')[-2] for i in range(0, RunningParams.k_value)]
-                        prototype_class_ids = [val_loader.dataset.class_to_idx[c] for c in prototype_classes]
-                        if FIXED is True:
-                            class_embeddings = [class_emd_matrix[i] for i in prototype_class_ids]
-                            class_embeddings = torch.stack(class_embeddings)
-                            # Add two dims to fit with the conv features
-                            class_embeddings = class_embeddings[:, :, None, None].cuda()
-                            class_embeddings = class_embeddings.detach()
-                        elif LEARNABLE is True:
-                            one_hot_enc = F.one_hot(torch.tensor(prototype_class_ids), num_classes=200)
-                            one_hot_enc = one_hot_enc.type(torch.FloatTensor).detach()
-                            class_embeddings = torch.matmul(one_hot_enc, learnable_emd_matrix)
-                            class_embeddings = class_embeddings[:, :, None, None].cuda()
+
 
                     explanation = explanations[sample_idx]
                     explanation_feat = feature_extractor(explanation.cuda())
-
-                    # Point-wise multiplication prototypes and their class embeddings
-                    if USING_CLASS_EMBEDDING is True:
-                        explanation_feat = explanation_feat + class_embeddings
 
                     explanation_feat = torch.cat([sep_token, explanation_feat], dim=1)
                     squeezed_explanation_feat = explanation_feat.squeeze()
@@ -322,32 +262,10 @@ def train_model(model, criterion, optimizer, num_epochs=3):
             explanations_l = []
             sep_token = torch.zeros([RunningParams.k_value, 1, 1, 1], requires_grad=False).cuda()
             for sample_idx in range(explanations.shape[0]):
-                if USING_CLASS_EMBEDDING is True:
-                    # Extract class embedding for prototypes
-                    query_base_name = os.path.basename(pths[sample_idx])
-                    # TODO: val_loader if in test
-                    prototype_list = train_loader.dataset.faiss_nn_dict[query_base_name]
-                    # TODO: Dont skip the first prototype in test
-                    prototype_classes = [prototype_list[i].split('/')[-2] for i in range(1, RunningParams.k_value+1)]
-                    prototype_class_ids = [train_loader.dataset.class_to_idx[c] for c in prototype_classes]
-                    if FIXED is True:
-                        class_embeddings = [class_emd_matrix[i] for i in prototype_class_ids]
-                        class_embeddings = torch.stack(class_embeddings)
-                        # Add two dims to fit with the conv features
-                        class_embeddings = class_embeddings[:, :, None, None].cuda()
-                        class_embeddings = class_embeddings.detach()
-                    elif LEARNABLE is True:
-                        one_hot_enc = F.one_hot(torch.tensor(prototype_class_ids), num_classes=200)
-                        one_hot_enc = one_hot_enc.type(torch.FloatTensor).detach()
-                        class_embeddings = torch.matmul(one_hot_enc, learnable_emd_matrix)
-                        class_embeddings = class_embeddings[:, :, None, None].cuda()
-
                 explanation = explanations[sample_idx]
                 explanation_feat = feature_extractor(explanation.cuda())
 
                 # Point-wise multiplication prototypes and their class embeddings
-                if USING_CLASS_EMBEDDING is True:
-                    explanation_feat = explanation_feat + class_embeddings
 
                 explanation_feat = torch.cat([sep_token, explanation_feat], dim=1)
                 squeezed_explanation_feat = explanation_feat.squeeze()
@@ -386,19 +304,17 @@ def train_model(model, criterion, optimizer, num_epochs=3):
 
     return model
 
-print(RunningParams.__dict__)
+# print(RunningParams.__dict__)
 
 wandb.init(
     project="advising-network",
     entity="luulinh90s",
     config=None,
-    notes=commit
-
 )
 
 wandb.save(os.path.basename(__file__), policy='now')
 wandb.save('params.py', policy='now')
-wandb.save('cub_200way_training.py', policy='now')
+wandb.save('cub_200way_training_with_nns.py', policy='now')
 wandb.save('datasets.py', policy='now')
 
 best_acc = 0.0
@@ -413,7 +329,7 @@ for epoch in range(num_epochs):
 
     if val_acc > best_acc:
         best_acc = val_acc
-        torch.save(model_trained.state_dict(), "./CUB_200way_best_model.pth")
+        torch.save(model_trained.state_dict(), f"./CUB_200way_{wandb.run.name}_best_model.pth")
     print("{} - Best accuracy: {:.4f}".format(wandb.run.name, best_acc))
 
 wandb.finish()

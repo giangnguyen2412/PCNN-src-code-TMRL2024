@@ -1,3 +1,4 @@
+# Using cosine similarity to do reranking instead of using AdvNet
 import torch
 import torch.nn as nn
 import os
@@ -75,7 +76,6 @@ if __name__ == '__main__':
                     class_name = data_loader.dataset.classes[tgt]
                     id = full_cub_dataset.class_to_idx[class_name]
                     gt[sample_idx] = id
-
 
             output_tensors = []
             # Loop to get the logit for each class

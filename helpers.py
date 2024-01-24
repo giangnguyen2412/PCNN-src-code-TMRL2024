@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from PIL import Image
 import glob
+from thop import profile
 
 
 class HelperFunctions(object):
@@ -180,4 +181,34 @@ class HelperFunctions(object):
 
         return HelperFunctions.count_two_lists_overlap(samples[path1], samples[path2])
 
+    # model_resnet = ...
+    # input_tensor_resnet = torch.randn(1000, 3, 224, 224)
+    # tflops_resnet = count_flops(model_resnet, input_tensor_resnet)
+    # print(f"TFLOPs for ResNet50: {tflops_resnet:.2f}")
+    def count_flops(model, input_tensor, *args):
+        """
+        Function to calculate the TFLOPs of a given model.
+
+        Parameters:
+        model (torch.nn.Module): The model to profile.
+        input_tensor (torch.Tensor): The input tensor for the model.
+        *args: Additional arguments required by specific models.
+
+        Returns:
+        float: The TFLOPs of the model.
+        """
+        model = model.cuda()  # Ensure model is on GPU
+        input_tensor = input_tensor.cuda()  # Ensure input tensor is on GPU
+
+        # Adjust the following line if your models require different inputs
+        inputs = (input_tensor,) + args
+
+        # Profile the model
+        tflops, _ = profile(model, inputs=inputs)
+        tflops = tflops / 1e12  # Convert to TFLOPs
+
+        return tflops
+
+    def count_parameters(model):
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
 

@@ -1,4 +1,5 @@
-# Running kNN classifier for Cars-196
+import collections
+import json
 import os
 import random
 import numpy as np
@@ -8,10 +9,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision
 import torchvision.transforms as transforms
-
-import sys
-sys.path.append('/home/giang/Downloads/advising_network')
-
 from datasets import Dataset
 from params import RunningParams
 from torch.utils.data import DataLoader, random_split
@@ -20,41 +17,36 @@ from tqdm import tqdm
 from helpers import HelperFunctions
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
 RunningParams = RunningParams()
 HelperFunctions = HelperFunctions()
 Dataset = Dataset()
 
-import torchvision
-
-normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
 ORIGINAL_FE = False
 if ORIGINAL_FE is True:
+    from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
-    model = torchvision.models.resnet50(pretrained=True).cuda()
-    model.fc = nn.Linear(model.fc.in_features, 196)
-
+    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
-        f'{RunningParams.prj_dir}/PyTorch-Stanford-Cars-Baselines/model_best_rn50.pth.tar',
-        map_location=torch.device('cpu'))
-    model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
+        'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
 
-    MODEL1 = model
+    resnet.load_state_dict(my_model_state_dict, strict=True)
+    MODEL1 = resnet.cuda()
+
+    # MODEL1 = torchvision.models.resnet50(pretrained=True)
     MODEL1.eval()
 
     feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
     feature_extractor.cuda()
     feature_extractor = nn.DataParallel(feature_extractor)
-else:  # kNN-AdvNet
+else:
     from transformer import Transformer_AdvisingNetwork
     model = Transformer_AdvisingNetwork()
     model = nn.DataParallel(model).cuda()
 
-    # model_path = 'best_models/best_model_decent-pyramid-3156.pt'
-    # model_path = 'best_models/best_model_spring-field-3157.pt'
-    model_path = 'best_models/best_model_robust-sunset-3158.pt'
+    # model_path = 'best_models/best_model_genial-plasma-3125.pt'
+    model_path = 'best_models/best_model_decent-pyramid-3156.pt'
     checkpoint = torch.load(model_path)
     running_params = checkpoint['running_params']
     RunningParams.XAI_method = running_params.XAI_method
@@ -73,15 +65,9 @@ else:  # kNN-AdvNet
     feature_extractor.cuda()
     feature_extractor = nn.DataParallel(feature_extractor)
 
-data_transform = transforms.Compose([transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            normalize,
-        ])
-
 train_data = ImageFolder(
     # ImageNet train folder
-    root=f"{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train", transform=data_transform
+    root=f"{RunningParams.parent_dir}/datasets/CUB/train1", transform=Dataset.data_transforms['train']
 )
 
 train_loader = torch.utils.data.DataLoader(
@@ -94,7 +80,7 @@ train_loader = torch.utils.data.DataLoader(
 
 val_data = ImageFolder(
     # ImageNet train folder
-    root=f"{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/test", transform=data_transform
+    root=f"{RunningParams.parent_dir}/datasets/CUB/test0", transform=Dataset.data_transforms['val']
 )
 
 test_loader = torch.utils.data.DataLoader(
@@ -110,7 +96,6 @@ N_test = len(val_data)
 if True:
     random.seed(42)
     np.random.seed(42)
-    torch.manual_seed(42)
 
     all_val_embds = []
     all_val_labels = []
