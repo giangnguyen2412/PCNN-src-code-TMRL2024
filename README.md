@@ -1,5 +1,5 @@
-# AdvisingNets: Learning to Distinguish Correct and Wrong Classifications via Nearest-Neighbor Explanations
-## How to run the training for AdvisingNets?
+# Learning to Distinguish Correct and Wrong Classifications via Nearest-Neighbor Explanations
+## How to run the training for image-comparator network?
 
 Download pretrained models of ResNets for CUB-200 and Cars-196 at [this link](https://drive.google.com/drive/folders/1pC_5bEi5DryDZCaKb51dzCE984r8EnqW?usp=sharing).
 
@@ -41,3 +41,14 @@ To run (b),
 3. Failures of AdvisingNets (please change M2_VISUALIZATION in params.py to True)
 > python cub_infer.py
 The same steps for Cars-196.
+
+
+### RN50 image comparator improving NTSNet
+Set NTSNET in params.py to True. Then set MODEL1_RESNET in cub_extract_feature_adv_process.py to False then run:
+> python cub_extract_feature_adv_process.py
+
+Then set MODEL1_RESNET in cub_advising_process.py to False then run:
+> python cub_advising_process.py
+
+You can also set PRODUCT_OF_EXPERTS in cub_advising_process.py to True/False to use/not use the product of experts.
+

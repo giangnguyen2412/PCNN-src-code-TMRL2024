@@ -10,7 +10,7 @@ sys.path.insert(0, '/home/giang/Downloads/advising_network')
 
 from tqdm import tqdm
 from params import RunningParams
-from datasets import Dataset, ImageFolderForAdvisingProcess, ImageFolderForNNs
+from datasets import Dataset, ImageFolderForAdvisingProcess, ImageFolderForNNs, ImageFolderWithPaths
 from transformer import Transformer_AdvisingNetwork, CNN_AdvisingNetwork
 
 RunningParams = RunningParams()
@@ -25,6 +25,8 @@ full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/c
                                      Dataset.data_transforms['train'])
 
 PRODUCT_OF_EXPERTS = False
+MODEL1_RESNET = False
+
 depth = 0
 
 if __name__ == '__main__':
@@ -47,6 +49,8 @@ if __name__ == '__main__':
                         # default='best_model_different-grass-3212.pt',
                         # default='best_model_bs256-p1.0-dropout-0.0-NNth-3.pt',
 
+                        # default='best_model_legendary-durian-3216.pt', # Random negative samples data sampling, RN50, 1st NN
+
                         # default='best_model_genial-plasma-3125.pt',
                         default='best_model_decent-pyramid-3156.pt', # Normal model, top10, run1
                         # default='best_model_eager-field-3187.pt',  # Normal model, top10, run2
@@ -57,8 +61,9 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     model_path = os.path.join(RunningParams.prj_dir, 'best_models', args.ckpt)
+    correct_cnt_model1 = 0
 
-    if PRODUCT_OF_EXPERTS is True:
+    if MODEL1_RESNET is True:
         ################################################################################
         from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
         from torchvision import datasets, models, transforms
@@ -91,9 +96,70 @@ if __name__ == '__main__':
         MODEL1 = resnet
         MODEL1 = nn.DataParallel(MODEL1).cuda()
         MODEL1.eval()
-        correct_cnt_model1 = 0
 
         ###############################################################################
+    else:
+        if RunningParams.NTSNET is True: # NTSNet
+            ################################################################
+            import os
+            from torch.autograd import Variable
+            import torch.utils.data
+            from torch.nn import DataParallel
+            from core import model, dataset
+            from torch import nn
+            from torchvision.datasets import ImageFolder
+            from tqdm import tqdm
+
+            net = model.attention_net(topN=6)
+            ckpt = torch.load(f'{RunningParams.parent_dir}/NTS-Net/model.ckpt')
+
+            net.load_state_dict(ckpt['net_state_dict'])
+
+            net.eval()
+            net = net.cuda()
+            net = DataParallel(net)
+            MODEL1 = net
+
+            from torchvision import transforms
+            from PIL import Image
+
+            ntsnet_data_transforms = transforms.Compose([
+                transforms.Resize((600, 600), interpolation=Image.BILINEAR),
+                transforms.CenterCrop((448, 448)),
+                transforms.ToTensor(),
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            ])
+
+            # data_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/{}'.format(set)
+            data_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
+            nts_val_data = ImageFolderWithPaths(
+                # ImageNet train folder
+                root=data_dir, transform=ntsnet_data_transforms
+            )
+
+            val_data = ImageFolderWithPaths(
+                # ImageNet train folder
+                root=data_dir, transform=Dataset.data_transforms['val']
+            )
+
+            nts_train_loader = torch.utils.data.DataLoader(
+                nts_val_data,
+                batch_size=16,
+                shuffle=False,
+                num_workers=8,
+                pin_memory=True,
+                drop_last=False
+            )
+
+            train_loader = torch.utils.data.DataLoader(
+                val_data,
+                batch_size=16,
+                shuffle=False,
+                num_workers=8,
+                pin_memory=True,
+                drop_last=False
+            )
+            print('Running MODEL1 being NTS-NET!!!')
 
     print(args)
 
@@ -122,18 +188,21 @@ if __name__ == '__main__':
 
     model.eval()
 
-    # test_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/test'  ##################################
     test_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
 
-
     image_datasets = dict()
-    image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])
+    if MODEL1_RESNET is True:
+        image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])
+    else:
+        if RunningParams.NTSNET is True:
+            image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, ntsnet_data_transforms)
+
     dataset_sizes = {x: len(image_datasets[x]) for x in ['cub_test']}
 
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=17,
+            batch_size=10,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -166,9 +235,14 @@ if __name__ == '__main__':
                     id = full_cub_dataset.class_to_idx[class_name]
                     gt[sample_idx] = id
 
-            if PRODUCT_OF_EXPERTS is True:
+            # if PRODUCT_OF_EXPERTS is True:
+            if True:
                 ########################################################
-                out = MODEL1(x)
+                if MODEL1_RESNET is False and RunningParams.NTSNET is True:
+                    _, out, _, _, _ = MODEL1(data[2].cuda())
+                else:
+                    out = MODEL1(x)
+
                 out = out.cpu().detach()
                 model1_p = torch.nn.functional.softmax(out, dim=1)
 
@@ -216,7 +290,8 @@ if __name__ == '__main__':
             print("Top-1 Accuracy: {}".format(running_corrects * 100 / total_cnt))
             print(f'Depth of prediction: {depth}')
 
-            if PRODUCT_OF_EXPERTS is True:
+            # if PRODUCT_OF_EXPERTS is True:
+            if True:
                 # Calculate top-1 accuracy
                 top1_accuracy = correct_cnt_model1 / total_cnt * 100
                 print(f"Top-1 {RunningParams.set} accuracy of the base Classifier C: {top1_accuracy:.2f}%")

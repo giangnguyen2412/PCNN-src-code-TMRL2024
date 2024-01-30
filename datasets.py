@@ -60,13 +60,21 @@ class ImageFolderForAdvisingProcess(ImageFolder):
         self.samples = samples
         self.targets = targets
         self.nn_num = nn_num
+        self.imagenet_transform = transforms.Compose([
+                transforms.Resize(256),
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
     def __getitem__(self, index):
         query_path, target = self.samples[index]
 
         # Transform query
         sample = self.loader(query_path)
-        query = self.transform(sample)
+        query = self.imagenet_transform(sample)
+
+        if RunningParams.NTSNET is True:
+            nts_query = self.transform(sample)
 
         base_name = os.path.basename(query_path)
 
@@ -92,13 +100,17 @@ class ImageFolderForAdvisingProcess(ImageFolder):
                 image = self.loader(file_path)  # Replace `loader` with your actual loader function
 
                 # Apply the transformation to the image
-                transformed_image = self.transform(image)
+                transformed_image = self.imagenet_transform(image)
 
                 # Assign the transformed image to the tensor
                 tensor_images[i, j] = transformed_image
 
         labels = torch.tensor(labels)
-        tuple_with_path = ((query, tensor_images, labels), target, query_path)
+        if RunningParams.NTSNET is True:
+            tuple_with_path = ((query, tensor_images, nts_query, labels), target, query_path)
+        else:
+            tuple_with_path = ((query, tensor_images, labels), target, query_path, nts_query)
+
 
         return tuple_with_path
 
@@ -160,7 +172,7 @@ class ImageFolderForNNs(ImageFolder):
             elif 'test' in os.path.basename(root):
                 file_name = RunningParams.faiss_npy_file
             else:
-                file_name = RunningParams.faiss_npy_file
+                file_name = f'{RunningParams.prj_dir}/faiss/cub/INAT_True_top10_k1_enriched_rn50_test_NN1th.npy'
 
         elif RunningParams.CARS_TRAINING is True:
             if 'train' in os.path.basename(root):

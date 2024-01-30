@@ -50,7 +50,10 @@ if __name__ == '__main__':
                         # default='best_model_serene-sound-3240.pt',  # M=N=L=2 model
                         # default='best_model_rare-shadow-3213.pt', # M=N=L=1 model convs only
                         # default='best_model_decent-mountain-3215.pt', # M=N=L=1 model convs only, no SA
-                        # default='best_model_legendary-durian-3216.pt', # Random data sampling
+                        # default='best_model_legendary-durian-3216.pt', # Random negative samples data sampling, RN50, 1st NN
+
+                        # default='best_model_lilac-waterfall-3238.pt',  # 3rd NNs
+
                         # default='best_model_faithful-rain-3211.pt', # M=N=L=1 model convs only, no SA
                         # default='best_model_cosmic-waterfall-3174.pt', # no CA --> have no cross attn to visualize
                         # default='best_model_young-planet-3170.pt',  # no SA --> clear heatmaps

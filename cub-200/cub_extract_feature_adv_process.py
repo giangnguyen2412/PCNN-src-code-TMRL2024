@@ -33,8 +33,8 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-MODEL1_RESNET = True
-depth_of_pred = 5
+MODEL1_RESNET = False
+depth_of_pred = 10
 print(depth_of_pred)
 set = 'test'
 
@@ -220,7 +220,7 @@ else:
     from torchvision import transforms
     from PIL import Image
 
-    data_transforms = transforms.Compose([
+    ntsnet_data_transforms = transforms.Compose([
         transforms.Resize((600, 600), interpolation=Image.BILINEAR),
         transforms.CenterCrop((448, 448)),
         transforms.ToTensor(),
@@ -229,18 +229,18 @@ else:
 
     # data_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/{}'.format(set)
     data_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
-    val_data = ImageFolderWithPaths(
+    nts_val_data = ImageFolderWithPaths(
         # ImageNet train folder
-        root=data_dir, transform=data_transforms
+        root=data_dir, transform=ntsnet_data_transforms
     )
 
-    std_val_data = ImageFolderWithPaths(
+    val_data = ImageFolderWithPaths(
         # ImageNet train folder
         root=data_dir, transform=Dataset.data_transforms['val']
     )
 
-    train_loader = torch.utils.data.DataLoader(
-        val_data,
+    nts_train_loader = torch.utils.data.DataLoader(
+        nts_val_data,
         batch_size=16,
         shuffle=False,
         num_workers=8,
@@ -248,8 +248,8 @@ else:
         drop_last=False
     )
 
-    std_train_loader = torch.utils.data.DataLoader(
-        std_val_data,
+    train_loader = torch.utils.data.DataLoader(
+        val_data,
         batch_size=16,
         shuffle=False,
         num_workers=8,
@@ -272,8 +272,8 @@ cnt = 0
 # bucket_limits = torch.linspace(0, 1, M + 1)
 # bucket_data = {'accuracies': torch.zeros(M), 'confidences': torch.zeros(M), 'counts': torch.zeros(M)}
 
-for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
-# for (data, label, paths), (data2, label2, paths2) in tqdm(zip(train_loader, std_train_loader)):
+# for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
+for (data, label, paths), (data2, label2, paths2) in tqdm(zip(nts_train_loader, train_loader)):
     if len(train_loader.dataset.classes) < 200:
         for sample_idx in range(data.shape[0]):
             tgt = label[sample_idx].item()

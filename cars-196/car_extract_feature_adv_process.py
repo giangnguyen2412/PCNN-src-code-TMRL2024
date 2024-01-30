@@ -33,7 +33,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-depth_of_pred = 10
+depth_of_pred = 5
 set = 'test'
 
 print(depth_of_pred, set)

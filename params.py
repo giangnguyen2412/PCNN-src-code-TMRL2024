@@ -10,6 +10,12 @@ class RunningParams(object):
         self.TRANSFORMER_ARCH = True
         self.resnet = 50
         self.RN50_INAT = True
+
+        if self.CUB_TRAINING is True and self.RN50_INAT is True and self.resnet == 50:
+            self.NTSNET = True
+        else:
+            self.NTSNET = False
+
         self.VisionTransformer = False
         # Retrieving NNs and sample positive and negative pairs
         # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval

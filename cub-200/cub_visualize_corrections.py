@@ -137,20 +137,20 @@ if __name__ == '__main__':
                 original_preds = labels[sample_idx]
                 sim_scores = p_sigmoid[sample_idx]
 
-                breakpoint()
+                # breakpoint()
 
                 nn_dict = faiss_nn_dict[base_name]
                 model1_scores = torch.tensor([nn_dict[i]['C_confidence'].item() for i in range(len(nn_dict))])
                 poe_score = model1_scores*sim_scores.cpu()
-                scores, indices = torch.sort(poe_score, dim=0, descending=True)
-                original_labels = labels[sample_idx]
-                refined_preds = original_labels[indices]
+                sim_scores, indices = torch.sort(poe_score, dim=0, descending=True)
+                refined_preds = original_preds[indices]
 
                 nns = list()
                 for k, v in nn_dict.items():
                     nns.append(v['NNs'][0])
+                # breakpoint()
                 # If the new top1 matches the GT  && If the new top1 is different from the old top 1
-                if index[sample_idx].item() == gt[sample_idx].item() and \
+                if refined_preds[0].item() == gt[sample_idx].item() and \
                         original_preds[0].item() != refined_preds[0].item():
 
                     import matplotlib.pyplot as plt
@@ -209,7 +209,8 @@ if __name__ == '__main__':
                         #                 transform=axs[i + 1].transAxes)
 
                         conf = nn_dict[i]['C_confidence']
-                        axs[i + 1].text(0.5, -0.07, f'Classifier C: {int(conf.item()*100)}%', size=18, ha="center",
+                        sim = p_sigmoid[sample_idx][i]
+                        axs[i + 1].text(0.5, -0.07, f'RN50: {int(conf.item()*100)}% | S: {sim:.2f}', size=18, ha="center",
                                         transform=axs[i + 1].transAxes)
 
                         axs[i + 1].set_xticks([])
@@ -222,15 +223,7 @@ if __name__ == '__main__':
                     # Repeat the same steps for the refined predictions
                     fig, axs = plt.subplots(1, 6, figsize=(30, 5))
                     fig.subplots_adjust(wspace=0.15, hspace=0.3)
-                    fig.suptitle('Refined class ranking by S', color='green', size=20)  # Add this line
-
-                    # # Load and plot the original image again
-                    # original_img = Image.open(path)
-                    # original_img = resize_and_crop(original_img)
-                    # axs[0].imshow(np.array(original_img))
-                    # axs[0].set_title('Query: {}'.format(data_loader.dataset.classes[gt[sample_idx].item()]))
-                    # axs[0].set_xticks([])
-                    # axs[0].set_yticks([])
+                    fig.suptitle('Refined class ranking by Product of Experts C x S', color='green', size=20)  # Add this line
 
                     # Load the original image
                     original_img = Image.open(path)
@@ -263,7 +256,7 @@ if __name__ == '__main__':
 
                         sim_scores = sorted(sim_scores, reverse=True)
 
-                        axs[i + 1].text(0.5, -0.07, f'Image comparator S: {sim_scores[i]:.2f}', size=18, ha="center",
+                        axs[i + 1].text(0.5, -0.07, f'RN50 x S: {int(sim_scores[i]*100)}%', size=18, ha="center",
                                         transform=axs[i + 1].transAxes)
 
                         axs[i + 1].set_xticks([])
@@ -292,8 +285,8 @@ if __name__ == '__main__':
 
                     subprocess.call('convert {} {}'.format(jpeg_path, pdf_path), shell=True)
 
-            running_corrects += torch.sum(index.squeeze() == gt.cuda())
-            total_cnt += data[0].shape[0]
-
-            print(cnt)
-            print("Top-1 Accuracy: {}".format(running_corrects * 100 / total_cnt))
+            # running_corrects += torch.sum(index.squeeze() == gt.cuda())
+            # total_cnt += data[0].shape[0]
+            #
+            # print(cnt)
+            # print("Top-1 Accuracy: {}".format(running_corrects * 100 / total_cnt))
