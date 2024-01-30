@@ -17,7 +17,7 @@ import pdb
 import faiss
 
 import sys
-sys.path.append('/home/giang/Downloads/advising_network')
+sys.path.append('/home/anonymous/Downloads/advising_network')
 
 from tqdm import tqdm
 from torchvision import datasets, models, transforms

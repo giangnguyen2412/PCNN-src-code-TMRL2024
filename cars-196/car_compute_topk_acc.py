@@ -10,7 +10,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 import sys
-sys.path.append('/home/giang/Downloads/advising_network')
+sys.path.append('/home/anonymous/Downloads/advising_network')
 
 from params import RunningParams
 RunningParams = RunningParams()

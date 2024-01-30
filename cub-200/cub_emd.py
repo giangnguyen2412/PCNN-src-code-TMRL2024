@@ -141,7 +141,7 @@ import argparse
 from torch.nn.functional import cosine_similarity
 
 import sys
-sys.path.append('/home/giang/Downloads/advising_network')
+sys.path.append('/home/anonymous/Downloads/advising_network')
 
 from tqdm import tqdm
 from params import RunningParams

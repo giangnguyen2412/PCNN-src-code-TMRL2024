@@ -51,7 +51,7 @@ val_dataset_transform = transforms.Compose(
 )
 
 training_folder = ImageFolder(
-    root="/home/giang/Downloads/datasets/CUB/train1/",
+    root="/home/anonymous/Downloads/datasets/CUB/train1/",
     transform=train_dataset_transform,
 )
 train_loader = DataLoader(
@@ -59,7 +59,7 @@ train_loader = DataLoader(
 )
 
 validation_folder = ImageFolder(
-    root="/home/giang/Downloads/datasets/CUB/test0/", transform=train_dataset_transform
+    root="/home/anonymous/Downloads/datasets/CUB/test0/", transform=train_dataset_transform
 )
 val_loader = DataLoader(
     validation_folder, batch_size=768, shuffle=False, num_workers=8, pin_memory=False

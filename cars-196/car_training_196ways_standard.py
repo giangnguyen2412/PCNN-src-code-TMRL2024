@@ -211,8 +211,8 @@ def main_worker(gpu, ngpus_per_node, args):
     cudnn.benchmark = True
 
     # Data loading code
-    traindir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train'
-    valdir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
+    traindir = '/home/anonymous/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train'
+    valdir = '/home/anonymous/Downloads/Cars/Stanford-Cars-dataset/test'
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
 

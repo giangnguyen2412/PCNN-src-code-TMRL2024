@@ -6,7 +6,7 @@ import argparse
 from tqdm import tqdm
 
 import sys
-sys.path.append('/home/giang/Downloads/advising_network')
+sys.path.append('/home/anonymous/Downloads/advising_network')
 
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs

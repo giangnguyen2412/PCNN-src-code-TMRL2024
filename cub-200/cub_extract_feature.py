@@ -12,7 +12,7 @@ import faiss
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
 import sys
-sys.path.insert(0, '/home/giang/Downloads/advising_network')
+sys.path.insert(0, '/home/anonymous/Downloads/advising_network')
 
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs

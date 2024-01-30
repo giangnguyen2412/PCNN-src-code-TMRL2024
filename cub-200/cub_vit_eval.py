@@ -30,7 +30,7 @@ transform = transforms.Compose([
 ])
 
 # Load CUB-200 validation dataset
-val_dataset = datasets.ImageFolder(root='/home/giang/Downloads/datasets/CUB/test0/', transform=transform)
+val_dataset = datasets.ImageFolder(root='/home/anonymous/Downloads/datasets/CUB/test0/', transform=transform)
 val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, num_workers=8, pin_memory=True)
 
 # Initialize the base model and load the trained weights

@@ -16,7 +16,7 @@ import pdb
 import faiss
 
 import sys
-sys.path.append('/home/giang/Downloads/advising_network')
+sys.path.append('/home/anonymous/Downloads/advising_network')
 
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
@@ -71,7 +71,7 @@ feature_extractor = nn.DataParallel(feature_extractor)
 in_features = 2048
 print("Building FAISS index...! Training set is the knowledge base.")
 
-faiss_dataset = datasets.ImageFolder('/home/giang/Downloads/datasets/CUB/advnet/train',
+faiss_dataset = datasets.ImageFolder('/home/anonymous/Downloads/datasets/CUB/advnet/train',
                                      transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -148,8 +148,8 @@ MODEL1.eval()
 MODEL1 = nn.DataParallel(MODEL1).eval()
 
 set = 'train'
-# data_dir = '/home/giang/Downloads/datasets/CUB/advnet/{}'.format(set)
-data_dir = '/home/giang/Downloads/datasets/CUB/train1'  ##################################
+# data_dir = '/home/anonymous/Downloads/datasets/CUB/advnet/{}'.format(set)
+data_dir = '/home/anonymous/Downloads/datasets/CUB/train1'  ##################################
 
 image_datasets = dict()
 image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])

@@ -1,7 +1,7 @@
 # Training CUB classifiers using NNs by concatenating the NNs with the input image
 import os
 import sys
-sys.path.append('/home/giang/Downloads/advising_network')
+sys.path.append('/home/anonymous/Downloads/advising_network')
 from params import RunningParams
 RunningParams = RunningParams()
 

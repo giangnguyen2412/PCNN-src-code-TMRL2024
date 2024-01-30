@@ -5,7 +5,7 @@ import os
 import argparse
 
 import sys
-sys.path.insert(0, '/home/giang/Downloads/advising_network')
+sys.path.insert(0, '/home/anonymous/Downloads/advising_network')
 
 
 from tqdm import tqdm

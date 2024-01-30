@@ -22,8 +22,8 @@ class RunningParams(object):
         # Set it when you run train/test
         self.set = 'test'
 
-        self.parent_dir = '/home/giang/Downloads'
-        self.prj_dir = '/home/giang/Downloads/advising_network'
+        self.parent_dir = '/home/anonymous/Downloads'
+        self.prj_dir = '/home/anonymous/Downloads/advising_network'
 
         self.dropout = 0.0
         self.trivial_aument_p = 0.0
