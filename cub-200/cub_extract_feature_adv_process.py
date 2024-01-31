@@ -16,7 +16,7 @@ import pdb
 import faiss
 
 import sys
-sys.path.append('/home/anonymous/Downloads/advising_network')
+sys.path.append('/home/giang/Downloads/advising_network')
 
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
@@ -33,7 +33,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 Dataset = Dataset()
 RunningParams = RunningParams()
 
-MODEL1_RESNET = False
+MODEL1_RESNET = True
 depth_of_pred = 10
 print(depth_of_pred)
 set = 'test'
@@ -272,8 +272,8 @@ cnt = 0
 # bucket_limits = torch.linspace(0, 1, M + 1)
 # bucket_data = {'accuracies': torch.zeros(M), 'confidences': torch.zeros(M), 'counts': torch.zeros(M)}
 
-# for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
-for (data, label, paths), (data2, label2, paths2) in tqdm(zip(nts_train_loader, train_loader)):
+for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
+# for (data, label, paths), (data2, label2, paths2) in tqdm(zip(nts_train_loader, train_loader)):
     if len(train_loader.dataset.classes) < 200:
         for sample_idx in range(data.shape[0]):
             tgt = label[sample_idx].item()
@@ -298,6 +298,10 @@ for (data, label, paths), (data2, label2, paths2) in tqdm(zip(nts_train_loader, 
     model1_p = torch.nn.functional.softmax(out, dim=1)
 
     score_top1, index_top1 = torch.topk(model1_p, 1, dim=1)
+    # Compare top-predicted class (index_top1) to true labels (label)
+    # breakpoint()
+    correct_predictions = index_top1.squeeze(1) == label
+    correct_cnt += correct_predictions.sum().item()
 
     score, index = torch.topk(model1_p, depth_of_pred, dim=1)
 
@@ -335,3 +339,6 @@ print(save_file)
 print(set)
 print(depth_of_pred)
 np.save(save_file, faiss_nn_dict)
+# Calculate accuracy
+accuracy = correct_cnt / total_cnt
+print(f'Accuracy: {accuracy:.4f}')

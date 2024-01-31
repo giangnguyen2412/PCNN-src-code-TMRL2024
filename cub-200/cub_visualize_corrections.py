@@ -5,7 +5,7 @@ import os
 import argparse
 
 import sys
-sys.path.append('/home/anonymous/Downloads/advising_network')
+sys.path.append('/home/giang/Downloads/advising_network')
 
 from tqdm import tqdm
 from params import RunningParams

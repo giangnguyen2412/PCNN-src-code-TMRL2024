@@ -41,7 +41,7 @@ from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
 inat_resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    '/home/anonymous/Downloads/advising_network/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+    '/home/giang/Downloads/advising_network/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
 inat_resnet.load_state_dict(my_model_state_dict, strict=True)
 # to CUDA
 inat_resnet.cuda()

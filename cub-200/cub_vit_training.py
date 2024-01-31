@@ -38,11 +38,11 @@
 #     ])
 #
 #     # Load CUB-200 dataset
-#     train_dataset = datasets.ImageFolder(root='/home/anonymous/Downloads/datasets/CUB/train1/', transform=transform)
+#     train_dataset = datasets.ImageFolder(root='/home/giang/Downloads/datasets/CUB/train1/', transform=transform)
 #     train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset, num_replicas=world_size, rank=rank)
 #     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=False, num_workers=16, pin_memory=True, sampler=train_sampler)
 #
-#     val_dataset = datasets.ImageFolder(root='/home/anonymous/Downloads/datasets/CUB/test0/', transform=transform)
+#     val_dataset = datasets.ImageFolder(root='/home/giang/Downloads/datasets/CUB/test0/', transform=transform)
 #     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, num_workers=8, pin_memory=False)
 #
 #     # Initialize the model
@@ -145,11 +145,11 @@ def train():
     ])
 
     # Load CUB-200 dataset
-    train_dataset = datasets.ImageFolder(root='/home/anonymous/Downloads/datasets/CUB/train1/', transform=transform)
+    train_dataset = datasets.ImageFolder(root='/home/giang/Downloads/datasets/CUB/train1/', transform=transform)
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=16,
                                                pin_memory=True)
 
-    val_dataset = datasets.ImageFolder(root='/home/anonymous/Downloads/datasets/CUB/test0/', transform=transform)
+    val_dataset = datasets.ImageFolder(root='/home/giang/Downloads/datasets/CUB/test0/', transform=transform)
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, num_workers=8, pin_memory=False)
 
     # Initialize the model

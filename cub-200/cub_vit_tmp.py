@@ -4,7 +4,7 @@ import os
 cnt = 0
 overlap = 0
 crt_cnt = 0
-filename = '/home/anonymous/Downloads/advising_network/faiss/cub/ViT_top10_k1_enriched_train_NN1th.npy'
+filename = '/home/giang/Downloads/advising_network/faiss/cub/ViT_top10_k1_enriched_train_NN1th.npy'
 cnt_dict = {}
 
 kbc = np.load(filename, allow_pickle=True, ).item()

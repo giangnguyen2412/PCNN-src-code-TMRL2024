@@ -5,7 +5,7 @@ import os
 import argparse
 
 import sys
-sys.path.insert(0, '/home/anonymous/Downloads/advising_network')
+sys.path.insert(0, '/home/giang/Downloads/advising_network')
 
 
 from tqdm import tqdm
@@ -24,8 +24,8 @@ torch.manual_seed(42)
 full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
                                      Dataset.data_transforms['train'])
 
-PRODUCT_OF_EXPERTS = False
-MODEL1_RESNET = False
+PRODUCT_OF_EXPERTS = True
+MODEL1_RESNET = True
 
 depth = 0
 
@@ -91,7 +91,7 @@ if __name__ == '__main__':
         resnet.load_state_dict(my_model_state_dict, strict=True)
         if RunningParams.resnet == 34 or RunningParams.resnet == 18 or (
                 RunningParams.resnet == 50 and RunningParams.RN50_INAT is False):
-            resnet.fc = resnet.fc[0]
+                resnet.fc = resnet.fc[0]
 
         MODEL1 = resnet
         MODEL1 = nn.DataParallel(MODEL1).cuda()
@@ -202,7 +202,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=10,
+            batch_size=5,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -246,16 +246,10 @@ if __name__ == '__main__':
                 out = out.cpu().detach()
                 model1_p = torch.nn.functional.softmax(out, dim=1)
 
-                score, index = torch.topk(model1_p, 1, dim=1)
+                score, index_top1 = torch.topk(model1_p, 1, dim=1)
 
-                # Top-1 prediction is the first element in each row of 'index'
-                top1_pred = index[:, 0]
-
-                # Increment correct count if prediction matches label
-                correct_cnt_model1 += (top1_pred == gt).sum().item()
-                ########################################################
-
-            # score, index = torch.topk(model1_p, depth_of_pred, dim=1)
+                correct_predictions = index_top1.squeeze(1) == gt
+                correct_cnt_model1 += correct_predictions.sum().item()
 
             output_tensors = []
             depth = data[1].shape[1]
@@ -312,15 +306,12 @@ if __name__ == '__main__':
                 bucket_data['accuracies'][i] += (in_bucket.float() * correct).sum()
                 bucket_data['confidences'][i] += (in_bucket.float() * max_probs).sum()
 
-                # breakpoint()
-
         # Calculate the average accuracy and confidence for each bucket
         for i in range(M):
             if bucket_data['counts'][i] > 0:
                 bucket_data['accuracies'][i] /= bucket_data['counts'][i]
                 bucket_data['confidences'][i] /= bucket_data['counts'][i]
 
-        # breakpoint()
         # Calculate ECE
         ece = 0.0
         for i in range(M):

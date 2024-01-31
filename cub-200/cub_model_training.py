@@ -17,7 +17,7 @@ import numpy as np
 from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
 
 import sys
-sys.path.append('/home/anonymous/Downloads/advising_network')
+sys.path.append('/home/giang/Downloads/advising_network')
 
 from tqdm import tqdm
 from torchvision import datasets, models, transforms
