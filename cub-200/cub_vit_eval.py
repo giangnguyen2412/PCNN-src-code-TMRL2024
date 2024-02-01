@@ -17,6 +17,10 @@ class CustomViT(nn.Module):
         output = self.base_model.head(cls_token)
         return output, cls_token
 
+import os
+
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+
 # Parameters
 batch_size = 256
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -35,7 +39,7 @@ val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, num
 
 # Initialize the base model and load the trained weights
 base_model = timm.create_model('vit_base_patch16_224', pretrained=False, num_classes=200)
-model_path = "./vit_base_patch16_224_cub_200way.pth"
+model_path = "./vit_base_patch16_224_cub_200way_82_40.pth"
 state_dict = torch.load(model_path, map_location=device)
 new_state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
 base_model.load_state_dict(new_state_dict)
@@ -43,6 +47,11 @@ base_model.load_state_dict(new_state_dict)
 # Wrap the base model in the custom model
 model = CustomViT(base_model).to(device)
 model.eval()
+
+# Count the parameters
+total_params = sum(p.numel() for p in model.parameters())
+
+print(f'Total trainable parameters: {total_params}')
 
 # Run validation and extract CLS tokens
 cls_tokens = []

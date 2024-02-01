@@ -93,9 +93,45 @@ if __name__ == '__main__':
                 RunningParams.resnet == 50 and RunningParams.RN50_INAT is False):
                 resnet.fc = resnet.fc[0]
 
-        MODEL1 = resnet
-        MODEL1 = nn.DataParallel(MODEL1).cuda()
-        MODEL1.eval()
+        # MODEL1 = resnet
+        # MODEL1 = nn.DataParallel(MODEL1).cuda()
+        # MODEL1.eval()
+
+        ############ ViTB-16 ################
+        # Initialize the base model and load the trained weights
+        import timm
+
+
+        class CustomViT(nn.Module):
+            def __init__(self, base_model):
+                super(CustomViT, self).__init__()
+                self.base_model = base_model
+
+            def forward(self, x):
+                # Get the features from the base ViT model
+                x = self.base_model.forward_features(x)
+                # Extract the CLS token (first token)
+                cls_token = x[:, 0]
+                # Pass the features through the classifier
+                output = self.base_model.head(cls_token)
+                return output, cls_token
+
+
+        # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # print(device)
+        base_model = timm.create_model('vit_base_patch16_224', pretrained=False, num_classes=200)
+        model_path_vit = "./vit_base_patch16_224_cub_200way_82_40.pth"
+        state_dict = torch.load(model_path_vit)
+        new_state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+        base_model.load_state_dict(new_state_dict)
+
+        # Wrap the base model in the custom model
+        model = CustomViT(base_model).cuda()
+        model.eval()
+
+        MODEL1 = nn.DataParallel(model).cuda()
+
+        #####################################
 
         ###############################################################################
     else:
@@ -241,7 +277,7 @@ if __name__ == '__main__':
                 if MODEL1_RESNET is False and RunningParams.NTSNET is True:
                     _, out, _, _, _ = MODEL1(data[2].cuda())
                 else:
-                    out = MODEL1(x)
+                    out, _ = MODEL1(x)
 
                 out = out.cpu().detach()
                 model1_p = torch.nn.functional.softmax(out, dim=1)

@@ -109,7 +109,7 @@ class ImageFolderForAdvisingProcess(ImageFolder):
         if RunningParams.NTSNET is True:
             tuple_with_path = ((query, tensor_images, nts_query, labels), target, query_path)
         else:
-            tuple_with_path = ((query, tensor_images, labels), target, query_path, nts_query)
+            tuple_with_path = ((query, tensor_images, labels), target, query_path)
 
 
         return tuple_with_path

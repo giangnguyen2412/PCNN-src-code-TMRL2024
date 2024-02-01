@@ -177,6 +177,42 @@ if MODEL1_RESNET is True:
 
     MODEL1 = nn.DataParallel(MODEL1).eval().cuda()
 
+    ############ ViTB-16 ################
+    # Initialize the base model and load the trained weights
+    import timm
+
+
+    class CustomViT(nn.Module):
+        def __init__(self, base_model):
+            super(CustomViT, self).__init__()
+            self.base_model = base_model
+
+        def forward(self, x):
+            # Get the features from the base ViT model
+            x = self.base_model.forward_features(x)
+            # Extract the CLS token (first token)
+            cls_token = x[:, 0]
+            # Pass the features through the classifier
+            output = self.base_model.head(cls_token)
+            return output, cls_token
+
+
+    # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # print(device)
+    base_model = timm.create_model('vit_base_patch16_224', pretrained=False, num_classes=200)
+    model_path = "./vit_base_patch16_224_cub_200way_82_40.pth"
+    state_dict = torch.load(model_path)
+    new_state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+    base_model.load_state_dict(new_state_dict)
+
+    # Wrap the base model in the custom model
+    model = CustomViT(base_model).cuda()
+    model.eval()
+
+    MODEL1 = nn.DataParallel(model).cuda()
+
+    #####################################
+
     # data_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/{}'.format(set)
     data_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
 
@@ -290,7 +326,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
     embeddings = embeddings.cpu().detach().numpy()
 
     if MODEL1_RESNET is True:
-        out = MODEL1(data.cuda())
+        out, _ = MODEL1(data.cuda())
     else:
         _, out, _, _, _ = MODEL1(data.cuda())
 

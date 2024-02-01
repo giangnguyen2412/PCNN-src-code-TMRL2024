@@ -10,7 +10,7 @@ import torchvision
 import torchvision.transforms as transforms
 
 import sys
-sys.path.append('/home/anonymous/Downloads/advising_network')
+sys.path.append('/home/giang/Downloads/advising_network')
 
 from datasets import Dataset
 from params import RunningParams

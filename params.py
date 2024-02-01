@@ -11,10 +11,10 @@ class RunningParams(object):
         self.resnet = 50
         self.RN50_INAT = True
 
-        if self.CUB_TRAINING is True and self.RN50_INAT is True and self.resnet == 50:
-            self.NTSNET = True
-        else:
-            self.NTSNET = False
+        # if self.CUB_TRAINING is True and self.RN50_INAT is True and self.resnet == 50:
+        #     self.NTSNET = True
+        # else:
+        self.NTSNET = False
 
         self.VisionTransformer = False
         # Retrieving NNs and sample positive and negative pairs
@@ -22,8 +22,8 @@ class RunningParams(object):
         # Set it when you run train/test
         self.set = 'test'
 
-        self.parent_dir = '/home/anonymous/Downloads'
-        self.prj_dir = '/home/anonymous/Downloads/advising_network'
+        self.parent_dir = '/home/giang/Downloads'
+        self.prj_dir = '/home/giang/Downloads/advising_network'
 
         self.dropout = 0.0
         self.trivial_aument_p = 0.0

@@ -42,26 +42,26 @@ if RunningParams.CUB_TRAINING is True:
             my_model_state_dict = torch.load(
                 f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
 
-            if RunningParams.resnet == 50 and RunningParams.RN50_INAT is False:
-                resnet = models.resnet50(pretrained=True)
-                resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
-                my_model_state_dict = torch.load(
-                    f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
-            elif RunningParams.resnet == 34:
-                resnet = models.resnet34(pretrained=True)
-                resnet.fc = nn.Sequential(nn.Linear(512, 200)).cuda()
-                my_model_state_dict = torch.load(
-                    f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
-            elif RunningParams.resnet == 18:
-                resnet = models.resnet18(pretrained=True)
-                resnet.fc = nn.Sequential(nn.Linear(512, 200)).cuda()
-                my_model_state_dict = torch.load(
-                    f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
+            # if RunningParams.resnet == 50 and RunningParams.RN50_INAT is False:
+            #     resnet = models.resnet50(pretrained=True)
+            #     resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
+            #     my_model_state_dict = torch.load(
+            #         f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
+            # elif RunningParams.resnet == 34:
+            #     resnet = models.resnet34(pretrained=True)
+            #     resnet.fc = nn.Sequential(nn.Linear(512, 200)).cuda()
+            #     my_model_state_dict = torch.load(
+            #         f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
+            # elif RunningParams.resnet == 18:
+            #     resnet = models.resnet18(pretrained=True)
+            #     resnet.fc = nn.Sequential(nn.Linear(512, 200)).cuda()
+            #     my_model_state_dict = torch.load(
+            #         f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
 
             resnet.load_state_dict(my_model_state_dict, strict=True)
-            if RunningParams.resnet == 34 or RunningParams.resnet == 18 or (
-                    RunningParams.resnet == 50 and RunningParams.RN50_INAT is False):
-                resnet.fc = resnet.fc[0]
+            # if RunningParams.resnet == 34 or RunningParams.resnet == 18 or (
+            #         RunningParams.resnet == 50 and RunningParams.RN50_INAT is False):
+            #     resnet.fc = resnet.fc[0]
 
             conv_features = list(resnet.children())[:RunningParams.conv_layer-6]  # delete the last fc layer
             self.conv_layers = nn.Sequential(*conv_features)
@@ -88,6 +88,7 @@ if RunningParams.CUB_TRAINING is True:
 
                     return x
 
+            RunningParams.conv_layer_size[RunningParams.conv_layer] = 2048
             self.transformer_feat_embedder = transformer_feat_embedder(RunningParams.feat_map_size[RunningParams.conv_layer],
                                                                        RunningParams.conv_layer_size[RunningParams.conv_layer])
 
