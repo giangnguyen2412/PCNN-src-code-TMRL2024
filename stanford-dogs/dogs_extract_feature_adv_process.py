@@ -34,41 +34,35 @@ Dataset = Dataset()
 RunningParams = RunningParams()
 
 MODEL1_RESNET = True
-depth_of_pred = 5
+depth_of_pred = 10
 print(depth_of_pred)
 set = 'test'
 
 torch.manual_seed(42)
 
 ################################################################################
-from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
+import torchvision
 
-resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-my_model_state_dict = torch.load(
-    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
-
-if RunningParams.resnet == 50 and RunningParams.RN50_INAT is False:
-    resnet = models.resnet50(pretrained=True)
-    resnet.fc = nn.Sequential(nn.Linear(2048, 200))
-    my_model_state_dict = torch.load(
-        f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
+if RunningParams.resnet == 50:
+    model = torchvision.models.resnet50(pretrained=True).cuda()
+    model.fc = nn.Linear(2048, 120)
 elif RunningParams.resnet == 34:
-    resnet = models.resnet34(pretrained=True)
-    resnet.fc = nn.Sequential(nn.Linear(512, 200))
-    my_model_state_dict = torch.load(
-        f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
+    model = torchvision.models.resnet34(pretrained=True).cuda()
+    model.fc = nn.Linear(512, 120)
 elif RunningParams.resnet == 18:
-    resnet = models.resnet18(pretrained=True)
-    resnet.fc = nn.Sequential(nn.Linear(512, 200))
-    my_model_state_dict = torch.load(
-        f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
+    model = torchvision.models.resnet18(pretrained=True).cuda()
+    model.fc = nn.Linear(512, 120)
 
-resnet.load_state_dict(my_model_state_dict, strict=True)
-if RunningParams.resnet == 34 or RunningParams.resnet == 18 or (
-        RunningParams.resnet == 50 and RunningParams.RN50_INAT is False):
-    resnet.fc = resnet.fc[0]
+print('{}/stanford-dogs/resnet{}_stanford_dogs.pth'.format(RunningParams.prj_dir, RunningParams.resnet))
+my_model_state_dict = torch.load(
+    '{}/stanford-dogs/resnet{}_stanford_dogs.pth'.format(RunningParams.prj_dir, RunningParams.resnet),
+    map_location='cuda'
+)
+new_state_dict = {k.replace("model.", ""): v for k, v in my_model_state_dict.items()}
 
-MODEL1 = resnet
+model.load_state_dict(new_state_dict, strict=True)
+
+MODEL1 = model.cuda()
 MODEL1.eval()
 
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
@@ -78,14 +72,23 @@ feature_extractor = nn.DataParallel(feature_extractor)
 ################################################################
 
 if RunningParams.resnet == 34 or RunningParams.resnet == 18:
-    in_features = resnet.fc.in_features
+    in_features = 512
 elif RunningParams.resnet == 50:
     in_features = 2048
 
 print("Building FAISS index...! Training set is the knowledge base.")
 
-faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/datasets/CUB/train1',
-                                     transform=Dataset.data_transforms['train'])
+normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
+data_transform = transforms.Compose([transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            normalize,
+        ])
+
+# faiss dataset contains images using as the knowledge based for KNN retrieval
+faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/Stanford_Dogs_dataset/train',
+                                     transform=data_transform)
 
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
@@ -96,11 +99,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-if MODEL1_RESNET is True:
-    INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cub/INAT_{RunningParams.RN50_INAT}_INDEX_file_adv_process_rn{RunningParams.resnet}.npy'
-else:
-    INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cub/INDEX_file_adv_process_NTSNET.npy'
-
+INDEX_FILE = f'{RunningParams.prj_dir}/faiss/dogs/INDEX_file_adv_process_rn{RunningParams.resnet}.npy'
 print(INDEX_FILE)
 
 if os.path.exists(INDEX_FILE):
@@ -146,40 +145,9 @@ else:
     np.save(INDEX_FILE, faiss_nns_class_dict)
 
 if MODEL1_RESNET is True:
-    ################################################################
-    from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
-
-    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-    my_model_state_dict = torch.load(
-        f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
-
-    if RunningParams.resnet == 50 and RunningParams.RN50_INAT is False:
-        resnet = models.resnet50(pretrained=True)
-        resnet.fc = nn.Sequential(nn.Linear(2048, 200))
-        my_model_state_dict = torch.load(
-            f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
-    elif RunningParams.resnet == 34:
-        resnet = models.resnet34(pretrained=True)
-        resnet.fc = nn.Sequential(nn.Linear(512, 200))
-        my_model_state_dict = torch.load(
-            f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
-    elif RunningParams.resnet == 18:
-        resnet = models.resnet18(pretrained=True)
-        resnet.fc = nn.Sequential(nn.Linear(512, 200))
-        my_model_state_dict = torch.load(
-            f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
-
-    resnet.load_state_dict(my_model_state_dict, strict=True)
-    if RunningParams.resnet == 34 or RunningParams.resnet == 18 or (
-            RunningParams.resnet == 50 and RunningParams.RN50_INAT is False):
-        resnet.fc = resnet.fc[0]
-
-
     MODEL1 = nn.DataParallel(MODEL1).eval().cuda()
 
-
-    # data_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/{}'.format(set)
-    data_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
+    data_dir = f'{RunningParams.parent_dir}/Stanford_Dogs_dataset/test'
 
     image_datasets = dict()
     image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
@@ -190,92 +158,18 @@ if MODEL1_RESNET is True:
         num_workers=4,
         pin_memory=True,
     )
-    print('Running MODEL1 being RN50!!!')
-
-else:
-    ################################################################
-    import os
-    from torch.autograd import Variable
-    import torch.utils.data
-    from torch.nn import DataParallel
-    from core import model, dataset
-    from torch import nn
-    from datasets import Dataset
-    from torchvision.datasets import ImageFolder
-    from tqdm import tqdm
-    net = model.attention_net(topN=6)
-    ckpt = torch.load(f'{RunningParams.parent_dir}/NTS-Net/model.ckpt')
-
-    net.load_state_dict(ckpt['net_state_dict'])
-
-    # feature_extractor = nn.Sequential(*list(net.children())[:-1])  # avgpool feature
-    # print(net)
-
-    net.eval()
-    net = net.cuda()
-    net = DataParallel(net)
-    MODEL1 = net
-
-    Dataset = Dataset()
-
-    from torchvision import transforms
-    from PIL import Image
-
-    ntsnet_data_transforms = transforms.Compose([
-        transforms.Resize((600, 600), interpolation=Image.BILINEAR),
-        transforms.CenterCrop((448, 448)),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
-
-    # data_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/{}'.format(set)
-    data_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
-    nts_val_data = ImageFolderWithPaths(
-        # ImageNet train folder
-        root=data_dir, transform=ntsnet_data_transforms
-    )
-
-    val_data = ImageFolderWithPaths(
-        # ImageNet train folder
-        root=data_dir, transform=Dataset.data_transforms['val']
-    )
-
-    nts_train_loader = torch.utils.data.DataLoader(
-        nts_val_data,
-        batch_size=16,
-        shuffle=False,
-        num_workers=8,
-        pin_memory=True,
-        drop_last=False
-    )
-
-    train_loader = torch.utils.data.DataLoader(
-        val_data,
-        batch_size=16,
-        shuffle=False,
-        num_workers=8,
-        pin_memory=True,
-        drop_last=False
-    )
-    print('Running MODEL1 being NTS-NET!!!')
-
 
 ########################################################################
 
 correct_cnt = 0
-total_cnt = 5794
+total_cnt = len(image_datasets['train'])
 
 faiss_nn_dict = dict()
 cnt = 0
 
-# Number of buckets
-# M = 20
-# bucket_limits = torch.linspace(0, 1, M + 1)
-# bucket_data = {'accuracies': torch.zeros(M), 'confidences': torch.zeros(M), 'counts': torch.zeros(M)}
-
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
-# for (data, label, paths), (data2, label2, paths2) in tqdm(zip(nts_train_loader, train_loader)):
-    if len(train_loader.dataset.classes) < 200:
+# for (data, label, paths), (data2, label2, paths2) in tqdm(zip(train_loader, std_train_loader)):
+    if len(train_loader.dataset.classes) < 120:
         for sample_idx in range(data.shape[0]):
             tgt = label[sample_idx].item()
             class_name = train_loader.dataset.classes[tgt]
@@ -299,10 +193,6 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
     model1_p = torch.nn.functional.softmax(out, dim=1)
 
     score_top1, index_top1 = torch.topk(model1_p, 1, dim=1)
-    # Compare top-predicted class (index_top1) to true labels (label)
-    # breakpoint()
-    correct_predictions = index_top1.squeeze(1) == label
-    correct_cnt += correct_predictions.sum().item()
 
     score, index = torch.topk(model1_p, depth_of_pred, dim=1)
 
@@ -335,11 +225,8 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
 
 
 print(cnt)
-save_file = f'{RunningParams.prj_dir}/faiss/advising_process_{set}_top1_HP_MODEL1_HP_FE.npy'
+save_file = f'{RunningParams.prj_dir}/faiss/advising_process_top1_SDogs.npy'
 print(save_file)
 print(set)
 print(depth_of_pred)
 np.save(save_file, faiss_nn_dict)
-# Calculate accuracy
-accuracy = correct_cnt / total_cnt
-print(f'Accuracy: {accuracy:.4f}')

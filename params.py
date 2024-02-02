@@ -144,6 +144,6 @@ class RunningParams(object):
             exit(-1)
 
         # Visualization
-        self.M2_VISUALIZATION = False
-        self.VISUALIZE_TRANSFORMER_ATTN = False
+        self.VISUALIZE_COMPARATOR_CORRECTNESS = False
+        self.VISUALIZE_COMPARATOR_HEATMAPS = False
 

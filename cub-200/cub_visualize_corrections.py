@@ -134,6 +134,10 @@ if __name__ == '__main__':
             for sample_idx in range(x.shape[0]):
                 path = pths[sample_idx]
                 base_name = os.path.basename(path)
+                if 'Green_Jay_0089_66075' not in base_name:
+                    continue
+                else:
+                    print('Founddddddddddddddddddddddddddddd')
                 original_preds = labels[sample_idx]
                 sim_scores = p_sigmoid[sample_idx]
 
@@ -177,14 +181,14 @@ if __name__ == '__main__':
 
                     # Prepare figure and axes, increase the figsize to make sub-images larger
                     fig, axs = plt.subplots(1, 6, figsize=(30, 5))
-                    fig.subplots_adjust(wspace=0.15, hspace=0.3)
-                    fig.suptitle('Initial class ranking by pretrained classifier C', color='red', size=20)  # Add this line
+                    fig.subplots_adjust(wspace=0.01, hspace=0.3)
+                    fig.suptitle('Initial class ranking by pretrained classifier C', color='red', size=26, y=1.05)  # Add this line
 
                     # Load and plot the original image
                     original_img = Image.open(path)
                     original_img = resize_and_crop(original_img)
                     axs[0].imshow(np.array(original_img))
-                    axs[0].set_title('Query: {}'.format(data_loader.dataset.classes[gt[sample_idx].item()].split('.')[1].replace('_',' ')), color='green', fontsize=18)
+                    axs[0].set_title('Query: {}'.format(data_loader.dataset.classes[gt[sample_idx].item()].split('.')[1].replace('_',' ')), color='green', fontsize=22)
                     axs[0].set_xticks([])
                     axs[0].set_yticks([])
 
@@ -202,7 +206,7 @@ if __name__ == '__main__':
                         else:
                             color = 'black'
                         # Set the title for the plot (at the top by default)
-                        axs[i + 1].set_title(f'Top{i + 1}: {class_name}', color=color, fontsize=18)
+                        axs[i + 1].set_title(f'Top{i + 1}: {class_name}', color=color, fontsize=22)
 
                         # Add the confidence at the bottom of the image
                         # axs[i + 1].text(0.5, -0.07, f'AdvNet\'s Confidence: {sim_scores[i]:.2f}', size=18, ha="center",
@@ -210,7 +214,7 @@ if __name__ == '__main__':
 
                         conf = nn_dict[i]['C_confidence']
                         sim = p_sigmoid[sample_idx][i]
-                        axs[i + 1].text(0.5, -0.07, f'RN50: {int(conf.item()*100)}% | S: {sim:.2f}', size=18, ha="center",
+                        axs[i + 1].text(0.5, -0.07, f'RN50: {int(conf.item()*100)}% | S: {sim:.2f}', size=22, ha="center",
                                         transform=axs[i + 1].transAxes)
 
                         axs[i + 1].set_xticks([])
@@ -222,8 +226,8 @@ if __name__ == '__main__':
 
                     # Repeat the same steps for the refined predictions
                     fig, axs = plt.subplots(1, 6, figsize=(30, 5))
-                    fig.subplots_adjust(wspace=0.15, hspace=0.3)
-                    fig.suptitle('Refined class ranking by Product of Experts C x S', color='green', size=20)  # Add this line
+                    fig.subplots_adjust(wspace=0.01, hspace=0.3)
+                    fig.suptitle('Refined class ranking by Product of Experts C x S', color='green', size=26, y=1.05)  # Add this line
 
                     # Load the original image
                     original_img = Image.open(path)
@@ -252,11 +256,11 @@ if __name__ == '__main__':
                             color = 'black'
 
                         # Set the title for the plot (at the top by default)
-                        axs[i + 1].set_title(f'Top{i + 1}: {class_name}', color=color, fontsize=18)
+                        axs[i + 1].set_title(f'Top{i + 1}: {class_name}', color=color, fontsize=22)
 
                         sim_scores = sorted(sim_scores, reverse=True)
 
-                        axs[i + 1].text(0.5, -0.07, f'RN50 x S: {int(sim_scores[i]*100)}%', size=18, ha="center",
+                        axs[i + 1].text(0.5, -0.07, f'RN50 x S: {int(sim_scores[i]*100)}%', size=22, ha="center",
                                         transform=axs[i + 1].transAxes)
 
                         axs[i + 1].set_xticks([])

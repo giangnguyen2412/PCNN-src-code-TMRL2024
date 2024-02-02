@@ -132,7 +132,7 @@ if __name__ == '__main__':
 
         categories = ['CorrectlyAccept', 'IncorrectlyAccept', 'CorrectlyReject', 'IncorrectlyReject']
         save_dir = f'{RunningParams.prj_dir}/vis/cars'
-        if RunningParams.M2_VISUALIZATION is True:
+        if RunningParams.VISUALIZE_COMPARATOR_CORRECTNESS is True:
             # HelperFunctions.check_and_rm(save_dir)
             HelperFunctions.check_and_mkdir(save_dir)
         model1_confidence_dist = dict()
@@ -228,8 +228,8 @@ if __name__ == '__main__':
 
                 running_corrects += torch.sum(preds == labels.data)
 
-                VISUALIZE_TRANSFORMER_ATTN = False
-                if VISUALIZE_TRANSFORMER_ATTN is True:
+                VISUALIZE_COMPARATOR_HEATMAPS = False
+                if VISUALIZE_COMPARATOR_HEATMAPS is True:
                     i2e_attn = i2e_attn.mean(dim=1)  # bsx8x3x50
                     i2e_attn = i2e_attn[:, :, 1:]  # remove cls token --> bsx3x49
 
@@ -306,7 +306,7 @@ if __name__ == '__main__':
                                 if labels[sample_idx].item() == 1:
                                     confidence_dict[s][2] += 1
 
-            if RunningParams.M2_VISUALIZATION is True:
+            if RunningParams.VISUALIZE_COMPARATOR_CORRECTNESS is True:
                 for sample_idx in range(x.shape[0]):
                     result = results[sample_idx].item()
                     if result is True:
