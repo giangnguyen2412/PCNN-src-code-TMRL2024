@@ -49,20 +49,7 @@ if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
     inat_resnet = resnet.cuda()
     MODEL1 = inat_resnet
     MODEL1.eval()
-else:
-    import torchvision
 
-    inat_resnet = torchvision.models.resnet50(pretrained=True).cuda()
-    inat_resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
-    my_model_state_dict = torch.load('50_vanilla_resnet_avg_pool_2048_to_200way.pth')
-    inat_resnet.load_state_dict(my_model_state_dict, strict=True)
-    # Freeze backbone (for training only)
-    for param in list(inat_resnet.parameters())[:-2]:
-        param.requires_grad = False
-    # to CUDA
-    inat_resnet.cuda()
-    MODEL1 = inat_resnet
-    MODEL1.eval()
 
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
 feature_extractor.cuda()
@@ -149,7 +136,7 @@ MODEL1 = nn.DataParallel(MODEL1).eval()
 
 set = 'train'
 # data_dir = '/home/giang/Downloads/datasets/CUB/advnet/{}'.format(set)
-data_dir = '/home/giang/Downloads/datasets/CUB/train1'  ##################################
+data_dir = f'{RunningParams.parent_dir}/{RunningParams.train_path}'  ##################################
 
 image_datasets = dict()
 image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])

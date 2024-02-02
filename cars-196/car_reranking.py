@@ -30,7 +30,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
             transforms.ToTensor(),
             normalize,
         ])
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/RunningParams.train_path',
                                      data_transform)
 
 PRODUCT_OF_EXPERTS = False
@@ -96,7 +96,7 @@ if __name__ == '__main__':
 
     model.eval()
 
-    test_dir = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/test'  ##################################
+    test_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'  ##################################
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])

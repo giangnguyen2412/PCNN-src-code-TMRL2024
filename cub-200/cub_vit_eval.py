@@ -18,6 +18,9 @@ class CustomViT(nn.Module):
         return output, cls_token
 
 import os
+from params import RunningParams
+
+RunningParams = RunningParams()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
@@ -34,7 +37,7 @@ transform = transforms.Compose([
 ])
 
 # Load CUB-200 validation dataset
-val_dataset = datasets.ImageFolder(root='/home/giang/Downloads/datasets/CUB/test0/', transform=transform)
+val_dataset = datasets.ImageFolder(root=f'{RunningParams.parent_dir}/{RunningParams.test_path}', transform=transform)
 val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, num_workers=8, pin_memory=True)
 
 # Initialize the base model and load the trained weights

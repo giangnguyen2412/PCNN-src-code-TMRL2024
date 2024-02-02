@@ -21,6 +21,9 @@ from matplotlib import pyplot as plt
 from torch.utils.data import DataLoader
 from torchvision.datasets import ImageFolder
 from tqdm import tqdm
+from params import RunningParams
+
+RunningParams = RunningParams()
 
 import random
 
@@ -51,7 +54,7 @@ val_dataset_transform = transforms.Compose(
 )
 
 training_folder = ImageFolder(
-    root="/home/giang/Downloads/datasets/CUB/train1/",
+    root=f"{RunningParams.parent_dir}/{RunningParams.train_path}/",
     transform=train_dataset_transform,
 )
 train_loader = DataLoader(
@@ -59,7 +62,7 @@ train_loader = DataLoader(
 )
 
 validation_folder = ImageFolder(
-    root="/home/giang/Downloads/datasets/CUB/test0/", transform=train_dataset_transform
+    root=f"{RunningParams.parent_dir}/{RunningParams.test_path}", transform=train_dataset_transform
 )
 val_loader = DataLoader(
     validation_folder, batch_size=768, shuffle=False, num_workers=8, pin_memory=False

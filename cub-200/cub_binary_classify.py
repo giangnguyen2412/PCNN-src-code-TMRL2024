@@ -34,7 +34,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 CATEGORY_ANALYSIS = False
 
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/RunningParams.combined_path',
                                      Dataset.data_transforms['train'])
 
 if __name__ == '__main__':
@@ -95,7 +95,7 @@ if __name__ == '__main__':
     print(RunningParams.__dict__)
 
     MODEL2.eval()
-    test_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'  ##################################
+    test_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'  ##################################
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'])

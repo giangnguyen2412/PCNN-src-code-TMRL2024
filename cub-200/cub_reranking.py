@@ -21,7 +21,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 torch.manual_seed(42)
 
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/RunningParams.combined_path',
                                      Dataset.data_transforms['train'])
 
 PRODUCT_OF_EXPERTS = True
@@ -167,7 +167,7 @@ if __name__ == '__main__':
             ])
 
             # data_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/{}'.format(set)
-            data_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
+            data_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'
             nts_val_data = ImageFolderWithPaths(
                 # ImageNet train folder
                 root=data_dir, transform=ntsnet_data_transforms
@@ -224,7 +224,7 @@ if __name__ == '__main__':
 
     model.eval()
 
-    test_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
+    test_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'
 
     image_datasets = dict()
     if MODEL1_RESNET is True:

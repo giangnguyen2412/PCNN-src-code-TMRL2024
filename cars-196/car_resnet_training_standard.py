@@ -212,7 +212,7 @@ def main_worker(gpu, ngpus_per_node, args):
 
     # Data loading code
     traindir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/BACKUP/train'
-    valdir = '/home/giang/Downloads/Cars/Stanford-Cars-dataset/test'
+    valdir = '/home/giang/Downloads/'
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
 

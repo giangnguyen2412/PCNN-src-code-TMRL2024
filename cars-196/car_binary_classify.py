@@ -27,7 +27,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 CATEGORY_ANALYSIS = False
 
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/RunningParams.train_path',
                                      Dataset.data_transforms['train'])
 
 if __name__ == '__main__':
@@ -81,7 +81,7 @@ if __name__ == '__main__':
     model.fc = nn.Linear(model.fc.in_features, 196)
 
     my_model_state_dict = torch.load(
-        '{}/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.prj_dir, RunningParams.resnet), map_location=torch.device('cpu'))
+        f'{RunningParams.prj_dir}/pretrained_models/cars-196/model_best_rn{RunningParams.resnet}.pth.tar', map_location=torch.device('cpu'))
     model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
     model.eval()
 
@@ -98,8 +98,7 @@ if __name__ == '__main__':
 
     ################################################################
 
-    test_dir = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/test'
-    # test_dir = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/test'
+    test_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, data_transform)
@@ -220,12 +219,6 @@ if __name__ == '__main__':
             for j in range(x.shape[0]):
                 pth = pths[j]
 
-                if '0_0' in pth:
-                    top1_cnt += 1
-
-                    if results[j] == True:
-                        top1_crt_cnt += 1
-
                 running_corrects += torch.sum(preds == labels.data)
 
                 VISUALIZE_COMPARATOR_HEATMAPS = False
@@ -274,37 +267,6 @@ if __name__ == '__main__':
                         cmd = 'rm -rf tmp/{}/{}_[0-{}].png'.format(
                             model2_decision, base_name, RunningParams.k_value - 1)
                         os.system(cmd)
-
-
-                AI_DELEGATE = True
-                if AI_DELEGATE is True:
-                    for sample_idx in range(x.shape[0]):
-                        result = results[sample_idx].item()
-                        pred = preds[sample_idx].item()
-
-                        s = int(model1_score[sample_idx].item() * 100)
-                        if s not in confidence_dict:
-                            confidence_dict[s] = [0, 0, 0]
-                            # if model2_score[sample_idx].item() >= model1_score[sample_idx].item():
-                            if True:
-                                if result is True:
-                                    confidence_dict[s][0] += 1
-                                else:
-                                    confidence_dict[s][1] += 1
-
-                                if labels[sample_idx].item() == 1:
-                                    confidence_dict[s][2] += 1
-
-                        else:
-                            # if model2_score[sample_idx].item() >= model1_score[sample_idx].item():
-                            if True:
-                                if result is True:
-                                    confidence_dict[s][0] += 1
-                                else:
-                                    confidence_dict[s][1] += 1
-
-                                if labels[sample_idx].item() == 1:
-                                    confidence_dict[s][2] += 1
 
             if RunningParams.VISUALIZE_COMPARATOR_CORRECTNESS is True:
                 for sample_idx in range(x.shape[0]):
@@ -365,12 +327,6 @@ if __name__ == '__main__':
             true_cnt += sum(labels)
             # np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
 
-        cmd = f'img2pdf -o {RunningParams.prj_dir}/vis/IncorrectlyAccept/output.pdf ' \
-              f'--pagesize A4^T {RunningParams.prj_dir}/vis/IncorrectlyAccept/*.jpg'
-        os.system(cmd)
-        cmd = f'img2pdf -o {RunningParams.prj_dir}/vis/IncorrectlyReject/output.pdf ' \
-              f'--pagesize A4^T {RunningParams.prj_dir}/vis/IncorrectlyReject/*.jpg'
-        os.system(cmd)
 
         epoch_acc = running_corrects.double() / len(image_datasets[ds])
         yes_ratio = yes_cnt.double() / len(image_datasets[ds])
@@ -400,4 +356,3 @@ if __name__ == '__main__':
             os.path.basename(test_dir), epoch_acc * 100, yes_ratio * 100, true_ratio * 100))
 
         np.save('confidence.npy', confidence_dict)
-        # print(top1_crt_cnt/top1_cnt)

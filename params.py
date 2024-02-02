@@ -53,6 +53,10 @@ class RunningParams(object):
 
         # Training parameters
         if self.CUB_TRAINING is True:
+            self.train_path = 'datasets/CUB/train1'
+            self.test_path = 'datasets/CUB/test0'
+            self.combined_path = 'datasets/CUB/combined'
+
             self.batch_size = 256
             self.epochs = 200
             self.learning_rate = 3e-4
@@ -62,7 +66,7 @@ class RunningParams(object):
             self.negative_order = 1
 
             if self.set == 'test':
-                self.data_dir = f'{self.parent_dir}/datasets/CUB/test0'  # CUB test folder
+                self.data_dir = f'{self.parent_dir}/RunningParams.test_path'  # CUB test folder
             else:
                 self.data_dir = f'{self.parent_dir}/datasets/CUB/advnet/{self.set}'  # CUB train folder
 
@@ -91,6 +95,9 @@ class RunningParams(object):
             self.extension = '.jpg'
 
         elif self.CARS_TRAINING is True:
+            self.train_path = 'Cars/Stanford-Cars-dataset/train'
+            self.test_path = 'Cars/Stanford-Cars-dataset/test'
+
             self.batch_size = 256
             self.epochs = 100
             self.learning_rate = 1e-2

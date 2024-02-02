@@ -65,7 +65,7 @@ train_transform = transforms.Compose([transforms.Resize(256),
             normalize,
         ])
 
-faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train',
+faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/RunningParams.train_path',
                                      transform=train_transform)
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -126,8 +126,8 @@ MODEL1 = nn.DataParallel(MODEL1).eval()
 
 set = 'train'
 # data_dir = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/{}'.format(set)
-# data_dir = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/test'
-data_dir = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train'
+# data_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'
+data_dir = f'{RunningParams.parent_dir}/RunningParams.train_path'
 
 if set == 'train':
     data_transform = train_transform

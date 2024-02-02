@@ -59,7 +59,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
         ])
 
 # faiss dataset contains images using as the knowledge based for KNN retrieval
-faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train',
+faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/RunningParams.train_path',
                                      transform=data_transform)
 
 faiss_data_loader = torch.utils.data.DataLoader(

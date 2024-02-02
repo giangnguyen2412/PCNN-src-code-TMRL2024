@@ -156,7 +156,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
 
 torch.manual_seed(42)
 
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/RunningParams.combined_path',
                                      Dataset.data_transforms['train'])
 
 from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
@@ -175,7 +175,7 @@ if __name__ == '__main__':
     model = nn.DataParallel(model).cuda()
 
     # test_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/test'  ##################################
-    test_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
+    test_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])

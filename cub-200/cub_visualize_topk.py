@@ -1,4 +1,4 @@
-# Visualize AdvNet top-k predictions
+# Visualize PoE CxS top-k predictions
 import torch
 import torch.nn as nn
 import os
@@ -19,7 +19,7 @@ Dataset = Dataset()
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
 
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/datasets/CUB/combined',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/RunningParams.combined_path',
                                      Dataset.data_transforms['train'])
 
 import matplotlib.pyplot as plt
@@ -83,7 +83,7 @@ if __name__ == '__main__':
     model.eval()
 
     # test_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/test'  ##################################
-    test_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
+    test_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'
 
     import numpy as np
     file_name = f'{RunningParams.prj_dir}/faiss/advising_process_test_top1_HP_MODEL1_HP_FE.npy'
@@ -241,20 +241,9 @@ if __name__ == '__main__':
                             # axs[i + 1].set_title(f'Top{i + 1}: {class_name}', color=color, fontsize=14)
                             axs[i + 1].set_title(f'{class_name}', color=color, fontsize=14)
 
-                        # if PRODUCT_OF_EXPERTS is True:
-                        #     conf = score[i].item()
-                        # else:
-                        #     conf = nn_dict[i]['C_confidence']
-
-                        # axs[i + 1].text(0.5, -0.07, f'Confidence: {int(conf*100)}%', size=18, ha="center",
-                        #                 transform=axs[i + 1].transAxes)
 
                         axs[i + 1].set_xticks([])
                         axs[i + 1].set_yticks([])
-
-                    # Add question at the bottom of the figure
-                    # fig.text(0.5, 0.04, f'Sam guessed the Input image is {int(score_for_question*100)}% {class_name_for_question}. Is it {class_name_for_question}?', ha='center',
-                    #          va='center', fontsize=24, color='blue')
 
                     # Store the figure object based on correctness
                     if is_correct:
@@ -297,10 +286,6 @@ if __name__ == '__main__':
             with matplotlib.backends.backend_pdf.PdfPages(pdf_path) as pdf:
                 for fig in figures:
                     pdf.savefig(fig, bbox_inches='tight')
-
-        # Save correct and incorrect figures to separate PDFs
-        # save_figures_to_pdf(correct_figures[:sample_num], f'{RunningParams.prj_dir}/correct_predictions.pdf')
-        # save_figures_to_pdf(incorrect_figures[:sample_num], f'{RunningParams.prj_dir}/incorrect_predictions.pdf')
 
         random.seed(100)
         figures = correct_figures[:sample_num] + incorrect_figures[:sample_num]

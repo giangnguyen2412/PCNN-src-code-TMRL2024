@@ -31,7 +31,7 @@ val_dataset_transform = transforms.Compose(
   transforms.ToTensor(),
   transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
-validation_folder = ImageFolderWithPaths(root=f'{RunningParams.parent_dir}/datasets/CUB/test0', transform=val_dataset_transform)
+validation_folder = ImageFolderWithPaths(root=f'{RunningParams.parent_dir}/RunningParams.test_path', transform=val_dataset_transform)
 val_loader        = DataLoader(validation_folder, batch_size=512, shuffle=True, num_workers=8, pin_memory=False)
 
 from params import RunningParams

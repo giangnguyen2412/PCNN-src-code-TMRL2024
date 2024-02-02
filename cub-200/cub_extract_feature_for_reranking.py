@@ -84,7 +84,7 @@ elif RunningParams.resnet == 50:
 
 print("Building FAISS index...! Training set is the knowledge base.")
 
-faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/datasets/CUB/train1',
+faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/{RunningParams.train_path}',
                                      transform=Dataset.data_transforms['train'])
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -179,7 +179,7 @@ if MODEL1_RESNET is True:
 
 
     # data_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/{}'.format(set)
-    data_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
+    data_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'
 
     image_datasets = dict()
     image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
@@ -229,7 +229,7 @@ else:
     ])
 
     # data_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/{}'.format(set)
-    data_dir = f'{RunningParams.parent_dir}/datasets/CUB/test0'
+    data_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'
     nts_val_data = ImageFolderWithPaths(
         # ImageNet train folder
         root=data_dir, transform=ntsnet_data_transforms

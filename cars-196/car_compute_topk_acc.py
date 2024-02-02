@@ -31,8 +31,8 @@ preprocess = transforms.Compose([transforms.Resize(256),
 DEVICE = torch.device("cuda")
 
 #
-train_dataset = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/train'
-val_dataset = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/test'
+train_dataset = f'{RunningParams.parent_dir}/RunningParams.train_path'
+val_dataset = f'{RunningParams.parent_dir}/RunningParams.test_path'
 
 from datasets import Dataset, StanfordDogsDataset, ImageFolderForNNs
 
