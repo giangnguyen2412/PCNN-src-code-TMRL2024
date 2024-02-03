@@ -257,25 +257,10 @@ if __name__ == '__main__':
                 preds_val.append(preds)
                 labels_val.append(labels)
 
-                for j in range(x.shape[0]):
-                    pth = pths[j]
-
-                    if '_0_' in pth:
-                        top1_cnt += 1
-
-                        if results[j] == True:
-                            top1_crt_cnt += 1
-
                 running_corrects += torch.sum(preds == labels.data)
 
                 VISUALIZE_COMPARATOR_HEATMAPS = RunningParams.VISUALIZE_COMPARATOR_HEATMAPS
                 if VISUALIZE_COMPARATOR_HEATMAPS is True:
-                    # i2e_attn = i2e_attn.mean(dim=1)  # bsx8x3x50
-                    # i2e_attn = i2e_attn[:, :, 1:]  # remove cls token --> bsx3x49
-                    #
-                    # e2i_attn = e2i_attn.mean(dim=1)
-                    # e2i_attn = e2i_attn[:, :, 1:]  # remove cls token
-
                     for sample_idx in range(x.shape[0]):
                         result = results[sample_idx].item()
                         if result is True:
@@ -300,77 +285,6 @@ if __name__ == '__main__':
                         # breakpoint()
                         query = pths[sample_idx]
                         base_name = os.path.basename(query)
-                        # breakpoint()
-                        # prototypes = data_loader.dataset.faiss_nn_dict[base_name]['NNs'][0:RunningParams.k_value]
-                        # for prototype_idx in range(RunningParams.k_value):
-                        #     bef_weights = i2e_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
-                        #     aft_weights = e2i_attn[sample_idx, prototype_idx:prototype_idx + 1, :]
-                        #
-                        #     # as the test images are from validation, then we do not need to exclude the fist prototype
-                        #     prototype = prototypes[prototype_idx]
-                            # Visualization.visualize_transformer_attn_birds(bef_weights, aft_weights, prototype, query,
-                            #                                             model2_decision, prototype_idx)
-
-                        # Combine visualizations
-                        # cmd = 'montage attn_maps/cub/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 tmp/{}/{}.jpeg'.format(
-                        #     model2_decision, base_name, RunningParams.k_value - 1, model2_decision, base_name)
-                        # cmd = 'montage tmp/{}/{}_[0-{}].png -tile 3x1 -geometry +0+0 my_plot.png'.format(
-                        #     model2_decision, base_name, RunningParams.k_value - 1)
-                        # os.system(cmd)
-                        # Remove unused images
-                        # cmd = 'rm -rf attn_maps/cub/{}/{}_[0-{}].png'.format(
-                        #     model2_decision, base_name, RunningParams.k_value - 1)
-                        # os.system(cmd)
-
-                    # cmd = f'img2pdf -o {RunningParams.prj_dir}/attn_maps/cub/IncorrectlyAccept/output.pdf ' \
-                    #       f'--pagesize A4^T {RunningParams.prj_dir}/attn_maps/cub/IncorrectlyAccept/*.png'
-                    # os.system(cmd)
-                    #
-                    # cmd = f'img2pdf -o {RunningParams.prj_dir}/attn_maps/cub/CorrectlyAccept/output.pdf ' \
-                    #       f'--pagesize A4^T {RunningParams.prj_dir}/attn_maps/cub/CorrectlyAccept/*.png'
-                    # os.system(cmd)
-                    #
-                    # cmd = f'img2pdf -o {RunningParams.prj_dir}/attn_maps/cub/IncorrectlyReject/output.pdf ' \
-                    #       f'--pagesize A4^T {RunningParams.prj_dir}/attn_maps/cub/IncorrectlyReject/*.png'
-                    # os.system(cmd)
-                    #
-                    # cmd = f'img2pdf -o {RunningParams.prj_dir}/attn_maps/cub/CorrectlyReject/output.pdf ' \
-                    #       f'--pagesize A4^T {RunningParams.prj_dir}/attn_maps/cub/CorrectlyReject/*.png'
-                    # os.system(cmd)
-
-                AI_DELEGATE = True
-                if AI_DELEGATE is True:
-                    for sample_idx in range(x.shape[0]):
-                        result = results[sample_idx].item()
-                        pred = preds[sample_idx].item()
-
-                        s = int(model1_score[sample_idx].item() * 100)
-                        if s not in confidence_dict:
-                            # First: number of predictions having this confidence
-                            # Second: number of predictions having this confidence
-                            # Third: number of correct samples having this confidence
-                            # The confidence is from MODEL1 output
-                            confidence_dict[s] = [0, 0, 0]
-                            # if model2_score[sample_idx].item() >= model1_score[sample_idx].item():
-                            if True:
-                                if result is True:
-                                    confidence_dict[s][0] += 1
-                                else:
-                                    confidence_dict[s][1] += 1
-
-                                if labels[sample_idx].item() == 1:
-                                    confidence_dict[s][2] += 1
-
-                        else:
-                            # if model2_score[sample_idx].item() >= model1_score[sample_idx].item():
-                            if True:
-                                if result is True:
-                                    confidence_dict[s][0] += 1
-                                else:
-                                    confidence_dict[s][1] += 1
-
-                                if labels[sample_idx].item() == 1:
-                                    confidence_dict[s][2] += 1
 
             if RunningParams.VISUALIZE_COMPARATOR_CORRECTNESS is True:
                 for sample_idx in range(x.shape[0]):
@@ -440,8 +354,4 @@ if __name__ == '__main__':
 
         print(f'Accpt conf: {accpt_conf/accpt_cnt}')
 
-        # for k, v in advnet_confidence_dict.items():
-        #     advnet_confidence_dict[k] = sum(v) / len(v)
 
-        # print(f'advnet_confidence_dict: {advnet_confidence_dict}')
-        np.save('confidence.npy', confidence_dict)

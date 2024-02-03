@@ -217,11 +217,10 @@ if __name__ == '__main__':
             preds_val.append(preds)
             labels_val.append(labels)
 
+            running_corrects += torch.sum(preds == labels.data)
+
             for j in range(x.shape[0]):
                 pth = pths[j]
-
-                running_corrects += torch.sum(preds == labels.data)
-
                 VISUALIZE_COMPARATOR_HEATMAPS = False
                 if VISUALIZE_COMPARATOR_HEATMAPS is True:
                     i2e_attn = i2e_attn.mean(dim=1)  # bsx8x3x50
@@ -328,14 +327,13 @@ if __name__ == '__main__':
             true_cnt += sum(labels)
             # np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
 
-
+        breakpoint()
         epoch_acc = running_corrects.double() / len(image_datasets[ds])
         yes_ratio = yes_cnt.double() / len(image_datasets[ds])
         true_ratio = true_cnt.double() / len(image_datasets[ds])
 
         orig_wrong = len(image_datasets[ds]) - true_cnt
         adv_wrong = len(image_datasets[ds]) - advising_crt_cnt
-
 
         ################################################################
         # Calculate precision, recall, and F1 score
@@ -347,7 +345,6 @@ if __name__ == '__main__':
         f1 = f1_score(labels_val.cpu(), preds_val.cpu())
         confusion_matrix_ = confusion_matrix(labels_val.cpu(), preds_val.cpu())
         print(confusion_matrix_)
-
 
         print('Acc: {:.2f} - Precision: {:.4f} - Recall: {:.4f} - F1: {:.4f}'.format(
             epoch_acc.item() * 100, precision, recall, f1))
