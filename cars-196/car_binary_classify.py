@@ -17,7 +17,8 @@ from sklearn.metrics import precision_score, recall_score, f1_score, confusion_m
 
 from torchvision import datasets, models, transforms
 
-RunningParams = RunningParams()
+RunningParams = RunningParams('CARS')
+
 Dataset = Dataset()
 HelperFunctions = HelperFunctions()
 Visualization = Visualization()
@@ -27,7 +28,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 CATEGORY_ANALYSIS = False
 
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/RunningParams.train_path',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/{RunningParams.train_path}',
                                      Dataset.data_transforms['train'])
 
 if __name__ == '__main__':

@@ -25,7 +25,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 
 Dataset = Dataset()
-RunningParams = RunningParams()
+RunningParams = RunningParams('DOGS')
 
 if RunningParams.resnet == 50:
     model = torchvision.models.resnet50(pretrained=True).cuda()
@@ -37,9 +37,8 @@ elif RunningParams.resnet == 18:
     model = torchvision.models.resnet18(pretrained=True).cuda()
     model.fc = nn.Linear(512, 120)
 
-print('{}/stanford-dogs/resnet{}_stanford_dogs.pth'.format(RunningParams.prj_dir, RunningParams.resnet))
 my_model_state_dict = torch.load(
-    '{}/stanford-dogs/resnet{}_stanford_dogs.pth'.format(RunningParams.prj_dir, RunningParams.resnet),
+    f'{RunningParams.prj_dir}/pretrained_models/dogs-120/resnet{RunningParams.resnet}_stanford_dogs.pth',
     map_location='cuda'
 )
 new_state_dict = {k.replace("model.", ""): v for k, v in my_model_state_dict.items()}
@@ -65,7 +64,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
         ])
 
 # faiss dataset contains images using as the knowledge based for KNN retrieval
-faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/Stanford_Dogs_dataset/train',
+faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/{RunningParams.train_path}',
                                      transform=data_transform)
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -134,7 +133,7 @@ train_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-depth_of_pred = RunningParams.QK
+depth_of_pred = RunningParams.Q
 
 set = RunningParams.set
 if set == 'test':

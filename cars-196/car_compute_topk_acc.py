@@ -13,7 +13,7 @@ import sys
 sys.path.append('/home/giang/Downloads/advising_network')
 
 from params import RunningParams
-RunningParams = RunningParams()
+RunningParams = RunningParams('CARS')
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "4"
@@ -31,8 +31,8 @@ preprocess = transforms.Compose([transforms.Resize(256),
 DEVICE = torch.device("cuda")
 
 #
-train_dataset = f'{RunningParams.parent_dir}/RunningParams.train_path'
-val_dataset = f'{RunningParams.parent_dir}/RunningParams.test_path'
+train_dataset = f'{RunningParams.parent_dir}/{RunningParams.train_path}'
+val_dataset = f'{RunningParams.parent_dir}/{RunningParams.test_path}'
 
 from datasets import Dataset, StanfordDogsDataset, ImageFolderForNNs
 

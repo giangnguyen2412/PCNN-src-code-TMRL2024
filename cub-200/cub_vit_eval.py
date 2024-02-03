@@ -20,7 +20,7 @@ class CustomViT(nn.Module):
 import os
 from params import RunningParams
 
-RunningParams = RunningParams()
+RunningParams = RunningParams('CUB')
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
@@ -42,7 +42,7 @@ val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, num
 
 # Initialize the base model and load the trained weights
 base_model = timm.create_model('vit_base_patch16_224', pretrained=False, num_classes=200)
-model_path = "./vit_base_patch16_224_cub_200way_82_40.pth"
+model_path = f"{RunningParams.prj_dir}/pretrained_models/cub-200/vit_base_patch16_224_cub_200way_82_40.pth"
 state_dict = torch.load(model_path, map_location=device)
 new_state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
 base_model.load_state_dict(new_state_dict)

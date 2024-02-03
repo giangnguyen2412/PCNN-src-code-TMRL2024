@@ -13,7 +13,8 @@ from params import RunningParams
 from datasets import Dataset, ImageFolderForAdvisingProcess, ImageFolderForNNs
 from transformer import Transformer_AdvisingNetwork
 
-RunningParams = RunningParams()
+RunningParams = RunningParams('DOGS')
+
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -21,7 +22,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 torch.manual_seed(42)
 
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/Stanford_Dogs_dataset/test',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/{RunningParams.test_path}',
                                      Dataset.data_transforms['train'])
 
 PRODUCT_OF_EXPERTS = True
@@ -53,9 +54,9 @@ if __name__ == '__main__':
             model = torchvision.models.resnet18(pretrained=True).cuda()
             model.fc = nn.Linear(512, 120)
 
-        print('{}/stanford-dogs/resnet{}_stanford_dogs.pth'.format(RunningParams.prj_dir, RunningParams.resnet))
+        print(f'{RunningParams.prj_dir}/pretrained_models/dogs-120/resnet{RunningParams.resnet}_stanford_dogs.pth')
         my_model_state_dict = torch.load(
-            '{}/stanford-dogs/resnet{}_stanford_dogs.pth'.format(RunningParams.prj_dir, RunningParams.resnet),
+            f'{RunningParams.prj_dir}/pretrained_models/dogs-120/resnet{RunningParams.resnet}_stanford_dogs.pth',
             map_location='cuda'
         )
         new_state_dict = {k.replace("model.", ""): v for k, v in my_model_state_dict.items()}
@@ -94,7 +95,7 @@ if __name__ == '__main__':
     model.eval()
 
     # test_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/test'  ##################################
-    test_dir = f'{RunningParams.parent_dir}/Stanford_Dogs_dataset/test'
+    test_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])

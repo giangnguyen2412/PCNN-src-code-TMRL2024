@@ -18,6 +18,7 @@ import torchvision
 import shutil
 
 RunningParams = RunningParams()
+RunningParams.set_active_training('CUB')
 
 
 concat = lambda x: np.concatenate(x, axis=0)
@@ -31,17 +32,18 @@ val_dataset_transform = transforms.Compose(
   transforms.ToTensor(),
   transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
 
-validation_folder = ImageFolderWithPaths(root=f'{RunningParams.parent_dir}/RunningParams.test_path', transform=val_dataset_transform)
+validation_folder = ImageFolderWithPaths(root=f'{RunningParams.parent_dir}/{RunningParams.test_path}', transform=val_dataset_transform)
 val_loader        = DataLoader(validation_folder, batch_size=512, shuffle=True, num_workers=8, pin_memory=False)
 
 from params import RunningParams
-RunningParams = RunningParams()
+RunningParams = RunningParams('CUB')
 
 from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
 inat_resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    '/home/giang/Downloads/advising_network/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+    f'{RunningParams.prj_dir}/pretrained_models/cub-200/iNaturalist_pretrained_RN50_85.83.pth')
+
 inat_resnet.load_state_dict(my_model_state_dict, strict=True)
 # to CUDA
 inat_resnet.cuda()

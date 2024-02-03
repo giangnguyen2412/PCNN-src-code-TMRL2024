@@ -166,7 +166,7 @@ if __name__ == '__main__':
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
-        f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+        f'{RunningParams.prj_dir}/pretrained_models/cub-200/iNaturalist_pretrained_RN50_85.83.pth')
     resnet.load_state_dict(my_model_state_dict, strict=True)
 
     conv_features = list(resnet.children())[:RunningParams.conv_layer - 6]  # delete the last fc layer
@@ -175,7 +175,7 @@ if __name__ == '__main__':
     model = nn.DataParallel(model).cuda()
 
     # test_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/test'  ##################################
-    test_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'
+    test_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])

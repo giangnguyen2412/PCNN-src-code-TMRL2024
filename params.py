@@ -1,19 +1,18 @@
 import os
 
-class RunningParams(object):
-    def __init__(self):
-        # Training mode
-        self.CUB_TRAINING = True  # ----------------------------------------- IMPORTANT PARAM --------
-        self.DOGS_TRAINING = False
-        self.CARS_TRAINING = False
+global_training_type = 'CARS'
+
+class RunningParams:
+    def __init__(self, training_type=None):
+        # Use the global training_type if not specified
+        if training_type is None:
+            training_type = global_training_type
+
+        self.set_active_training(training_type)
 
         self.TRANSFORMER_ARCH = True
         self.resnet = 50
-        self.RN50_INAT = True
-
-        # if self.CUB_TRAINING is True and self.RN50_INAT is True and self.resnet == 50:
-        #     self.NTSNET = True
-        # else:
+        self.RN50_INAT = False
         self.NTSNET = False
 
         self.VisionTransformer = False
@@ -24,6 +23,7 @@ class RunningParams(object):
 
         self.parent_dir = '/home/giang/Downloads'
         self.prj_dir = '/home/giang/Downloads/advising_network'
+        self.model_dir = f'{self.prj_dir}/pretrained_models'
 
         self.dropout = 0.0
         self.trivial_aument_p = 0.0
@@ -31,7 +31,7 @@ class RunningParams(object):
         # General
         self.conv_layer = 4
 
-        self.feat_map_size = {self.conv_layer: 49} # 7x7
+        self.feat_map_size = {self.conv_layer: 49}  # 7x7
         if self.resnet == 50:
             self.conv_layer_size = {4: 2048}
         elif self.resnet == 34:
@@ -51,14 +51,39 @@ class RunningParams(object):
 
         self.HIGHPERFORMANCE_FEATURE_EXTRACTOR = True
 
-        # Training parameters
-        if self.CUB_TRAINING is True:
+        # Visualization
+        self.VISUALIZE_COMPARATOR_CORRECTNESS = False
+        self.VISUALIZE_COMPARATOR_HEATMAPS = False
+
+        # Set training-specific parameters
+        self.set_training_params()
+
+    def set_active_training(self, training_type):
+        # Set all training modes to False
+        self.CUB_TRAINING = False
+        self.DOGS_TRAINING = False
+        self.CARS_TRAINING = False
+
+        # Activate the chosen training mode
+        if training_type == 'CUB':
+            self.CUB_TRAINING = True
+        elif training_type == 'DOGS':
+            self.DOGS_TRAINING = True
+        elif training_type == 'CARS':
+            self.CARS_TRAINING = True
+        else:
+            raise ValueError("Invalid training type. Please choose 'CUB', 'DOGS', or 'CARS'.")
+
+    def set_training_params(self):
+        # Set parameters specific to the active training mode
+        if self.CUB_TRAINING:
+            # Set parameters for CUB training
             self.train_path = 'datasets/CUB/train1'
             self.test_path = 'datasets/CUB/test0'
             self.combined_path = 'datasets/CUB/combined'
-
             self.batch_size = 256
             self.epochs = 200
+
             self.learning_rate = 3e-4
             self.k_value = 1
 
@@ -66,26 +91,26 @@ class RunningParams(object):
             self.negative_order = 1
 
             if self.set == 'test':
-                self.data_dir = f'{self.parent_dir}/RunningParams.test_path'  # CUB test folder
+                self.data_dir = f'{self.parent_dir}/{self.test_path}'  # CUB test folder
             else:
                 self.data_dir = f'{self.parent_dir}/datasets/CUB/advnet/{self.set}'  # CUB train folder
 
-            self.QK = 10  # Q and K values for building positives and negatives
+            self.Q = 10  # Q and K values for building positives and negatives
             self.faiss_npy_file = '{}/faiss/cub/INAT_{}_top{}_k{}_enriched_rn{}_{}_NN{}th.npy'. \
-                format(self.prj_dir, self.RN50_INAT, self.QK, self.k_value, self.resnet, self.set, self.negative_order)
+                format(self.prj_dir, self.RN50_INAT, self.Q, self.k_value, self.resnet, self.set, self.negative_order)
 
             self.wandb_sess_name = f'INAT_{self.RN50_INAT}_cub_rn{self.resnet}_bs{self.batch_size}-p{self.trivial_aument_p}-dropout-{self.dropout}-NNth-{self.negative_order}'
 
-            self.aug_data_dir = self.data_dir +'_all' + f'_top{self.QK}_rn{self.resnet}_NN{self.negative_order}th_{self.wandb_sess_name}_INAT_{self.RN50_INAT}'
+            self.aug_data_dir = self.data_dir + '_all' + f'_top{self.Q}_rn{self.resnet}_NN{self.negative_order}th_{self.wandb_sess_name}_INAT_{self.RN50_INAT}'
 
             if self.VisionTransformer is True:
                 self.faiss_npy_file = '{}/faiss/cub/ViT_top{}_k{}_enriched_{}_NN{}th.npy'. \
-                    format(self.prj_dir, self.QK, self.k_value, self.set,
+                    format(self.prj_dir, self.Q, self.k_value, self.set,
                            self.negative_order)
 
                 self.wandb_sess_name = f'ViT_bs{self.batch_size}-p{self.trivial_aument_p}-dropout-{self.dropout}-NNth-{self.negative_order}'
 
-                self.aug_data_dir = self.data_dir + '_all' + f'_top{self.QK}_ViT_NN{self.negative_order}th_{self.wandb_sess_name}'
+                self.aug_data_dir = self.data_dir + '_all' + f'_top{self.Q}_ViT_NN{self.negative_order}th_{self.wandb_sess_name}'
 
                 # self.wandb_sess_name = f'ViT_bs{self.batch_size}-p{self.trivial_aument_p}-dropout-{self.dropout}-NNth-{self.negative_order}-trainViT-SGD-no-trivialaugment'
 
@@ -94,12 +119,13 @@ class RunningParams(object):
             self.L = 2  # Depth of transformer
             self.extension = '.jpg'
 
-        elif self.CARS_TRAINING is True:
+        elif self.CARS_TRAINING:
+            # Set parameters for CARS training
             self.train_path = 'Cars/Stanford-Cars-dataset/train'
             self.test_path = 'Cars/Stanford-Cars-dataset/test'
-
             self.batch_size = 256
             self.epochs = 100
+
             self.learning_rate = 1e-2
             self.k_value = 1
 
@@ -109,22 +135,26 @@ class RunningParams(object):
             # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
             self.data_dir = f'{self.parent_dir}/Cars/Stanford-Cars-dataset/' + self.set
 
-            self.QK = 10  # Q and K values for building positives and negatives
+            self.Q = 10  # Q values for building positives and negatives
             self.faiss_npy_file = '{}/faiss/cars/top{}_k{}_enriched_{}_Finetuning_faiss_{}_top1.npy'. \
-                format(self.prj_dir, self.QK, self.k_value, self.resnet, self.set)
+                format(self.prj_dir, self.Q, self.k_value, self.resnet, self.set)
 
             self.wandb_sess_name = f'cars_rn{self.resnet}_bs{self.batch_size}-p{self.trivial_aument_p}-dropout-{self.dropout}-NNth-{self.negative_order}'
 
-            self.aug_data_dir = os.path.join(self.data_dir + f'_top{self.QK}_rn{self.resnet}')
+            self.aug_data_dir = os.path.join(self.data_dir + f'_top{self.Q}_rn{self.resnet}')
 
             self.N = 3
             self.M = 3
             self.L = 3
             self.extension = '.jpg'
 
-        elif self.DOGS_TRAINING is True:
+        elif self.DOGS_TRAINING:
+            # Set parameters for DOGS training
+            self.train_path = 'Stanford_Dogs_dataset/train'
+            self.test_path = 'Stanford_Dogs_dataset/test'
             self.batch_size = 256
             self.epochs = 50
+
             self.learning_rate = 1e-3
             self.k_value = 1
 
@@ -134,13 +164,13 @@ class RunningParams(object):
             # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
             self.data_dir = f'{self.parent_dir}/Stanford_Dogs_dataset/' + self.set
 
-            self.QK = 10  # Q and K values for building positives and negatives
+            self.Q = 10  # Q and K values for building positives and negatives
             self.faiss_npy_file = '{}/faiss/dogs/top{}_k{}_enriched_{}_Finetuning_faiss_{}_top1.npy'. \
-                format(self.prj_dir, self.QK, self.k_value, self.resnet, self.set)
+                format(self.prj_dir, self.Q, self.k_value, self.resnet, self.set)
 
             # self.wandb_sess_name = f'dogs_rn{self.resnet}_bs{self.batch_size}-p{self.trivial_aument_p}-dropout-{self.dropout}-NNth-{self.negative_order}'
 
-            self.aug_data_dir = os.path.join(self.data_dir + f'_top{self.QK}_rn{self.resnet}')
+            self.aug_data_dir = os.path.join(self.data_dir + f'_top{self.Q}_rn{self.resnet}')
 
             self.N = 3
             self.M = 3
@@ -148,9 +178,6 @@ class RunningParams(object):
             self.extension = '.jpg'
 
         else:
-            exit(-1)
+            raise ValueError("No valid training mode set.")
 
-        # Visualization
-        self.VISUALIZE_COMPARATOR_CORRECTNESS = False
-        self.VISUALIZE_COMPARATOR_HEATMAPS = False
 

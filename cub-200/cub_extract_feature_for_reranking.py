@@ -31,7 +31,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 Dataset = Dataset()
-RunningParams = RunningParams()
+RunningParams = RunningParams('CUB')
 
 MODEL1_RESNET = True
 depth_of_pred = 5
@@ -45,23 +45,23 @@ from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
 resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+    f'{RunningParams.prj_dir}/pretrained_models/cub-200/iNaturalist_pretrained_RN50_85.83.pth')
 
 if RunningParams.resnet == 50 and RunningParams.RN50_INAT is False:
     resnet = models.resnet50(pretrained=True)
     resnet.fc = nn.Sequential(nn.Linear(2048, 200))
     my_model_state_dict = torch.load(
-        f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
+        f'{RunningParams.prj_dir}/pretrained_models/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
 elif RunningParams.resnet == 34:
     resnet = models.resnet34(pretrained=True)
     resnet.fc = nn.Sequential(nn.Linear(512, 200))
     my_model_state_dict = torch.load(
-        f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
+        f'{RunningParams.prj_dir}/pretrained_models/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
 elif RunningParams.resnet == 18:
     resnet = models.resnet18(pretrained=True)
     resnet.fc = nn.Sequential(nn.Linear(512, 200))
     my_model_state_dict = torch.load(
-        f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
+        f'{RunningParams.prj_dir}/pretrained_models/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
 
 resnet.load_state_dict(my_model_state_dict, strict=True)
 if RunningParams.resnet == 34 or RunningParams.resnet == 18 or (
@@ -151,23 +151,23 @@ if MODEL1_RESNET is True:
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
-        f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+        f'{RunningParams.prj_dir}/pretrained_models/cub-200/iNaturalist_pretrained_RN50_85.83.pth')
 
     if RunningParams.resnet == 50 and RunningParams.RN50_INAT is False:
         resnet = models.resnet50(pretrained=True)
         resnet.fc = nn.Sequential(nn.Linear(2048, 200))
         my_model_state_dict = torch.load(
-            f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
+            f'{RunningParams.prj_dir}/pretrained_models/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
     elif RunningParams.resnet == 34:
         resnet = models.resnet34(pretrained=True)
         resnet.fc = nn.Sequential(nn.Linear(512, 200))
         my_model_state_dict = torch.load(
-            f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
+            f'{RunningParams.prj_dir}/pretrained_models/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
     elif RunningParams.resnet == 18:
         resnet = models.resnet18(pretrained=True)
         resnet.fc = nn.Sequential(nn.Linear(512, 200))
         my_model_state_dict = torch.load(
-            f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
+            f'{RunningParams.prj_dir}/pretrained_models/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
 
     resnet.load_state_dict(my_model_state_dict, strict=True)
     if RunningParams.resnet == 34 or RunningParams.resnet == 18 or (
@@ -179,7 +179,7 @@ if MODEL1_RESNET is True:
 
 
     # data_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/{}'.format(set)
-    data_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'
+    data_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'
 
     image_datasets = dict()
     image_datasets['train'] = ImageFolderWithPaths(data_dir, Dataset.data_transforms['train'])
@@ -229,7 +229,7 @@ else:
     ])
 
     # data_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/{}'.format(set)
-    data_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'
+    data_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'
     nts_val_data = ImageFolderWithPaths(
         # ImageNet train folder
         root=data_dir, transform=ntsnet_data_transforms

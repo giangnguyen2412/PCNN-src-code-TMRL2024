@@ -21,7 +21,8 @@ from sklearn.metrics import precision_score, recall_score, f1_score, confusion_m
 
 from torchvision import datasets, models, transforms
 
-RunningParams = RunningParams()
+RunningParams = RunningParams('DOGS')
+
 Dataset = Dataset()
 HelperFunctions = HelperFunctions()
 Visualization = Visualization()
@@ -31,7 +32,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 CATEGORY_ANALYSIS = False
 
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/Stanford_Dogs_dataset/train',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/{RunningParams.train_path}',
                                      Dataset.data_transforms['train'])
 
 if __name__ == '__main__':
@@ -39,8 +40,8 @@ if __name__ == '__main__':
     parser.add_argument('--ckpt', type=str,
                         # default='best_model_' + RunningParams.wandb_sess_name + '.pt',
                         # default='best_model_copper-moon-3322.pt',  # RN18
-                        default='best_model_woven-deluge-3324.pt',  # RN34
-                        # default='best_model_dainty-blaze-3325.pt',  # RN50 run 1
+                        # default='best_model_woven-deluge-3324.pt',  # RN34
+                        default='best_model_dainty-blaze-3325.pt',  # RN50 run 1
                         # default='best_model_quiet-bee-3327.pt',  # RN50 run 2
                         # default='best_model_likely-dragon-3328.pt',  # RN50 run 3
                         # default='best_model_driven-smoke-3329.pt',  # RN50 no augmentation
@@ -70,7 +71,7 @@ if __name__ == '__main__':
     print(RunningParams.__dict__)
 
     MODEL2.eval()
-    test_dir = f'{RunningParams.parent_dir}/Stanford_Dogs_dataset/test'
+    test_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'])
@@ -93,9 +94,9 @@ if __name__ == '__main__':
         model = torchvision.models.resnet18(pretrained=True).cuda()
         model.fc = nn.Linear(512, 120)
 
-    print('{}/stanford-dogs/resnet{}_stanford_dogs.pth'.format(RunningParams.prj_dir, RunningParams.resnet))
+    print(f'{RunningParams.prj_dir}/pretrained_models/dogs-120/resnet{RunningParams.resnet}_stanford_dogs.pth')
     my_model_state_dict = torch.load(
-        '{}/stanford-dogs/resnet{}_stanford_dogs.pth'.format(RunningParams.prj_dir, RunningParams.resnet),
+        f'{RunningParams.prj_dir}/pretrained_models/dogs-120/resnet{RunningParams.resnet}_stanford_dogs.pth',
         map_location='cuda'
     )
     new_state_dict = {k.replace("model.", ""): v for k, v in my_model_state_dict.items()}

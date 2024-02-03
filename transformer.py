@@ -40,23 +40,23 @@ if RunningParams.CUB_TRAINING is True:
             from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
             resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
             my_model_state_dict = torch.load(
-                f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+                f'{RunningParams.prj_dir}/pretrained_models/cub-200/iNaturalist_pretrained_RN50_85.83.pth')
 
             if RunningParams.resnet == 50 and RunningParams.RN50_INAT is False:
                 resnet = models.resnet50(pretrained=True)
                 resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
                 my_model_state_dict = torch.load(
-                    f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
+                    f'{RunningParams.prj_dir}/pretrained_models/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
             elif RunningParams.resnet == 34:
                 resnet = models.resnet34(pretrained=True)
                 resnet.fc = nn.Sequential(nn.Linear(512, 200)).cuda()
                 my_model_state_dict = torch.load(
-                    f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
+                    f'{RunningParams.prj_dir}/pretrained_models/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
             elif RunningParams.resnet == 18:
                 resnet = models.resnet18(pretrained=True)
                 resnet.fc = nn.Sequential(nn.Linear(512, 200)).cuda()
                 my_model_state_dict = torch.load(
-                    f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
+                    f'{RunningParams.prj_dir}/pretrained_models/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
 
             resnet.load_state_dict(my_model_state_dict, strict=True)
             if RunningParams.resnet == 34 or RunningParams.resnet == 18 or (
@@ -273,7 +273,7 @@ if RunningParams.CUB_TRAINING is True:
             from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
             resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
             my_model_state_dict = torch.load(
-                f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+                f'{RunningParams.prj_dir}/pretrained_models/cub-200/iNaturalist_pretrained_RN50_85.83.pth')
             resnet.load_state_dict(my_model_state_dict, strict=True)
 
             conv_features = list(resnet.children())[:RunningParams.conv_layer-6]  # delete the last fc layer
@@ -411,7 +411,7 @@ elif RunningParams.CARS_TRAINING is True:
             model.fc = nn.Linear(model.fc.in_features, 196)
 
             my_model_state_dict = torch.load(
-                f'{RunningParams.prj_dir}/PyTorch-Stanford-Cars-Baselines/model_best_rn{RunningParams.resnet}.pth.tar', map_location=torch.device('cpu'))
+                f'{RunningParams.prj_dir}/pretrained_models/cars-196/model_best_rn{RunningParams.resnet}.pth.tar', map_location=torch.device('cpu'))
             model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
             ################################################################
 
@@ -625,18 +625,6 @@ elif RunningParams.DOGS_TRAINING is True:
             ################################################################
             import torchvision
 
-            # if RunningParams.resnet == 50:
-            #     model = torchvision.models.resnet50(pretrained=True).cuda()
-            # elif RunningParams.resnet == 34:
-            #     model = torchvision.models.resnet34(pretrained=True).cuda()
-            # elif RunningParams.resnet == 18:
-            #     model = torchvision.models.resnet18(pretrained=True).cuda()
-            # model.fc = nn.Linear(model.fc.in_features, 120)
-            #
-            # my_model_state_dict = torch.load(
-            #     f'{RunningParams.prj_dir}/stanford-dogs/resnet{RunningParams.resnet}_stanford_dogs.pth', map_location=torch.device('cpu'))
-            # model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
-
             if RunningParams.resnet == 50:
                 model = torchvision.models.resnet50(pretrained=True).cuda()
                 model.fc = nn.Linear(2048, 120)
@@ -648,17 +636,14 @@ elif RunningParams.DOGS_TRAINING is True:
                 model = torchvision.models.resnet18(pretrained=True).cuda()
                 model.fc = nn.Linear(512, 120)
 
-            print('{}/stanford-dogs/resnet{}_stanford_dogs.pth'.format(RunningParams.prj_dir, RunningParams.resnet))
+            print(f'{RunningParams.prj_dir}/pretrained_models/dogs-120/resnet{RunningParams.resnet}_stanford_dogs.pth')
             my_model_state_dict = torch.load(
-                '{}/stanford-dogs/resnet{}_stanford_dogs.pth'.format(RunningParams.prj_dir, RunningParams.resnet),
+                f'{RunningParams.prj_dir}/pretrained_models/dogs-120/resnet{RunningParams.resnet}_stanford_dogs.pth',
                 map_location='cuda'
             )
             new_state_dict = {k.replace("model.", ""): v for k, v in my_model_state_dict.items()}
 
             ################################################################
-
-
-
 
             conv_features = list(model.children())[:RunningParams.conv_layer - 6]  # delete the last fc layer
             self.conv_layers = nn.Sequential(*conv_features)

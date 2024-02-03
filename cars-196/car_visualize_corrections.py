@@ -13,7 +13,8 @@ from params import RunningParams
 from datasets import Dataset, ImageFolderForAdvisingProcess, ImageFolderForNNs
 from transformer import Transformer_AdvisingNetwork
 
-RunningParams = RunningParams()
+RunningParams = RunningParams('CARS')
+
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -30,7 +31,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
             transforms.ToTensor(),
             normalize,
         ])
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/RunningParams.train_path',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/{RunningParams.train_path}',
                                      data_transform)
 
 if __name__ == '__main__':
@@ -66,7 +67,7 @@ if __name__ == '__main__':
 
     model.eval()
 
-    test_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'  ##################################
+    test_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'  ##################################
 
     import numpy as np
 

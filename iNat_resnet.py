@@ -247,7 +247,7 @@ def resnet50_features(pretrained=True, inat=True, **kwargs):
             model_dict = torch.load(
                 model_dir
                 + "/../../weights/"
-                + "BBN.iNaturalist2017.res50.90epoch.best_model.pth"
+                + "/home/giang/Downloads/advising_network/pretrained_models/cub-200/BBN.iNaturalist2017.res50.90epoch.best_model.pth"
             )
         else:
             raise

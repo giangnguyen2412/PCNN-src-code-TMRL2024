@@ -25,7 +25,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 
 Dataset = Dataset()
-RunningParams = RunningParams()
+RunningParams = RunningParams('CARS')
 
 if RunningParams.resnet == 50:
     model = torchvision.models.resnet50(pretrained=True).cuda()
@@ -37,7 +37,7 @@ elif RunningParams.resnet == 18:
 model.fc = nn.Linear(model.fc.in_features, 196)
 
 my_model_state_dict = torch.load(
-    '{}/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.prj_dir, RunningParams.resnet), map_location='cuda')
+    f'{RunningParams.prj_dir}/pretrained_models/cars-196/model_best_rn{RunningParams.resnet}.pth.tar', map_location='cuda')
 model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
 model.eval()
 
@@ -59,7 +59,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
         ])
 
 # faiss dataset contains images using as the knowledge based for KNN retrieval
-faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/RunningParams.train_path',
+faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/{RunningParams.train_path}',
                                      transform=data_transform)
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -128,7 +128,7 @@ train_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-depth_of_pred = RunningParams.QK
+depth_of_pred = RunningParams.Q
 
 set = RunningParams.set
 if set == 'test':

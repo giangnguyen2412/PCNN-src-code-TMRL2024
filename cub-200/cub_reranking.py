@@ -13,7 +13,8 @@ from params import RunningParams
 from datasets import Dataset, ImageFolderForAdvisingProcess, ImageFolderForNNs, ImageFolderWithPaths
 from transformer import Transformer_AdvisingNetwork, CNN_AdvisingNetwork
 
-RunningParams = RunningParams()
+RunningParams = RunningParams('CUB')
+
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -70,23 +71,23 @@ if __name__ == '__main__':
 
         resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
         my_model_state_dict = torch.load(
-            f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+            f'{RunningParams.prj_dir}/pretrained_models/cub-200/iNaturalist_pretrained_RN50_85.83.pth')
 
         if RunningParams.resnet == 50 and RunningParams.RN50_INAT is False:
             resnet = models.resnet50(pretrained=True)
             resnet.fc = nn.Sequential(nn.Linear(2048, 200))
             my_model_state_dict = torch.load(
-                f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
+                f'{RunningParams.prj_dir}/pretrained_models/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
         elif RunningParams.resnet == 34:
             resnet = models.resnet34(pretrained=True)
             resnet.fc = nn.Sequential(nn.Linear(512, 200))
             my_model_state_dict = torch.load(
-                f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
+                f'{RunningParams.prj_dir}/pretrained_models/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
         elif RunningParams.resnet == 18:
             resnet = models.resnet18(pretrained=True)
             resnet.fc = nn.Sequential(nn.Linear(512, 200))
             my_model_state_dict = torch.load(
-                f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
+                f'{RunningParams.prj_dir}/pretrained_models/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
 
         resnet.load_state_dict(my_model_state_dict, strict=True)
         if RunningParams.resnet == 34 or RunningParams.resnet == 18 or (
@@ -120,7 +121,7 @@ if __name__ == '__main__':
         # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # print(device)
         base_model = timm.create_model('vit_base_patch16_224', pretrained=False, num_classes=200)
-        model_path_vit = "./vit_base_patch16_224_cub_200way_82_40.pth"
+        model_path_vit = f"{RunningParams.prj_dir}/pretrained_models/cub-200/vit_base_patch16_224_cub_200way_82_40.pth"
         state_dict = torch.load(model_path_vit)
         new_state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
         base_model.load_state_dict(new_state_dict)
@@ -167,7 +168,7 @@ if __name__ == '__main__':
             ])
 
             # data_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/{}'.format(set)
-            data_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'
+            data_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'
             nts_val_data = ImageFolderWithPaths(
                 # ImageNet train folder
                 root=data_dir, transform=ntsnet_data_transforms
@@ -224,7 +225,7 @@ if __name__ == '__main__':
 
     model.eval()
 
-    test_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'
+    test_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'
 
     image_datasets = dict()
     if MODEL1_RESNET is True:

@@ -12,7 +12,8 @@ from params import RunningParams
 from datasets import Dataset, ImageFolderForAdvisingProcess, ImageFolderForNNs
 from transformer import Transformer_AdvisingNetwork
 
-RunningParams = RunningParams()
+RunningParams = RunningParams('CUB')
+
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -54,7 +55,7 @@ if __name__ == '__main__':
     model.eval()
 
     # test_dir = f'{RunningParams.parent_dir}/datasets/CUB/advnet/test'  ##################################
-    test_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'
+    test_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'
 
     import numpy as np
     file_name = f'{RunningParams.prj_dir}/faiss/advising_process_test_top1_HP_MODEL1_HP_FE.npy'

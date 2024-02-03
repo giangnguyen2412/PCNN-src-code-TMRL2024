@@ -29,7 +29,8 @@ from helpers import HelperFunctions
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 
-RunningParams = RunningParams()
+RunningParams = RunningParams('DOGS')
+
 Dataset = Dataset()
 
 if [RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING, RunningParams.CARS_TRAINING].count(True) > 1:

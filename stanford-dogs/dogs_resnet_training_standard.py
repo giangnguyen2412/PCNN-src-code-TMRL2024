@@ -9,7 +9,7 @@ from torchvision import transforms
 from PIL import Image
 from params import RunningParams
 
-RunningParams = RunningParams()
+RunningParams = RunningParams('DOGS')
 
 from dataloader import StanfordDogsDataset  # Ensure you have this dataloader
 

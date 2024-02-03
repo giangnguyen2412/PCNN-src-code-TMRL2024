@@ -23,7 +23,7 @@ from torchvision.datasets import ImageFolder
 from tqdm import tqdm
 from params import RunningParams
 
-RunningParams = RunningParams()
+RunningParams = RunningParams('CUB')
 
 import random
 

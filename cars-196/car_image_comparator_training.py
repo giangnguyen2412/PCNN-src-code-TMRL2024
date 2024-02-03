@@ -32,7 +32,8 @@ from helpers import HelperFunctions
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0,1,2,3"
 
-RunningParams = RunningParams()
+RunningParams = RunningParams('CARS')
+
 Dataset = Dataset()
 
 import torchvision
@@ -46,7 +47,7 @@ elif RunningParams.resnet == 18:
 model.fc = nn.Linear(model.fc.in_features, 196)
 
 my_model_state_dict = torch.load(
-        '{}/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.prj_dir, RunningParams.resnet), map_location=torch.device('cpu'))
+        f'{RunningParams.prj_dir}/pretrained_models/cars-196/model_best_rn{RunningParams.resnet}.pth.tar', map_location=torch.device('cpu'))
 model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
 model.eval()
 

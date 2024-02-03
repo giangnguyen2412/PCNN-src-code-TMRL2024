@@ -26,7 +26,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 
 Dataset = Dataset()
-RunningParams = RunningParams()
+RunningParams = RunningParams('CUB')
 
 if RunningParams.VisionTransformer is True:
     import timm
@@ -63,7 +63,7 @@ else:
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
-        f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+        f'{RunningParams.prj_dir}/pretrained_models/cub-200/iNaturalist_pretrained_RN50_85.83.pth')
 
     # TODO: Define INAT and IMAGENET features to be used in two cases of using RN50
 
@@ -71,17 +71,17 @@ else:
         resnet = models.resnet50(pretrained=True)
         resnet.fc = nn.Sequential(nn.Linear(2048, 200)).cuda()
         my_model_state_dict = torch.load(
-            f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
+            f'{RunningParams.prj_dir}/pretrained_models/cub-200/imagenet_pretrained_resnet50_cub_200way_top1acc_63.pth')
     elif RunningParams.resnet == 34:
         resnet = models.resnet34(pretrained=True)
         resnet.fc = nn.Sequential(nn.Linear(512, 200)).cuda()
         my_model_state_dict = torch.load(
-            f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
+            f'{RunningParams.prj_dir}/pretrained_models/cub-200/imagenet_pretrained_resnet34_cub_200way_top1acc_62_81.pth')
     elif RunningParams.resnet == 18:
         resnet = models.resnet18(pretrained=True)
         resnet.fc = nn.Sequential(nn.Linear(512, 200)).cuda()
         my_model_state_dict = torch.load(
-            f'{RunningParams.prj_dir}/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
+            f'{RunningParams.prj_dir}/pretrained_models/cub-200/imagenet_pretrained_resnet18_cub_200way_top1acc_60_22.pth')
 
     resnet.load_state_dict(my_model_state_dict, strict=True)
     if RunningParams.resnet == 34 or RunningParams.resnet == 18 or (
@@ -182,7 +182,7 @@ else:
 #
 # resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 # my_model_state_dict = torch.load(
-#     f'{RunningParams.prj_dir}/pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+#     f'{RunningParams.prj_dir}/pretrained_models/cub-200/iNaturalist_pretrained_RN50_85.83.pth')
 # resnet.load_state_dict(my_model_state_dict, strict=True)
 # MODEL1 = resnet.cuda()
 # MODEL1.eval()
@@ -199,7 +199,7 @@ train_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-depth_of_pred = RunningParams.QK
+depth_of_pred = RunningParams.Q
 
 if RunningParams.set == 'test':
     depth_of_pred = 1

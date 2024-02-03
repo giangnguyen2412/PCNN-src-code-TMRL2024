@@ -22,7 +22,8 @@ from helpers import HelperFunctions
 
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-RunningParams = RunningParams()
+RunningParams = RunningParams('CARS')
+
 HelperFunctions = HelperFunctions()
 Dataset = Dataset()
 
@@ -81,7 +82,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
 
 train_data = ImageFolder(
     # ImageNet train folder
-    root=f"{RunningParams.parent_dir}/RunningParams.train_path", transform=data_transform
+    root=f"{RunningParams.parent_dir}/{RunningParams.train_path}", transform=data_transform
 )
 
 train_loader = torch.utils.data.DataLoader(
@@ -94,7 +95,7 @@ train_loader = torch.utils.data.DataLoader(
 
 val_data = ImageFolder(
     # ImageNet train folder
-    root=f"{RunningParams.parent_dir}/RunningParams.test_path", transform=data_transform
+    root=f"{RunningParams.parent_dir}/{RunningParams.test_path}", transform=data_transform
 )
 
 test_loader = torch.utils.data.DataLoader(

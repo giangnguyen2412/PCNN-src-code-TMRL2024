@@ -13,7 +13,8 @@ from params import RunningParams
 from datasets import Dataset, ImageFolderForAdvisingProcess, ImageFolderForNNs
 from transformer import Transformer_AdvisingNetwork
 
-RunningParams = RunningParams()
+RunningParams = RunningParams('CARS')
+
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -30,7 +31,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
             transforms.ToTensor(),
             normalize,
         ])
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/RunningParams.train_path',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/{RunningParams.train_path}',
                                      data_transform)
 
 PRODUCT_OF_EXPERTS = False
@@ -65,8 +66,7 @@ if __name__ == '__main__':
         model.fc = nn.Linear(model.fc.in_features, 196)
 
         my_model_state_dict = torch.load(
-            '{}/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.prj_dir,
-                                                                                RunningParams.resnet),
+            f'{RunningParams.prj_dir}/pretrained_models/cars-196/model_best_rn{RunningParams.resnet}.pth.tar',
             map_location='cuda')
         model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
         model.eval()
@@ -96,7 +96,7 @@ if __name__ == '__main__':
 
     model.eval()
 
-    test_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'  ##################################
+    test_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'  ##################################
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForAdvisingProcess(test_dir, Dataset.data_transforms['val'])

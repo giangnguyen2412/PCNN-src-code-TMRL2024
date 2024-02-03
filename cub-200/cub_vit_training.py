@@ -6,7 +6,7 @@ import timm  # PyTorch Image Models
 import os
 from params import RunningParams
 
-RunningParams = RunningParams()
+RunningParams = RunningParams('CUB')
 
 # Parameters
 batch_size = 256

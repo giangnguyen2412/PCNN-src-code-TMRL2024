@@ -32,7 +32,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
 
 
 Dataset = Dataset()
-RunningParams = RunningParams()
+RunningParams = RunningParams('CUB')
 
 HIGHPERFORMANCE_FEATURE_EXTRACTOR = RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR
 if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
@@ -40,7 +40,8 @@ if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
-        'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+        f'{RunningParams.prj_dir}/pretrained_models/cub-200/iNaturalist_pretrained_RN50_85.83.pth')
+
     resnet.load_state_dict(my_model_state_dict, strict=True)
     # Freeze backbone (for training only)
     for param in list(resnet.parameters())[:-2]:
@@ -122,7 +123,8 @@ from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
 resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
 my_model_state_dict = torch.load(
-    'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+    f'{RunningParams.prj_dir}/pretrained_models/cub-200/iNaturalist_pretrained_RN50_85.83.pth')
+
 resnet.load_state_dict(my_model_state_dict, strict=True)
 # Freeze backbone (for training only)
 for param in list(resnet.parameters())[:-2]:

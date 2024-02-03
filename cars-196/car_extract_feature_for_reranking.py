@@ -31,7 +31,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0,1"
 
 Dataset = Dataset()
-RunningParams = RunningParams()
+RunningParams = RunningParams('CARS')
 
 depth_of_pred = 5
 set = 'test'
@@ -53,7 +53,7 @@ if MODEL1_RESNET is True:
     model.fc = nn.Linear(model.fc.in_features, 196)
 
     my_model_state_dict = torch.load(
-        '{}/PyTorch-Stanford-Cars-Baselines/model_best_rn{}.pth.tar'.format(RunningParams.prj_dir, RunningParams.resnet), map_location=torch.device('cpu'))
+        f'{RunningParams.prj_dir}/pretrained_models/cars-196/model_best_rn{RunningParams.resnet}.pth.tar', map_location=torch.device('cpu'))
     model.load_state_dict(my_model_state_dict['state_dict'], strict=True)
 else:
     model = torchvision.models.mobilenet_v2(pretrained=True).cuda()
@@ -90,7 +90,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
             normalize,
         ])
 
-faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/RunningParams.train_path',
+faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/{RunningParams.train_path}',
                                      transform=data_transform)
 
 faiss_data_loader = torch.utils.data.DataLoader(
@@ -155,9 +155,9 @@ MODEL1 = nn.DataParallel(MODEL1).eval()
 
 # data_dir = f'{RunningParams.parent_dir}/Cars/Stanford-Cars-dataset/{}'.format(set)
 if set == 'train':
-    data_dir = f'{RunningParams.parent_dir}/RunningParams.train_path'
+    data_dir = f'{RunningParams.parent_dir}/{RunningParams.train_path}'
 elif set == 'test':
-    data_dir = f'{RunningParams.parent_dir}/RunningParams.test_path'
+    data_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'
 else:
     exit(-1)
 
