@@ -77,7 +77,6 @@ if __name__ == '__main__':
 
     checkpoint = torch.load(model_path)
     running_params = checkpoint['running_params']
-    RunningParams.XAI_method = running_params.XAI_method
 
     model.load_state_dict(checkpoint['model_state_dict'])
     epoch = checkpoint['epoch']

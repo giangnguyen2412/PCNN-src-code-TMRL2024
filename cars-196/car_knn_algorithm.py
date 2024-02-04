@@ -58,7 +58,6 @@ else:  # kNN-AdvNet
     model_path = 'best_models/best_model_robust-sunset-3158.pt'
     checkpoint = torch.load(model_path)
     running_params = checkpoint['running_params']
-    RunningParams.XAI_method = running_params.XAI_method
 
     model.load_state_dict(checkpoint['model_state_dict'])
     # Define the average pooling layer

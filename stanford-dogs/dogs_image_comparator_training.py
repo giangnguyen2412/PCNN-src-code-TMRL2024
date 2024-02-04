@@ -111,10 +111,7 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             preds_val = []
 
             for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
-                if RunningParams.XAI_method == RunningParams.NNs:
-                    x = data[0].cuda()
-                else:
-                    x = data.cuda()
+                x = data[0].cuda()
 
                 labels = data[2].cuda()
 
@@ -274,24 +271,12 @@ config = {"train": train_dataset,
           "num_epochs": RunningParams.epochs,
           "batch_size": RunningParams.batch_size,
           "learning_rate": RunningParams.learning_rate,
-          'explanation': RunningParams.XAI_method,
           'k_value': RunningParams.k_value,
           'conv_layer': RunningParams.conv_layer,
-          'HIGHPERFORMANCE_FEATURE_EXTRACTOR': RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR,
-          'BOTTLENECK': RunningParams.BOTTLENECK,
-          'trivial_augment_p': RunningParams.trivial_aument_p,
           }
 
 print(config)
 
-# if RunningParams.wandb_sess_name is not None:
-#     wandb.init(
-#         project="advising-network",
-#         entity="luulinh90s",
-#         config=config,
-#         name=RunningParams.wandb_sess_name,
-#     )
-# else:
 wandb.init(
     project="advising-network",
     entity="luulinh90s",

@@ -32,22 +32,20 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 Dataset = Dataset()
 RunningParams = RunningParams('CUB')
 
-HIGHPERFORMANCE_FEATURE_EXTRACTOR = RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR
-if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-    from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
-    resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
-    my_model_state_dict = torch.load(
-        f'{RunningParams.prj_dir}/pretrained_models/cub-200/iNaturalist_pretrained_RN50_85.83.pth')
-    resnet.load_state_dict(my_model_state_dict, strict=True)
-    # Freeze backbone (for training only)
-    for param in list(resnet.parameters())[:-2]:
-        param.requires_grad = False
-    # to CUDA
-    inat_resnet = resnet.cuda()
-    MODEL1 = inat_resnet
-    MODEL1.eval()
+from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
+resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
+my_model_state_dict = torch.load(
+    f'{RunningParams.prj_dir}/pretrained_models/cub-200/iNaturalist_pretrained_RN50_85.83.pth')
+resnet.load_state_dict(my_model_state_dict, strict=True)
+# Freeze backbone (for training only)
+for param in list(resnet.parameters())[:-2]:
+    param.requires_grad = False
+# to CUDA
+inat_resnet = resnet.cuda()
+MODEL1 = inat_resnet
+MODEL1.eval()
 
 feature_extractor = nn.Sequential(*list(MODEL1.children())[:-1])  # avgpool feature
 feature_extractor.cuda()
@@ -68,11 +66,9 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-if HIGHPERFORMANCE_FEATURE_EXTRACTOR is True:
-    INDEX_FILE = 'faiss/cub/NeurIPS22_faiss_CUB200_class_idx_dict_HP_extractor.npy'
-    print(INDEX_FILE)
-else:
-    exit(-1)
+INDEX_FILE = 'faiss/cub/NeurIPS22_faiss_CUB200_class_idx_dict_HP_extractor.npy'
+print(INDEX_FILE)
+
 
 if os.path.exists(INDEX_FILE):
     print("FAISS class index exists!")

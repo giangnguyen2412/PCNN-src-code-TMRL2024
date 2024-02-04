@@ -22,7 +22,7 @@ os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
 
 torch.manual_seed(42)
 
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/RunningParams.combined_path',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/{RunningParams.combined_path}',
                                      Dataset.data_transforms['train'])
 
 from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck

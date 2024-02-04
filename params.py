@@ -1,6 +1,6 @@
 import os
 
-global_training_type = 'CARS'
+global_training_type = 'CUB'
 
 class RunningParams:
     def __init__(self, training_type=None):
@@ -11,11 +11,9 @@ class RunningParams:
         self.set_active_training(training_type)
 
         self.TRANSFORMER_ARCH = True
-        self.resnet = 50
-        self.RN50_INAT = False
-        self.NTSNET = False
-
         self.VisionTransformer = False
+        self.resnet = 50
+
         # Retrieving NNs and sample positive and negative pairs
         # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
         # Set it when you run train/test
@@ -24,9 +22,6 @@ class RunningParams:
         self.parent_dir = '/home/giang/Downloads'
         self.prj_dir = '/home/giang/Downloads/advising_network'
         self.model_dir = f'{self.prj_dir}/pretrained_models'
-
-        self.dropout = 0.0
-        self.trivial_aument_p = 0.0
 
         # General
         self.conv_layer = 4
@@ -41,15 +36,6 @@ class RunningParams:
         else:
             print('Not supported architecture! Exiting...')
             exit(-1)
-
-        # XAI methods
-        self.NNs = 'NNs'
-        self.XAI_method = 'NNs'
-        # TODO: write script to run a set of basic experiments: No-XAI, NNs with conv2,3,4, k1,3,5
-
-        self.BOTTLENECK = False
-
-        self.HIGHPERFORMANCE_FEATURE_EXTRACTOR = True
 
         # Visualization
         self.VISUALIZE_COMPARATOR_CORRECTNESS = False
@@ -87,6 +73,9 @@ class RunningParams:
             self.learning_rate = 3e-4
             self.k_value = 1
 
+            self.RN50_INAT = False
+            self.NTSNET = False
+
             # Determine if you want to use 1st, 2nd or 3rd NNs (in each class) to pair with your input to train AdvNet.
             self.negative_order = 1
 
@@ -95,24 +84,15 @@ class RunningParams:
             else:
                 self.data_dir = f'{self.parent_dir}/datasets/CUB/advnet/{self.set}'  # CUB train folder
 
-            self.Q = 10  # Q and K values for building positives and negatives
-            self.faiss_npy_file = '{}/faiss/cub/INAT_{}_top{}_k{}_enriched_rn{}_{}_NN{}th.npy'. \
-                format(self.prj_dir, self.RN50_INAT, self.Q, self.k_value, self.resnet, self.set, self.negative_order)
+            self.Q = 10  # Q values for building positives and negatives
+            self.faiss_npy_file = f'{self.prj_dir}/faiss/cub/INAT_{self.RN50_INAT}_top{self.Q}_k{self.k_value}_rn{self.resnet}_{self.set}-set_NN{self.negative_order}th.npy'
 
-            self.wandb_sess_name = f'INAT_{self.RN50_INAT}_cub_rn{self.resnet}_bs{self.batch_size}-p{self.trivial_aument_p}-dropout-{self.dropout}-NNth-{self.negative_order}'
-
-            self.aug_data_dir = self.data_dir + '_all' + f'_top{self.Q}_rn{self.resnet}_NN{self.negative_order}th_{self.wandb_sess_name}_INAT_{self.RN50_INAT}'
+            self.aug_data_dir = f'{self.data_dir}_INAT_{self.RN50_INAT}_top{self.Q}_rn{self.resnet}_NN{self.negative_order}th'
 
             if self.VisionTransformer is True:
-                self.faiss_npy_file = '{}/faiss/cub/ViT_top{}_k{}_enriched_{}_NN{}th.npy'. \
-                    format(self.prj_dir, self.Q, self.k_value, self.set,
-                           self.negative_order)
+                self.faiss_npy_file = f'{self.prj_dir}/faiss/cub/ViT_top{self.Q}_k{self.k_value}_{self.set}-set_NN{self.negative_order}th.npy'
 
-                self.wandb_sess_name = f'ViT_bs{self.batch_size}-p{self.trivial_aument_p}-dropout-{self.dropout}-NNth-{self.negative_order}'
-
-                self.aug_data_dir = self.data_dir + '_all' + f'_top{self.Q}_ViT_NN{self.negative_order}th_{self.wandb_sess_name}'
-
-                # self.wandb_sess_name = f'ViT_bs{self.batch_size}-p{self.trivial_aument_p}-dropout-{self.dropout}-NNth-{self.negative_order}-trainViT-SGD-no-trivialaugment'
+                self.aug_data_dir = f'{self.data_dir}_ViT_INAT_{self.RN50_INAT}_top{self.Q}_rn{self.resnet}_NN{self.negative_order}th'
 
             self.N = 4  # Depth of self-attention
             self.M = 4  # Depth of cross-attention
@@ -136,12 +116,9 @@ class RunningParams:
             self.data_dir = f'{self.parent_dir}/Cars/Stanford-Cars-dataset/' + self.set
 
             self.Q = 10  # Q values for building positives and negatives
-            self.faiss_npy_file = '{}/faiss/cars/top{}_k{}_enriched_{}_Finetuning_faiss_{}_top1.npy'. \
-                format(self.prj_dir, self.Q, self.k_value, self.resnet, self.set)
+            self.faiss_npy_file = f'{self.prj_dir}/faiss/cars/top{self.Q}_k{self.k_value}_rn{self.resnet}_{self.set}-set_top1.npy'
 
-            self.wandb_sess_name = f'cars_rn{self.resnet}_bs{self.batch_size}-p{self.trivial_aument_p}-dropout-{self.dropout}-NNth-{self.negative_order}'
-
-            self.aug_data_dir = os.path.join(self.data_dir + f'_top{self.Q}_rn{self.resnet}')
+            self.aug_data_dir = f'{self.data_dir}_top{self.Q}_rn{self.resnet}'
 
             self.N = 3
             self.M = 3
@@ -164,11 +141,8 @@ class RunningParams:
             # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
             self.data_dir = f'{self.parent_dir}/Stanford_Dogs_dataset/' + self.set
 
-            self.Q = 10  # Q and K values for building positives and negatives
-            self.faiss_npy_file = '{}/faiss/dogs/top{}_k{}_enriched_{}_Finetuning_faiss_{}_top1.npy'. \
-                format(self.prj_dir, self.Q, self.k_value, self.resnet, self.set)
-
-            # self.wandb_sess_name = f'dogs_rn{self.resnet}_bs{self.batch_size}-p{self.trivial_aument_p}-dropout-{self.dropout}-NNth-{self.negative_order}'
+            self.Q = 10  # Q values for building positives and negatives
+            self.faiss_npy_file = f'{self.prj_dir}/faiss/dogs/top{self.Q}_k{self.k_value}_rn{self.resnet}_{self.set}-set_top1.npy'
 
             self.aug_data_dir = os.path.join(self.data_dir + f'_top{self.Q}_rn{self.resnet}')
 

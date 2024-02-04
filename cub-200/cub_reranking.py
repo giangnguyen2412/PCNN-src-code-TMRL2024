@@ -22,7 +22,7 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 
 torch.manual_seed(42)
 
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/RunningParams.combined_path',
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/{RunningParams.combined_path}',
                                      Dataset.data_transforms['train'])
 
 PRODUCT_OF_EXPERTS = True
@@ -208,7 +208,6 @@ if __name__ == '__main__':
 
     checkpoint = torch.load(model_path)
     running_params = checkpoint['running_params']
-    RunningParams.XAI_method = running_params.XAI_method
 
     model.load_state_dict(checkpoint['model_state_dict'])
     epoch = checkpoint['epoch']

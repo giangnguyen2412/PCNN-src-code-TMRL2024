@@ -20,7 +20,7 @@ RunningParams = RunningParams()
 
 
 # Define the RandomApply transform to apply the TrivialAugmentWide transform with a probability of 0.5
-trivial_augmenter = T.RandomApply(torch.nn.ModuleList([trivial_augmenter]), p=RunningParams.trivial_aument_p)
+trivial_augmenter = T.RandomApply(torch.nn.ModuleList([trivial_augmenter]), p=1.0)
 
 class ImageFolderForAdvisingProcess(ImageFolder):
     """Custom dataset that includes image file paths. Extends
@@ -207,19 +207,18 @@ class ImageFolderForNNs(ImageFolder):
     def __getitem__(self, index):
         query_path, target = self.samples[index]
         base_name = os.path.basename(query_path)
-        if RunningParams.XAI_method == RunningParams.NNs:
-            if 'train' in os.path.basename(self.root):
+        if 'train' in os.path.basename(self.root):
 
-                nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
-                model2_target = self.faiss_nn_dict[base_name]['label']
-            elif 'val' in os.path.basename(self.root) and (RunningParams.CARS_TRAINING is True or
-                                                         RunningParams.DOGS_TRAINING is True):
-                nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
-                model2_target = self.faiss_nn_dict[base_name]['label']
-            else:
-                # nns = self.faiss_nn_dict[base_name]  # 6NNs here
-                nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
-                model2_target = self.faiss_nn_dict[base_name]['label']
+            nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
+            model2_target = self.faiss_nn_dict[base_name]['label']
+        elif 'val' in os.path.basename(self.root) and (RunningParams.CARS_TRAINING is True or
+                                                     RunningParams.DOGS_TRAINING is True):
+            nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
+            model2_target = self.faiss_nn_dict[base_name]['label']
+        else:
+            # nns = self.faiss_nn_dict[base_name]  # 6NNs here
+            nns = self.faiss_nn_dict[base_name]['NNs']  # 6NNs here
+            model2_target = self.faiss_nn_dict[base_name]['label']
 
         # Transform NNs
         explanations = list()

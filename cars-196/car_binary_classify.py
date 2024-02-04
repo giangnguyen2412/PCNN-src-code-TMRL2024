@@ -52,7 +52,6 @@ if __name__ == '__main__':
 
     checkpoint = torch.load(model_path)
     running_params = checkpoint['running_params']
-    RunningParams.XAI_method = running_params.XAI_method
 
     MODEL2.load_state_dict(checkpoint['model_state_dict'])
     epoch = checkpoint['epoch']
@@ -148,10 +147,7 @@ if __name__ == '__main__':
         preds_val = []
 
         for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
-            if RunningParams.XAI_method == RunningParams.NNs:
-                x = data[0].cuda()
-            else:
-                x = data.cuda()
+            x = data[0].cuda()
 
             if len(data_loader.dataset.classes) < 196:
                 for sample_idx in range(x.shape[0]):

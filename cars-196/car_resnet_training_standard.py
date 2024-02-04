@@ -74,6 +74,9 @@ parser.add_argument('--multiprocessing-distributed', action='store_true',
 
 best_acc1 = 0
 
+from params import RunningParams
+
+RunningParams = RunningParams('CARS')
 
 def main():
     args = parser.parse_args()
@@ -373,15 +376,9 @@ def validate(val_loader, model, criterion, args):
     return top1.avg
 
 
-def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
+def save_checkpoint(state, filename='checkpoint.pth.tar'):
     torch.save(state, filename)
-    # if is_best:
-    if True:
-        # shutil.copyfile(filename, 'model_best.pth.tar')
-
-        # print('chhange model name!!!!')
-        # assert False
-        shutil.copyfile(filename, 'model_best_rn50.pth.tar')
+    shutil.copyfile(filename, f'model_best_rn{RunningParams.resnet}.pth.tar')
 
 
 class AverageMeter(object):

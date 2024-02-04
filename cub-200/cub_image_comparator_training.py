@@ -38,8 +38,8 @@ if [RunningParams.DOGS_TRAINING, RunningParams.CUB_TRAINING, RunningParams.CARS_
     exit(-1)
 
 train_dataset = RunningParams.aug_data_dir
-
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/RunningParams.combined_path',
+print(train_dataset)
+full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/{RunningParams.combined_path}',
                                      Dataset.data_transforms['train'])
 
 image_datasets = dict()
@@ -114,10 +114,8 @@ def train_model(model, loss_func, optimizer, scheduler, num_epochs=25):
             preds_val = []
 
             for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
-                if RunningParams.XAI_method == RunningParams.NNs:
-                    x = data[0].cuda()
-                else:
-                    x = data.cuda()
+                x = data[0].cuda()
+
                 if len(data_loader.dataset.classes) < 200:
                     for sample_idx in range(x.shape[0]):
                         tgt = gt[sample_idx].item()
@@ -265,28 +263,17 @@ config = {"train": train_dataset,
           "num_epochs": RunningParams.epochs,
           "batch_size": RunningParams.batch_size,
           "learning_rate": RunningParams.learning_rate,
-          'explanation': RunningParams.XAI_method,
           'k_value': RunningParams.k_value,
           'conv_layer': RunningParams.conv_layer,
-          'HIGHPERFORMANCE_FEATURE_EXTRACTOR': RunningParams.HIGHPERFORMANCE_FEATURE_EXTRACTOR,
-          'BOTTLENECK': RunningParams.BOTTLENECK,
           }
 
 print(config)
 
-if RunningParams.wandb_sess_name is not None:
-    wandb.init(
-        project="advising-network",
-        entity="luulinh90s",
-        config=config,
-        name=RunningParams.wandb_sess_name,
-    )
-else:
-    wandb.init(
-        project="advising-network",
-        entity="luulinh90s",
-        config=config,
-    )
+wandb.init(
+    project="advising-network",
+    entity="luulinh90s",
+    config=config,
+)
 
 wandb.save(os.path.basename(__file__), policy='now')
 wandb.save('../params.py', policy='now')

@@ -59,7 +59,6 @@ if __name__ == '__main__':
 
     checkpoint = torch.load(model_path)
     running_params = checkpoint['running_params']
-    RunningParams.XAI_method = running_params.XAI_method
 
     MODEL2.load_state_dict(checkpoint['model_state_dict'])
     epoch = checkpoint['epoch']
@@ -173,10 +172,7 @@ if __name__ == '__main__':
             accpt_conf = 0
 
         for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
-            if RunningParams.XAI_method == RunningParams.NNs:
-                x = data[0].cuda()
-            else:
-                x = data.cuda()
+            x = data[0].cuda()
 
             if len(data_loader.dataset.classes) < 120:
                 for sample_idx in range(x.shape[0]):
@@ -216,75 +212,74 @@ if __name__ == '__main__':
             # print(labels.shape)
 
             # Generate explanations
-            if RunningParams.XAI_method == RunningParams.NNs:
-                explanation = data[1]
-                explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
-                # Find the maximum value along each row
-                max_values, _ = torch.max(model1_p, dim=1)
+            explanation = data[1]
+            explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
+            # Find the maximum value along each row
+            max_values, _ = torch.max(model1_p, dim=1)
 
-                if SAME is True:
-                    model1_score.fill_(0.999)
+            if SAME is True:
+                model1_score.fill_(0.999)
 
-                    explanation = x.clone().unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1, 1)
-                if RAND is True:
-                    torch.manual_seed(42)
-                    explanation = torch.rand_like(explanation)
-                    explanation.cuda()
-                    # Replace the maximum value with random guess
-                    model1_score.fill_(1 / 120)
+                explanation = x.clone().unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1, 1)
+            if RAND is True:
+                torch.manual_seed(42)
+                explanation = torch.rand_like(explanation)
+                explanation.cuda()
+                # Replace the maximum value with random guess
+                model1_score.fill_(1 / 120)
 
-                if RAND_REAL is True:
-                    torch.manual_seed(42)
-                    explanation = explanation[torch.randperm(explanation.size(0))]
+            if RAND_REAL is True:
+                torch.manual_seed(42)
+                explanation = explanation[torch.randperm(explanation.size(0))]
 
-                # Forward input, explanations, and softmax scores through MODEL2
-                output, query, i2e_attn, e2i_attn = MODEL2(images=x, explanations=explanation, scores=model1_score)
+            # Forward input, explanations, and softmax scores through MODEL2
+            output, query, i2e_attn, e2i_attn = MODEL2(images=x, explanations=explanation, scores=model1_score)
 
-                # convert logits to probabilities using sigmoid function
-                p = torch.sigmoid(output)
+            # convert logits to probabilities using sigmoid function
+            p = torch.sigmoid(output)
 
-                # classify inputs as 0 or 1 based on the threshold of 0.5
-                preds = (p >= 0.5).long().squeeze()
+            # classify inputs as 0 or 1 based on the threshold of 0.5
+            preds = (p >= 0.5).long().squeeze()
 
-                if True:
-                    accpt_conf += (torch.sigmoid(output.squeeze()) * preds).sum().item()
-                    accpt_cnt += sum(preds).item()
+            if True:
+                accpt_conf += (torch.sigmoid(output.squeeze()) * preds).sum().item()
+                accpt_cnt += sum(preds).item()
 
-                model2_score = p
+            model2_score = p
 
-                results = (preds == labels)
+            results = (preds == labels)
 
-                preds_val.append(preds)
-                labels_val.append(labels)
+            preds_val.append(preds)
+            labels_val.append(labels)
 
-                running_corrects += torch.sum(preds == labels.data)
+            running_corrects += torch.sum(preds == labels.data)
 
-                VISUALIZE_COMPARATOR_HEATMAPS = RunningParams.VISUALIZE_COMPARATOR_HEATMAPS
-                if VISUALIZE_COMPARATOR_HEATMAPS is True:
-                    for sample_idx in range(x.shape[0]):
-                        result = results[sample_idx].item()
-                        if result is True:
-                            correctness = 'Correctly'
-                        else:
-                            correctness = 'Incorrectly'
+            VISUALIZE_COMPARATOR_HEATMAPS = RunningParams.VISUALIZE_COMPARATOR_HEATMAPS
+            if VISUALIZE_COMPARATOR_HEATMAPS is True:
+                for sample_idx in range(x.shape[0]):
+                    result = results[sample_idx].item()
+                    if result is True:
+                        correctness = 'Correctly'
+                    else:
+                        correctness = 'Incorrectly'
 
-                        pred = preds[sample_idx].item()
-                        if pred == 1:
-                            action = 'Accept'
-                        else:
-                            action = 'Reject'
-                        model2_decision = correctness + action
+                    pred = preds[sample_idx].item()
+                    if pred == 1:
+                        action = 'Accept'
+                    else:
+                        action = 'Reject'
+                    model2_decision = correctness + action
 
-                        if pred == 0:
-                            conf_score = 1 - model2_score[sample_idx].item()
-                        else:
-                            conf_score = model2_score[sample_idx].item()
+                    if pred == 0:
+                        conf_score = 1 - model2_score[sample_idx].item()
+                    else:
+                        conf_score = model2_score[sample_idx].item()
 
-                        advnet_confidence_dict[model2_decision].append(conf_score)
+                    advnet_confidence_dict[model2_decision].append(conf_score)
 
-                        # breakpoint()
-                        query = pths[sample_idx]
-                        base_name = os.path.basename(query)
+                    # breakpoint()
+                    query = pths[sample_idx]
+                    base_name = os.path.basename(query)
 
             if RunningParams.VISUALIZE_COMPARATOR_CORRECTNESS is True:
                 for sample_idx in range(x.shape[0]):

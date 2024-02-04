@@ -94,9 +94,9 @@ if RunningParams.CUB_TRAINING is True:
             transformer_depth = RunningParams.N
             cross_transformer_depth = RunningParams.M
             feat_dim = RunningParams.conv_layer_size[RunningParams.conv_layer]
-            self.transformer = Transformer(dim=feat_dim, depth=transformer_depth, heads=8, dim_head=64, mlp_dim=512, dropout=RunningParams.dropout)
+            self.transformer = Transformer(dim=feat_dim, depth=transformer_depth, heads=8, dim_head=64, mlp_dim=512, dropout=0.0)
             self.cross_transformer = CrossTransformer(sm_dim=feat_dim, lg_dim=feat_dim, depth=cross_transformer_depth, heads=8,
-                                                      dim_head=64, dropout=RunningParams.dropout)
+                                                      dim_head=64, dropout=0.0)
 
             print('Using transformer with depth {} and 8 heads'.format(transformer_depth))
             print('Using cross_transformer with depth {} and 8 heads'.format(cross_transformer_depth))
@@ -119,30 +119,23 @@ if RunningParams.CUB_TRAINING is True:
             # Process the input images
             input_spatial_feats = self.conv_layers(images)
             input_feat = self.pooling_layer(input_spatial_feats).squeeze()
-            if RunningParams.BOTTLENECK is True:
-                input_spatial_feats = self.bottleneck(input_spatial_feats)
             input_spatial_feats = input_spatial_feats.flatten(start_dim=2)  # bsxcx49
 
             # Process the nearest neighbors
-            if RunningParams.XAI_method == RunningParams.NNs:
-                if RunningParams.k_value == 1:
-                    explanations = explanations.squeeze()
-                    explanation_spatial_feats = self.conv_layers(explanations)
-                    if RunningParams.BOTTLENECK is True:
-                        explanation_spatial_feats = self.bottleneck(explanation_spatial_feats)
-                    explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
-                else:  # K > 1
-                    explanation_spatial_feats = []
-                    for sample_idx in range(RunningParams.k_value):
-                        data = explanations[:, sample_idx, :]  # TODO: I traced to be at least correct here
-                        explanation_spatial_feat = self.conv_layers(data)
-                        if RunningParams.BOTTLENECK is True:
-                            explanation_spatial_feat = self.bottleneck(explanation_spatial_feat)
-                        explanation_spatial_feat = explanation_spatial_feat.flatten(start_dim=2)  #
-                        explanation_spatial_feats.append(explanation_spatial_feat)
+            if RunningParams.k_value == 1:
+                explanations = explanations.squeeze()
+                explanation_spatial_feats = self.conv_layers(explanations)
+                explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
+            else:  # K > 1
+                explanation_spatial_feats = []
+                for sample_idx in range(RunningParams.k_value):
+                    data = explanations[:, sample_idx, :]  # TODO: I traced to be at least correct here
+                    explanation_spatial_feat = self.conv_layers(data)
+                    explanation_spatial_feat = explanation_spatial_feat.flatten(start_dim=2)  #
+                    explanation_spatial_feats.append(explanation_spatial_feat)
 
-                    # bsxKx2048x49
-                    explanation_spatial_feats = torch.stack(explanation_spatial_feats, dim=1)
+                # bsxKx2048x49
+                explanation_spatial_feats = torch.stack(explanation_spatial_feats, dim=1)
 
             # change from 2048x49 -> 49x2048
             # 49 tokens for an image
@@ -259,11 +252,10 @@ if RunningParams.CUB_TRAINING is True:
 
             output = output3
 
-            if RunningParams.XAI_method == RunningParams.NNs:
-                if RunningParams.k_value == 1:
-                    return output, input_feat, None, None
-                else:
-                    return output, input_feat, i2e_attns, e2i_attns
+            if RunningParams.k_value == 1:
+                return output, input_feat, None, None
+            else:
+                return output, input_feat, i2e_attns, e2i_attns
 
     class CNN_AdvisingNetwork(nn.Module):
         def __init__(self):
@@ -318,11 +310,10 @@ if RunningParams.CUB_TRAINING is True:
 
             output = output3
 
-            if RunningParams.XAI_method == RunningParams.NNs:
-                if RunningParams.k_value == 1:
-                    return output, input_feat, None, None
-                else:
-                    return output, input_feat, None, None
+            if RunningParams.k_value == 1:
+                return output, input_feat, None, None
+            else:
+                return output, input_feat, None, None
 
     class ViT_AdvisingNetwork(nn.Module):
         def __init__(self):
@@ -387,11 +378,10 @@ if RunningParams.CUB_TRAINING is True:
 
             output = output3
 
-            if RunningParams.XAI_method == RunningParams.NNs:
-                if RunningParams.k_value == 1:
-                    return output, None, None, None
-                else:
-                    return output, None, None, None
+            if RunningParams.k_value == 1:
+                return output, None, None, None
+            else:
+                return output, None, None, None
 
 elif RunningParams.CARS_TRAINING is True:
     class Transformer_AdvisingNetwork(nn.Module):
@@ -473,30 +463,24 @@ elif RunningParams.CARS_TRAINING is True:
             # Process the input images
             input_spatial_feats = self.conv_layers(images)
             input_feat = self.pooling_layer(input_spatial_feats).squeeze()
-            if RunningParams.BOTTLENECK is True:
-                input_spatial_feats = self.bottleneck(input_spatial_feats)
             input_spatial_feats = input_spatial_feats.flatten(start_dim=2)  # bsxcx49
 
             # Process the nearest neighbors
-            if RunningParams.XAI_method == RunningParams.NNs:
-                if RunningParams.k_value == 1:
-                    explanations = explanations.squeeze()
-                    explanation_spatial_feats = self.conv_layers(explanations)
-                    if RunningParams.BOTTLENECK is True:
-                        explanation_spatial_feats = self.bottleneck(explanation_spatial_feats)
-                    explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
-                else:  # K > 1
-                    explanation_spatial_feats = []
-                    for sample_idx in range(RunningParams.k_value):
-                        data = explanations[:, sample_idx, :]  # TODO: I traced to be at least correct here
-                        explanation_spatial_feat = self.conv_layers(data)
-                        if RunningParams.BOTTLENECK is True:
-                            explanation_spatial_feat = self.bottleneck(explanation_spatial_feat)
-                        explanation_spatial_feat = explanation_spatial_feat.flatten(start_dim=2)  #
-                        explanation_spatial_feats.append(explanation_spatial_feat)
 
-                    # bsxKx2048x49
-                    explanation_spatial_feats = torch.stack(explanation_spatial_feats, dim=1)
+            if RunningParams.k_value == 1:
+                explanations = explanations.squeeze()
+                explanation_spatial_feats = self.conv_layers(explanations)
+                explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
+            else:  # K > 1
+                explanation_spatial_feats = []
+                for sample_idx in range(RunningParams.k_value):
+                    data = explanations[:, sample_idx, :]  # TODO: I traced to be at least correct here
+                    explanation_spatial_feat = self.conv_layers(data)
+                    explanation_spatial_feat = explanation_spatial_feat.flatten(start_dim=2)  #
+                    explanation_spatial_feats.append(explanation_spatial_feat)
+
+                # bsxKx2048x49
+                explanation_spatial_feats = torch.stack(explanation_spatial_feats, dim=1)
 
             # change from 2048x49 -> 49x2048
             # 49 tokens for an image
@@ -610,11 +594,10 @@ elif RunningParams.CARS_TRAINING is True:
 
             output = output3
 
-            if RunningParams.XAI_method == RunningParams.NNs:
-                if RunningParams.k_value == 1:
-                    return output, input_feat, None, None
-                else:
-                    return output, input_feat, i2e_attns, e2i_attns
+            if RunningParams.k_value == 1:
+                return output, input_feat, None, None
+            else:
+                return output, input_feat, i2e_attns, e2i_attns
 
 elif RunningParams.DOGS_TRAINING is True:
     class Transformer_AdvisingNetwork(nn.Module):
@@ -710,30 +693,23 @@ elif RunningParams.DOGS_TRAINING is True:
             # Process the input images
             input_spatial_feats = self.conv_layers(images)
             input_feat = self.pooling_layer(input_spatial_feats).squeeze()
-            if RunningParams.BOTTLENECK is True:
-                input_spatial_feats = self.bottleneck(input_spatial_feats)
             input_spatial_feats = input_spatial_feats.flatten(start_dim=2)  # bsxcx49
 
             # Process the nearest neighbors
-            if RunningParams.XAI_method == RunningParams.NNs:
-                if RunningParams.k_value == 1:
-                    explanations = explanations.squeeze()
-                    explanation_spatial_feats = self.conv_layers(explanations)
-                    if RunningParams.BOTTLENECK is True:
-                        explanation_spatial_feats = self.bottleneck(explanation_spatial_feats)
-                    explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
-                else:  # K > 1
-                    explanation_spatial_feats = []
-                    for sample_idx in range(RunningParams.k_value):
-                        data = explanations[:, sample_idx, :]  # TODO: I traced to be at least correct here
-                        explanation_spatial_feat = self.conv_layers(data)
-                        if RunningParams.BOTTLENECK is True:
-                            explanation_spatial_feat = self.bottleneck(explanation_spatial_feat)
-                        explanation_spatial_feat = explanation_spatial_feat.flatten(start_dim=2)  #
-                        explanation_spatial_feats.append(explanation_spatial_feat)
+            if RunningParams.k_value == 1:
+                explanations = explanations.squeeze()
+                explanation_spatial_feats = self.conv_layers(explanations)
+                explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
+            else:  # K > 1
+                explanation_spatial_feats = []
+                for sample_idx in range(RunningParams.k_value):
+                    data = explanations[:, sample_idx, :]  # TODO: I traced to be at least correct here
+                    explanation_spatial_feat = self.conv_layers(data)
+                    explanation_spatial_feat = explanation_spatial_feat.flatten(start_dim=2)  #
+                    explanation_spatial_feats.append(explanation_spatial_feat)
 
-                    # bsxKx2048x49
-                    explanation_spatial_feats = torch.stack(explanation_spatial_feats, dim=1)
+                # bsxKx2048x49
+                explanation_spatial_feats = torch.stack(explanation_spatial_feats, dim=1)
 
             # change from 2048x49 -> 49x2048
             # 49 tokens for an image
@@ -847,11 +823,10 @@ elif RunningParams.DOGS_TRAINING is True:
 
             output = output3
 
-            if RunningParams.XAI_method == RunningParams.NNs:
-                if RunningParams.k_value == 1:
-                    return output, input_feat, None, None
-                else:
-                    return output, input_feat, i2e_attns, e2i_attns
+            if RunningParams.k_value == 1:
+                return output, input_feat, None, None
+            else:
+                return output, input_feat, i2e_attns, e2i_attns
 
 else:
     print('Failed creating the model! Exiting...')

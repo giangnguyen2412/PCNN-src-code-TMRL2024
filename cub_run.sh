@@ -1,6 +1,6 @@
 #!/bin/sh
 
-python cub-200/cub_extract_feature.py  # sampling
-python cub-200/augment_images.py
-python cub-200/cub_image_comparator_training.py  # train
-python cub-200/cub_binary_classify.py  # test
+#python cub-200/cub_extract_feature.py  # sampling
+#python cub-200/augment_images.py
+CUDA_VISIBLE_DEVICES=4,5 python cub-200/cub_image_comparator_training.py  # train
+CUDA_VISIBLE_DEVICES=4 python cub-200/cub_binary_classify.py  # test

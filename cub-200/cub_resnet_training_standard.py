@@ -136,4 +136,4 @@ model_trained = train_model(model, criterion, optimizer, num_epochs=50)
 
 test_model(model_trained)
 
-torch.save(model_trained.state_dict(), "./imagenet_pretrained_resnet34_cub_200way.pth")
+torch.save(model_trained.state_dict(), f"./imagenet_pretrained_resnet{RunningParams.resnet}_cub_200way.pth")
