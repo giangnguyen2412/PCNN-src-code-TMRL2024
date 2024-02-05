@@ -60,7 +60,7 @@ Step 2:
 > sh test_dogs.sh
 
 ## How to visualize qualitative figures
-For CUB-120,
+For CUB-200,
 
 Step 1: Set `global_training_type = 'CUB'` and `self.set = 'test'` in `params.py`
 
