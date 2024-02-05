@@ -11,27 +11,61 @@ Nearest neighbors are traditionally used to compute final decisions, e.g., in Su
 
 Download pretrained models for CUB-200, Cars-196, and Dogs-120 at [this link](https://drive.google.com/drive/folders/1pC_5bEi5DryDZCaKb51dzCE984r8EnqW?usp=sharing).
 
-## Sampling &rightarrow; Training &rightarrow; Binary classify
+## Training image comparator network
+
 
 For CUB-200,
-> sh cub_run.sh
+
+Step 1: Set `global_training_type = 'CUB'` and `self.set = 'train'` in `params.py`
+
+Step 2:
+> sh train_cub.sh
 
 For Cars-196,
-> sh cars_run.sh
+
+Step 1: Set `global_training_type = 'CARS'` and `self.set = 'train'` in `params.py`
+
+Step 2:
+> sh train_cars.sh
+
 
 For Dogs-120,
-> sh dogs_run.sh
 
-Notes: Set `global_training_type` to  = `'CUB'` or `'CARS'` or `'DOGS'`
+Step 1: Set `global_training_type = 'DOGS'` and `self.set = 'train'` in `params.py`
 
+Step 2:
+> sh train_dogs.sh
 
-## Reranking
+## Testing (Binary classification and Reranking)
 
-> python cub_extract_feature_for_reranking.py
+For CUB-200,
 
-> python cub_reranking.py
+Step 1: Set `global_training_type = 'CUB'` and `self.set = 'test'` in `params.py`
+
+Step 2:
+> sh test_cub.sh
+
+For Cars-196,
+
+Step 1: Set `global_training_type = 'CARS'` and `self.set = 'test'` in `params.py`
+
+Step 2:
+> sh test_cars.sh
+
+For Dogs-120,
+
+Step 1: Set `global_training_type = 'DOGS'` and `self.set = 'test'` in `params.py`
+
+Step 2:
+> sh test_dogs.sh
 
 ## How to visualize qualitative figures
+For CUB-120,
+
+Step 1: Set `global_training_type = 'CUB'` and `self.set = 'test'` in `params.py`
+
+Step 2:
+
 1. Corrections of S
 > python cub_visualize_corrections.py
 2. Training pairs of S
@@ -40,20 +74,3 @@ Notes: Set `global_training_type` to  = `'CUB'` or `'CARS'` or `'DOGS'`
 > python cub_infer.py
 
 Same steps for Cars-196 and Dogs-120.
-
-[//]: # ()
-[//]: # (### RN50 image comparator improving NTSNet)
-
-[//]: # (Set NTSNET in params.py to True. Then set MODEL1_RESNET in cub_extract_feature_adv_process.py to False then run:)
-
-[//]: # (> python cub_extract_feature_adv_process.py)
-
-[//]: # ()
-[//]: # (Then set MODEL1_RESNET in cub_advising_process.py to False then run:)
-
-[//]: # (> python cub_advising_process.py)
-
-[//]: # ()
-[//]: # (You can also set PRODUCT_OF_EXPERTS in cub_advising_process.py to True/False to use/not use the product of experts.)
-
-[//]: # ()

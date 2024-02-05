@@ -283,11 +283,10 @@ wandb.init(
     config=config,
 )
 
-wandb.save(os.path.basename(__file__), policy='now')
-wandb.save(f'{RunningParams.prj_dir}/params.py', policy='now')
-wandb.save(f'{RunningParams.prj_dir}/datasets.py', policy='now')
-wandb.save('dogs_image_comparator_training.py', policy='now')
-wandb.save(f'{RunningParams.prj_dir}/transformer.py', policy='now')
+wandb.save(f'{RunningParams.prj_dir}/params.py')
+wandb.save(f'{RunningParams.prj_dir}/datasets.py')
+wandb.save('dogs_image_comparator_training.py')
+wandb.save(f'{RunningParams.prj_dir}/transformer.py')
 
 if RunningParams.VisionTransformer is True:
     _, best_acc = train_model(

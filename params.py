@@ -17,7 +17,7 @@ class RunningParams:
         # Retrieving NNs and sample positive and negative pairs
         # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
         # Set it when you run train/test
-        self.set = 'test'
+        self.set = 'train'
 
         self.parent_dir = '/home/giang/Downloads'
         self.prj_dir = '/home/giang/Downloads/advising_network'
