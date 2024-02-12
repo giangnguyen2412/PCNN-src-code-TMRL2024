@@ -25,7 +25,7 @@ torch.manual_seed(42)
 full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/{RunningParams.test_path}',
                                      Dataset.data_transforms['train'])
 
-PRODUCT_OF_EXPERTS = True
+PRODUCT_OF_EXPERTS = RunningParams.PRODUCT_OF_EXPERTS
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

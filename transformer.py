@@ -19,11 +19,9 @@ class BinaryMLP(nn.Module):
             nn.Linear(input_dim, 512),
             nn.BatchNorm1d(512),
             nn.GELU(),
-            # nn.Dropout(dropout),  # Add dropout after first activation
             nn.Linear(512, hidden_dim),
             nn.BatchNorm1d(hidden_dim),  # Make sure to use `hidden_dim` instead of fixed number
             nn.GELU(),
-            # nn.Dropout(dropout),  # Add dropout after second activation
             nn.Linear(hidden_dim, 2),  # 2 for binary classification
         )
 

@@ -61,7 +61,9 @@ if __name__ == '__main__':
                         # default='best_model_warm-disco-3178.pt',  # no SA --> depth2 head1
                         # default='best_model_cerulean-sponge-3186.pt',  # Normal model, top15
                         # default='best_model_eager-field-3187.pt',  # Normal model, top10, run2
-                        default='best_model_light-cosmos-3188.pt',  # Normal model, top10, run3
+                        # default='best_model_light-cosmos-3188.pt',  # Normal model, top10, run3
+                        default='best_model_amber-darkness-3332.pt',  # test --> can remove later if like
+
                         # default='best_model_colorful-dragon-3182.pt',  # Normal model, top5
                         # default='best_model_prime-forest-3183.pt',  # Normal model, top3
                         # default='best_model_skilled-night-3167.pt',  # no augmentation

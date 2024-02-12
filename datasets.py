@@ -73,8 +73,9 @@ class ImageFolderForAdvisingProcess(ImageFolder):
         sample = self.loader(query_path)
         query = self.imagenet_transform(sample)
 
-        if RunningParams.NTSNET is True:
-            nts_query = self.transform(sample)
+        if RunningParams.CUB_TRAINING is True:
+            if RunningParams.NTSNET is True:
+                nts_query = self.transform(sample)
 
         base_name = os.path.basename(query_path)
 
@@ -106,8 +107,11 @@ class ImageFolderForAdvisingProcess(ImageFolder):
                 tensor_images[i, j] = transformed_image
 
         labels = torch.tensor(labels)
-        if RunningParams.NTSNET is True:
-            tuple_with_path = ((query, tensor_images, nts_query, labels), target, query_path)
+        if RunningParams.CUB_TRAINING is True:
+            if RunningParams.NTSNET is True:
+                tuple_with_path = ((query, tensor_images, nts_query, labels), target, query_path)
+            else:
+                tuple_with_path = ((query, tensor_images, labels), target, query_path)
         else:
             tuple_with_path = ((query, tensor_images, labels), target, query_path)
 
@@ -180,7 +184,7 @@ class ImageFolderForNNs(ImageFolder):
             elif 'test' in os.path.basename(root):
                 file_name = RunningParams.faiss_npy_file
             else:
-                file_name = RunningParams.faiss_npy_file
+                file_name = f'{RunningParams.prj_dir}/faiss/cub/INAT_True_top10_k1_enriched_rn50_test_NN1th.npy'
 
         elif RunningParams.DOGS_TRAINING is True:
             if 'train' in os.path.basename(root):
@@ -188,7 +192,7 @@ class ImageFolderForNNs(ImageFolder):
             elif 'test' in os.path.basename(root):
                 file_name = RunningParams.faiss_npy_file
             else:
-                file_name = RunningParams.faiss_npy_file
+                file_name = f'{RunningParams.prj_dir}/faiss/cub/INAT_True_top10_k1_enriched_rn50_test_NN1th.npy'
 
         else:
             print("Wrong RunningParams params!")

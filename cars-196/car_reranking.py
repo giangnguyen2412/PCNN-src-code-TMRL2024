@@ -34,7 +34,7 @@ data_transform = transforms.Compose([transforms.Resize(256),
 full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/{RunningParams.train_path}',
                                      data_transform)
 
-PRODUCT_OF_EXPERTS = False
+PRODUCT_OF_EXPERTS = RunningParams.PRODUCT_OF_EXPERTS
 depth = 0
 
 if __name__ == '__main__':

@@ -13,7 +13,6 @@ dict_path = RunningParams.faiss_npy_file
 file_dict = np.load(dict_path, allow_pickle=True).item()
 cnt = 0
 
-breakpoint()
 # Function to recursively find and print JPG files
 for root, dirs, files in os.walk(folder_path):
     for file in files:

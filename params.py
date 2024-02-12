@@ -1,6 +1,6 @@
 import os
 
-global_training_type = 'CUB'
+global_training_type = 'DOGS'
 
 class RunningParams:
     def __init__(self, training_type=None):
@@ -17,7 +17,8 @@ class RunningParams:
         # Retrieving NNs and sample positive and negative pairs
         # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
         # Set it when you run train/test
-        self.set = 'train'
+        self.set = 'test'
+        self.PRODUCT_OF_EXPERTS = True
 
         self.parent_dir = '/home/giang/Downloads'
         self.prj_dir = '/home/giang/Downloads/advising_network'
@@ -38,7 +39,7 @@ class RunningParams:
             exit(-1)
 
         # Visualization
-        self.VISUALIZE_COMPARATOR_CORRECTNESS = False
+        self.VISUALIZE_COMPARATOR_CORRECTNESS = True
         self.VISUALIZE_COMPARATOR_HEATMAPS = False
 
         # Set training-specific parameters
@@ -101,7 +102,7 @@ class RunningParams:
 
         elif self.CARS_TRAINING:
             # Set parameters for CARS training
-            self.train_path = 'Cars/Stanford-Cars-dataset/train'
+            self.train_path = 'Cars/Stanford-Cars-dataset/BACKUP/train'
             self.test_path = 'Cars/Stanford-Cars-dataset/test'
             self.batch_size = 256
             self.epochs = 100

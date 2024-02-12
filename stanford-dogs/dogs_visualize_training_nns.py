@@ -1,5 +1,5 @@
-# Extract NNs for advising process. Go into each top-predicted class,
-# and extract the NNs for the input image in that class and put into a dictionary.
+# Visualize training NNs for AdvNet Cars-196
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -31,12 +31,11 @@ os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 Dataset = Dataset()
+HelperFunctions = HelperFunctions()
 RunningParams = RunningParams('DOGS')
 
 MODEL1_RESNET = True
-depth_of_pred = 5
-print(depth_of_pred)
-set = 'test'
+set = 'train'
 
 torch.manual_seed(42)
 
@@ -161,14 +160,25 @@ if MODEL1_RESNET is True:
 
 ########################################################################
 
+depth_of_pred = 10
+
+if set == 'test':
+    depth_of_pred = 1
+
 correct_cnt = 0
-total_cnt = len(image_datasets['train'])
+total_cnt = 0
+
+MODEL1.eval()
+
+seed = 201
+random.seed(seed)
+np.random.seed(seed)
+torch.manual_seed(seed)
 
 faiss_nn_dict = dict()
-cnt = 0
-
 for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
-# for (data, label, paths), (data2, label2, paths2) in tqdm(zip(train_loader, std_train_loader)):
+    # if batch_idx == 1:
+    #     break
     if len(train_loader.dataset.classes) < 120:
         for sample_idx in range(data.shape[0]):
             tgt = label[sample_idx].item()
@@ -176,31 +186,19 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             id = faiss_dataset.class_to_idx[class_name]
             label[sample_idx] = id
 
-    if MODEL1_RESNET is True:
-        embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
-    else:
-        embeddings = feature_extractor(data2.cuda())  # 512x1 for RN 18
-
+    embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
     embeddings = torch.flatten(embeddings, start_dim=1)
     embeddings = embeddings.cpu().detach().numpy()
 
-    if MODEL1_RESNET is True:
-        out = MODEL1(data.cuda())
-    else:
-        _, out, _, _, _ = MODEL1(data.cuda())
-
-    out = out.cpu().detach()
+    out = MODEL1(data.cuda())
     model1_p = torch.nn.functional.softmax(out, dim=1)
-
-    score_top1, index_top1 = torch.topk(model1_p, 1, dim=1)
-
     score, index = torch.topk(model1_p, depth_of_pred, dim=1)
-
     for sample_idx in range(data.shape[0]):
         base_name = os.path.basename(paths[sample_idx])
         gt_id = label[sample_idx]
 
-        faiss_nn_dict[base_name] = dict()
+        key = paths[sample_idx]
+        val = list()
 
         for i in range(depth_of_pred):
             # Get the top-k predicted label
@@ -211,22 +209,119 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             faiss_index = faiss_nns_class_dict[predicted_idx]
             nn_list = list()
 
-            key = i
-            _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 6)
+            if depth_of_pred == 1:  # For val and test sets
+                _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), RunningParams.k_value)
 
-            for id in range(indices.shape[1]):
-                id = loader.dataset.indices[indices[0, id]]
-                nn_list.append(loader.dataset.dataset.imgs[id][0])
+                for id in range(indices.shape[1]):
+                    id = loader.dataset.indices[indices[0, id]]
+                    nn_list.append(loader.dataset.dataset.imgs[id][0])
 
-            faiss_nn_dict[base_name][key] = dict()
-            faiss_nn_dict[base_name][key]['NNs'] = nn_list
-            faiss_nn_dict[base_name][key]['Label'] = predicted_idx
-            faiss_nn_dict[base_name][key]['C_confidence'] = score[sample_idx][key]
+                faiss_nn_dict[paths[sample_idx]] = nn_list[0]
+            else:
 
+                if i == 0:  # top-1 predictions --> Enrich top-1 prediction samples
+                    _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), faiss_index.ntotal)
 
-print(cnt)
-save_file = f'{RunningParams.prj_dir}/faiss/advising_process_top1_SDogs.npy'
-print(save_file)
-print(set)
-print(depth_of_pred)
-np.save(save_file, faiss_nn_dict)
+                    if set == 'val':
+                        width_of_pred = 1
+                    else:
+                        width_of_pred = depth_of_pred
+
+                    for j in range(width_of_pred):  # Make up x NN sets from top-1 predictions
+                        nn_list = list()
+
+                        if predicted_idx == gt_id:
+                            min_id = (j * RunningParams.k_value) + 1  # 3 NNs for one NN set
+                            max_id = ((j * RunningParams.k_value) + RunningParams.k_value) + 1
+                        else:
+                            min_id = j * RunningParams.k_value  # 3 NNs for one NN set
+                            max_id = (j * RunningParams.k_value) + RunningParams.k_value
+
+                        for id in range(min_id, max_id):
+                            # print(id)
+                            # print(indices)
+                            # print(loader.dataset.indices)
+                            id = loader.dataset.indices[indices[0, id]]
+                            nn_list.append(loader.dataset.dataset.imgs[id][0])
+
+                        val.append(nn_list[0])
+
+                else:
+                    if predicted_idx == gt_id:
+                        _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), RunningParams.k_value+1)
+                        indices = indices[:, 1:]  # skip the first NN
+                    else:
+                        _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), RunningParams.k_value)
+
+                    for id in range(indices.shape[1]):
+                        id = loader.dataset.indices[indices[0, id]]
+                        nn_list.append(loader.dataset.dataset.imgs[id][0])
+
+                    val.append(nn_list[0])
+        faiss_nn_dict[key] = val
+
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+from PIL import Image
+# Your dictionary
+image_dict = faiss_nn_dict.copy()
+
+import random
+random.seed(42)
+# Shuffle the keys of the dictionary
+keys = list(image_dict.keys())
+random.shuffle(keys)
+
+# Create a new dictionary with the shuffled keys
+shuffled_dict = {key: image_dict[key] for key in keys}
+
+breakpoint()
+
+i = 0
+for first_key, first_value in shuffled_dict.items():
+    i += 1
+    if i == 20:
+        break
+    # Get the parent directory name of the query image file
+    query_dir_name = os.path.basename(os.path.dirname(first_key))
+
+    # Load and resize the query image
+    query_img = Image.open(first_key)
+    query_img = query_img.resize((400, 400))
+
+    # Create a new figure with 3 rows
+    fig = plt.figure(figsize=(32, 10), dpi=200)
+
+    # Plot the query image in the first row
+    ax = plt.subplot(3, 1, 1)
+    plt.subplots_adjust(hspace=0.05)
+    ax.imshow(query_img)
+    ax.set_title(f'Query: {HelperFunctions.extract_dog_name(os.path.basename(os.path.dirname(first_value[0])))}', fontsize=18, color='green', weight='bold')
+    ax.axis('off')
+
+    # Plot the first 10 images in the second row
+    for i in range(10):
+        img = Image.open(first_value[i])
+        img_resized = img.resize((300, 300))
+        img_resized = np.array(img_resized)
+        ax = plt.subplot(3, 10, i+11)  # Starting from 11th position
+        ax.imshow(img_resized)
+        if i == 4:
+            ax.set_title('Top-1: {}'.format(HelperFunctions.extract_dog_name(os.path.basename(os.path.dirname(first_value[i])))), fontsize=16, weight='bold')
+        ax.axis('off')  # Hide axes
+
+    # Plot the last 9 images in the third row
+    for i in range(9):
+        img = Image.open(first_value[i+10])
+        img_resized = img.resize((300, 300))
+        img_resized = np.array(img_resized)
+        ax = plt.subplot(3, 10, i+22)  # Starting from 21st position
+        ax.imshow(img_resized)
+        ax.set_title('Top-{}: {}'.format(i+2, HelperFunctions.extract_dog_name(os.path.basename(os.path.dirname(first_value[i+10])))), fontsize=8)
+        ax.axis('off')  # Hide axes
+
+    # Adjust the spacing between rows to minimize white spaces
+    plt.subplots_adjust(hspace=0.1)
+
+    # Save the figure as a PDF
+    plt.savefig(f"final_image_{os.path.basename(first_key)}.pdf", bbox_inches='tight', pad_inches=0.25)

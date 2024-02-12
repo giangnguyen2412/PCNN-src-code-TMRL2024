@@ -25,7 +25,7 @@ torch.manual_seed(42)
 full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/{RunningParams.combined_path}',
                                      Dataset.data_transforms['train'])
 
-PRODUCT_OF_EXPERTS = True
+PRODUCT_OF_EXPERTS = RunningParams.PRODUCT_OF_EXPERTS
 MODEL1_RESNET = True
 
 depth = 0
@@ -53,7 +53,9 @@ if __name__ == '__main__':
                         # default='best_model_legendary-durian-3216.pt', # Random negative samples data sampling, RN50, 1st NN
 
                         # default='best_model_genial-plasma-3125.pt',
-                        default='best_model_decent-pyramid-3156.pt', # Normal model, top10, run1
+                        # default='best_model_decent-pyramid-3156.pt', # Normal model, top10, run1
+                        default='best_model_amber-darkness-3332.pt',  # test --> can remove later if like
+
                         # default='best_model_eager-field-3187.pt',  # Normal model, top10, run2
                         # default='best_model_light-cosmos-3188.pt',  # Normal model, top10, run3
                         # default='best_model_faithful-rain-3211.pt',

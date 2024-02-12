@@ -44,6 +44,7 @@ if __name__ == '__main__':
                         default='best_model_dainty-blaze-3325.pt',  # RN50 run 1
                         # default='best_model_quiet-bee-3327.pt',  # RN50 run 2
                         # default='best_model_likely-dragon-3328.pt',  # RN50 run 3
+                        # default='best_model_amber-darkness-3332.pt',  # test --> can remove later if like
                         # default='best_model_driven-smoke-3329.pt',  # RN50 no augmentation
                         help='Model check point')
 
@@ -302,8 +303,8 @@ if __name__ == '__main__':
                     base_name = os.path.basename(query)
                     save_path = os.path.join(save_dir, model2_decision, base_name)
 
-                    gt_label = full_cub_dataset.classes[gts[sample_idx].item()]
-                    pred_label = full_cub_dataset.classes[predicted_ids[sample_idx].item()]
+                    gt_label = HelperFunctions.extract_dog_name(full_cub_dataset.classes[gts[sample_idx].item()])
+                    pred_label = HelperFunctions.extract_dog_name(full_cub_dataset.classes[predicted_ids[sample_idx].item()])
 
                     model1_confidence = int(model1_score[sample_idx].item() * 100)
                     model2_confidence = int(model2_score[sample_idx].item() * 100)
@@ -313,7 +314,7 @@ if __name__ == '__main__':
                     # Finding the extreme cases
                     # if (action == 'Accept' and confidence < 50) or (action == 'Reject' and confidence > 80):
                     if correctness == 'Incorrectly':
-                        prototypes = data_loader.dataset.faiss_nn_dict[base_name][0:RunningParams.k_value]
+                        prototypes = data_loader.dataset.faiss_nn_dict[base_name]['NNs'][0:RunningParams.k_value]
                         Visualization.visualize_model2_decision_with_prototypes(query,
                                                                                 gt_label,
                                                                                 pred_label,

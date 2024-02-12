@@ -8,7 +8,9 @@ import torch
 from PIL import Image
 import glob
 from thop import profile
+from params import RunningParams
 
+RunningParams = RunningParams()
 
 class HelperFunctions(object):
     def __init__(self):
@@ -64,6 +66,14 @@ class HelperFunctions(object):
             shutil.rmtree(f)
         else:
             pass
+
+    def extract_dog_name(self, class_name):
+        # Split the class name by the hyphen
+        parts = class_name.split('-')
+        # The dog name is the second part after splitting, underscores replaced with spaces, and the first letter of each word capitalized
+        dog_name = ' '.join(parts[1:])
+        dog_name = dog_name.title() if len(parts) > 1 else None
+        return dog_name
 
     def load_imagenet_label_map(self):
         """
