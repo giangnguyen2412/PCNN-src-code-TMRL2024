@@ -45,7 +45,7 @@ if __name__ == '__main__':
                         # default='best_model_' + 'bs256-p1.0-dropout-0.0-NNth-1' + '.pt',
                         # default='best_model_different-grass-3212.pt', # Normal model
                         # default='best_model_blooming-sponge-3236.pt', # 2nd NNs
-                        # default='best_model_decent-pyramid-3156.pt', # Normal model, top10, run1
+                        default='best_model_decent-pyramid-3156.pt', # Normal model, top10, run1
                         # default='best_model_avid-cosmos-3201.pt', # M=N=L=1 model
                         # default='best_model_serene-sound-3240.pt',  # M=N=L=2 model
                         # default='best_model_rare-shadow-3213.pt', # M=N=L=1 model convs only
@@ -62,7 +62,7 @@ if __name__ == '__main__':
                         # default='best_model_cerulean-sponge-3186.pt',  # Normal model, top15
                         # default='best_model_eager-field-3187.pt',  # Normal model, top10, run2
                         # default='best_model_light-cosmos-3188.pt',  # Normal model, top10, run3
-                        default='best_model_amber-darkness-3332.pt',  # test --> can remove later if like
+                        # default='best_model_amber-darkness-3332.pt',  # test --> can remove later if like
 
                         # default='best_model_colorful-dragon-3182.pt',  # Normal model, top5
                         # default='best_model_prime-forest-3183.pt',  # Normal model, top3
@@ -86,7 +86,7 @@ if __name__ == '__main__':
 
     checkpoint = torch.load(model_path)
     running_params = checkpoint['running_params']
-
+    breakpoint()
     MODEL2.load_state_dict(checkpoint['model_state_dict'])
     epoch = checkpoint['epoch']
     loss = checkpoint['val_loss']
@@ -159,7 +159,12 @@ if __name__ == '__main__':
         if RunningParams.resnet == 34 or RunningParams.resnet == 18 or (
                 RunningParams.resnet == 50 and RunningParams.RN50_INAT is False):
             resnet.fc = resnet.fc[0]
+        ###
+        conv_features = list(resnet.children())[:RunningParams.conv_layer - 5]  # delete the last fc layer
+        feat_extractor = nn.Sequential(*conv_features)
 
+        feat_extractor = nn.DataParallel(feat_extractor).cuda()
+        ###
         MODEL1 = resnet.cuda()
 
     MODEL1.eval()
@@ -279,10 +284,23 @@ if __name__ == '__main__':
                 explanation = explanation[torch.randperm(explanation.size(0))]
 
             # Forward input, explanations, and softmax scores through MODEL2
-            output, query, i2e_attn, e2i_attn = MODEL2(images=x, explanations=explanation, scores=model1_score)
+            # output, _, _, _ = MODEL2(images=x, explanations=explanation, scores=model1_score)
 
-            # convert logits to probabilities using sigmoid function
-            p = torch.sigmoid(output)
+            #####
+            x_conv = feat_extractor(x.squeeze()).squeeze()
+            ex_conv = feat_extractor(explanation.squeeze()).squeeze()
+            from torch.nn.functional import cosine_similarity
+
+            output = cosine_similarity(x_conv, ex_conv, dim=1)
+            # breakpoint()
+
+            # Normalize the cosine similarity values to [0, 1] for binary classification
+            # p = (output + 1) / 2
+            p = output 
+            ####
+
+            # # convert logits to probabilities using sigmoid function
+            # p = torch.sigmoid(output)
 
             # classify inputs as 0 or 1 based on the threshold of 0.5
             preds = (p >= 0.5).long().squeeze()
