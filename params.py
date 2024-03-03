@@ -1,6 +1,6 @@
 import os
 
-global_training_type = 'DOGS'
+global_training_type = 'CUB'
 
 class RunningParams:
     def __init__(self, training_type=None):
@@ -13,6 +13,8 @@ class RunningParams:
         self.TRANSFORMER_ARCH = True
         self.VisionTransformer = False
         self.resnet = 50
+
+        self.k_value = 1
 
         # Retrieving NNs and sample positive and negative pairs
         # Set it when you extract the NNs. data_dir is the folder containing query images for KNN retrieval
@@ -39,7 +41,7 @@ class RunningParams:
             exit(-1)
 
         # Visualization
-        self.VISUALIZE_COMPARATOR_CORRECTNESS = True
+        self.VISUALIZE_COMPARATOR_CORRECTNESS = False
         self.VISUALIZE_COMPARATOR_HEATMAPS = False
 
         # Set training-specific parameters
@@ -69,12 +71,11 @@ class RunningParams:
             self.test_path = 'datasets/CUB/test0'
             self.combined_path = 'datasets/CUB/combined'
             self.batch_size = 256
-            self.epochs = 200
+            self.epochs = 100
 
-            self.learning_rate = 3e-4
-            self.k_value = 1
+            self.learning_rate = 1e-3
 
-            self.RN50_INAT = False
+            self.RN50_INAT = True
             self.NTSNET = False
 
             # Determine if you want to use 1st, 2nd or 3rd NNs (in each class) to pair with your input to train AdvNet.
@@ -108,8 +109,6 @@ class RunningParams:
             self.epochs = 100
 
             self.learning_rate = 1e-2
-            self.k_value = 1
-
             self.negative_order = 1
 
             # Retrieving NNs and sample positive and negative pairs
@@ -134,8 +133,6 @@ class RunningParams:
             self.epochs = 50
 
             self.learning_rate = 1e-3
-            self.k_value = 1
-
             self.negative_order = 1
 
             # Retrieving NNs and sample positive and negative pairs

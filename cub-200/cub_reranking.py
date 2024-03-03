@@ -28,7 +28,6 @@ full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/{RunningParams
 PRODUCT_OF_EXPERTS = RunningParams.PRODUCT_OF_EXPERTS
 MODEL1_RESNET = True
 
-depth = 0
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -47,18 +46,22 @@ if __name__ == '__main__':
                         # default='best_model_lilac-waterfall-3238.pt',  # 3rd NNs
                         # default='best_model_lilac-bird-3237.pt',  # 5th NNs
 
-                        # default='best_model_different-grass-3212.pt',
+                        # default='best_model_olive-dream-3169.pt',  # Freeze conv layers and train transformer layers
+
+                        # default='best_model_different-grass-3212.pt', # Freeze conv layers and remove transformer layers, train MLP
                         # default='best_model_bs256-p1.0-dropout-0.0-NNth-3.pt',
 
                         # default='best_model_legendary-durian-3216.pt', # Random negative samples data sampling, RN50, 1st NN
 
                         # default='best_model_genial-plasma-3125.pt',
-                        # default='best_model_decent-pyramid-3156.pt', # Normal model, top10, run1
-                        default='best_model_amber-darkness-3332.pt',  # test --> can remove later if like
+                        default='best_model_decent-pyramid-3156.pt', # Normal model, top10, run1
+                        # default='best_model_amber-darkness-3332.pt',  # test --> can remove later if like
 
                         # default='best_model_eager-field-3187.pt',  # Normal model, top10, run2
                         # default='best_model_light-cosmos-3188.pt',  # Normal model, top10, run3
-                        # default='best_model_faithful-rain-3211.pt',
+                        # default='best_model_faithful-rain-3211.pt', # Train conv layers and remove transformer layers 1
+                        # default='best_model_glowing-peony-3349.pt', # Train conv layers and remove transformer layers 2
+                        # default='best_model_prosperous-wonton-3350.pt', # Train conv layers and remove transformer layers 3
                         # default='best_model_legendary-durian-3216.pt',  # M=N=L=1 model convs only, no SA
                         help='Model check point')
 
@@ -96,43 +99,46 @@ if __name__ == '__main__':
                 RunningParams.resnet == 50 and RunningParams.RN50_INAT is False):
                 resnet.fc = resnet.fc[0]
 
-        # MODEL1 = resnet
-        # MODEL1 = nn.DataParallel(MODEL1).cuda()
-        # MODEL1.eval()
+        ############# ResNet-50 ################
 
+        MODEL1 = resnet
+        MODEL1 = nn.DataParallel(MODEL1).cuda()
+        MODEL1.eval()
+
+        # Uncomment this ViTB-16 block and comment the ResNet block to use ViTB-16 for generalization test
         ############ ViTB-16 ################
-        # Initialize the base model and load the trained weights
-        import timm
-
-
-        class CustomViT(nn.Module):
-            def __init__(self, base_model):
-                super(CustomViT, self).__init__()
-                self.base_model = base_model
-
-            def forward(self, x):
-                # Get the features from the base ViT model
-                x = self.base_model.forward_features(x)
-                # Extract the CLS token (first token)
-                cls_token = x[:, 0]
-                # Pass the features through the classifier
-                output = self.base_model.head(cls_token)
-                return output, cls_token
-
-
-        # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        # print(device)
-        base_model = timm.create_model('vit_base_patch16_224', pretrained=False, num_classes=200)
-        model_path_vit = f"{RunningParams.prj_dir}/pretrained_models/cub-200/vit_base_patch16_224_cub_200way_82_40.pth"
-        state_dict = torch.load(model_path_vit)
-        new_state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
-        base_model.load_state_dict(new_state_dict)
-
-        # Wrap the base model in the custom model
-        model = CustomViT(base_model).cuda()
-        model.eval()
-
-        MODEL1 = nn.DataParallel(model).cuda()
+        # # Initialize the base model and load the trained weights
+        # import timm
+        #
+        #
+        # class CustomViT(nn.Module):
+        #     def __init__(self, base_model):
+        #         super(CustomViT, self).__init__()
+        #         self.base_model = base_model
+        #
+        #     def forward(self, x):
+        #         # Get the features from the base ViT model
+        #         x = self.base_model.forward_features(x)
+        #         # Extract the CLS token (first token)
+        #         cls_token = x[:, 0]
+        #         # Pass the features through the classifier
+        #         output = self.base_model.head(cls_token)
+        #         return output, cls_token
+        #
+        #
+        # # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        # # print(device)
+        # base_model = timm.create_model('vit_base_patch16_224', pretrained=False, num_classes=200)
+        # model_path_vit = f"{RunningParams.prj_dir}/pretrained_models/cub-200/vit_base_patch16_224_cub_200way_82_40.pth"
+        # state_dict = torch.load(model_path_vit)
+        # new_state_dict = {k.replace("module.", ""): v for k, v in state_dict.items()}
+        # base_model.load_state_dict(new_state_dict)
+        #
+        # # Wrap the base model in the custom model
+        # model = CustomViT(base_model).cuda()
+        # model.eval()
+        #
+        # MODEL1 = nn.DataParallel(model).cuda()
 
         #####################################
 
@@ -223,6 +229,7 @@ if __name__ == '__main__':
     print('F1 score: {:.4f}'.format(f1))
 
     print(f'PRODUCT_OF_EXPERTS: {PRODUCT_OF_EXPERTS}')
+    print("k_value: ", RunningParams.k_value)
 
     model.eval()
 
@@ -240,7 +247,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=5,
+            batch_size=2,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -250,6 +257,8 @@ if __name__ == '__main__':
         running_corrects = 0
         running_corrects_top5 = 0
         total_cnt = 0
+
+        first_cnt = 0
 
         yes_cnt = 0
         true_cnt = 0
@@ -278,38 +287,64 @@ if __name__ == '__main__':
                 ########################################################
                 if MODEL1_RESNET is False and RunningParams.NTSNET is True:
                     _, out, _, _, _ = MODEL1(data[2].cuda())
+                    out = out.cpu().detach()
+                    if len(out.shape) == 1:
+                        out = out.unsqueeze(0)
+                    model1_p = torch.nn.functional.softmax(out, dim=1)
                 else:
-                    out, _ = MODEL1(x)
-
-                out = out.cpu().detach()
-                model1_p = torch.nn.functional.softmax(out, dim=1)
+                    model1_p = data[2].cpu().detach()
 
                 score, index_top1 = torch.topk(model1_p, 1, dim=1)
 
-                correct_predictions = index_top1.squeeze(1) == gt
-                correct_cnt_model1 += correct_predictions.sum().item()
-
             output_tensors = []
-            depth = data[1].shape[1]
+            depth = # TODO
+
             # Loop to get the logit for each class
-            for class_idx in range(data[1].shape[1]):
+            # breakpoint()
+            for class_idx in range(depth):
                 explanation = data[1][:, class_idx, :, :, :, :]
                 explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
-                output, _, _, _ = model(images=x, explanations=explanation, scores=None)
-                output = output.squeeze()
+                nn_output_tensors = []
+                for nn_idx in range(RunningParams.k_value):
+                    nn_th_explanation = explanation[:, nn_idx, :, :, :]
+                    nn_th_output,_ ,_ , _ = model(images=x, explanations=nn_th_explanation, scores=None)
+                    nn_output_tensors.append(nn_th_output)
+
+                stacked_tensors = torch.stack(nn_output_tensors, dim=1)
+                output = torch.mean(stacked_tensors, dim=1).squeeze()
+
+                # output, _, _, _ = model(images=x, explanations=explanation, scores=None)
+                # output = output.squeeze()
                 output_tensors.append(output)
 
+            # for class_idx in range(depth):
+            #     explanation = data[1][:, class_idx, :, :, :, :]
+            #     explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
+            #
+            #     output, _, _, _ = model(images=x, explanations=explanation, scores=None)
+            #     output = output.squeeze()
+            #     output_tensors.append(output)
+
+            # breakpoint()
             logits = torch.stack(output_tensors, dim=1)
             # convert logits to probabilities using softmax function
             p = torch.softmax(logits, dim=1)
 
             if PRODUCT_OF_EXPERTS is True:
                 conf_score_advnet = torch.sigmoid(logits)
-                score_topk, index_topk = torch.topk(model1_p, data[1].shape[1], dim=1)
+                score_topk, index_topk = torch.topk(model1_p, depth, dim=1)
+
+                batch_index = torch.arange(0, index_topk.size(0)).unsqueeze(1)
+                index_topk = labels[batch_index, index_topk]
+
                 final_confidence_score = conf_score_advnet.cpu()*score_topk
                 score, final_preds = torch.topk(final_confidence_score, 1, dim=1)
                 index = index_topk[torch.arange(index_topk.size(0)), final_preds.squeeze()]
+
+                # breakpoint()
+                # Count the number of 0's
+                first_cnt += torch.sum(final_preds.eq(0)).item()
             else:
                 # Compute top-1 predictions and accuracy
                 score, index = torch.topk(p, 1, dim=1)
@@ -318,6 +353,9 @@ if __name__ == '__main__':
 
             running_corrects += torch.sum(index.squeeze() == gt)
             total_cnt += data[0].shape[0]
+
+
+            print("First count: {}".format(first_cnt * 100 / total_cnt))
 
             print("Top-1 Accuracy: {}".format(running_corrects * 100 / total_cnt))
             print(f'Depth of prediction: {depth}')
@@ -398,5 +436,8 @@ if __name__ == '__main__':
 
         plt.show()
         plt.savefig(f'{RunningParams.prj_dir}/Reliability_AdvNet_Diagram_test_top1_HP_MODEL1_HP_FE.png')
+
+    print("k_value: ", RunningParams.k_value)
+
 
 

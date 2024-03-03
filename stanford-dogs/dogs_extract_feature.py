@@ -136,8 +136,8 @@ train_loader = torch.utils.data.DataLoader(
 depth_of_pred = RunningParams.Q
 
 set = RunningParams.set
-if set == 'test':
-    depth_of_pred = 1
+# if set == 'test':
+#     depth_of_pred = 1
 
 correct_cnt = 0
 total_cnt = 0

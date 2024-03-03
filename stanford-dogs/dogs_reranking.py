@@ -160,8 +160,17 @@ if __name__ == '__main__':
                 explanation = data[1][:, class_idx, :, :, :, :]
                 explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
-                output, _, _, _ = model(images=x, explanations=explanation, scores=None)
-                output = output.squeeze()
+                nn_output_tensors = []
+                for nn_idx in range(RunningParams.k_value):
+                    nn_th_explanation = explanation[:, nn_idx, :, :, :]
+                    nn_th_output, _, _, _ = model(images=x, explanations=nn_th_explanation, scores=None)
+                    nn_output_tensors.append(nn_th_output)
+
+                stacked_tensors = torch.stack(nn_output_tensors, dim=1)
+                output = torch.mean(stacked_tensors, dim=1).squeeze()
+
+                # output, _, _, _ = model(images=x, explanations=explanation, scores=None)
+                # output = output.squeeze()
                 output_tensors.append(output)
 
             logits = torch.stack(output_tensors, dim=1)

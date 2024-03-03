@@ -88,14 +88,25 @@ class ImageFolderForAdvisingProcess(ImageFolder):
 
         # Initialize an empty tensor to store the transformed images
         tensor_images = torch.empty((len(nns), nn_num, 3, 224, 224))
-
         labels = []
+        c_confidences = []
 
         # Iterate over the dictionary entries and transform the images
         for i, val in nns.items():
             # Only take either the first or second, or third NNs for the comparison
+
+            if RunningParams.negative_order > 1 and RunningParams.k_value > 1:
+                print("Not supported yet!!!")
+                return -1
+
             file_paths = val['NNs'][RunningParams.negative_order-1:RunningParams.negative_order]
+
+            if RunningParams.k_value > 1:
+                file_paths = val['NNs'][0:RunningParams.k_value]
+
             labels.append(val['Label'])
+            c_confidences.append(val['C_confidence'])
+
             for j, file_path in enumerate(file_paths):
                 # Load the image using the loader function
                 image = self.loader(file_path)  # Replace `loader` with your actual loader function
@@ -107,11 +118,12 @@ class ImageFolderForAdvisingProcess(ImageFolder):
                 tensor_images[i, j] = transformed_image
 
         labels = torch.tensor(labels)
+        c_confidences = torch.tensor(c_confidences)
         if RunningParams.CUB_TRAINING is True:
             if RunningParams.NTSNET is True:
                 tuple_with_path = ((query, tensor_images, nts_query, labels), target, query_path)
             else:
-                tuple_with_path = ((query, tensor_images, labels), target, query_path)
+                tuple_with_path = ((query, tensor_images, c_confidences, labels), target, query_path)
         else:
             tuple_with_path = ((query, tensor_images, labels), target, query_path)
 
@@ -264,7 +276,7 @@ class ImageFolderForNNs(ImageFolder):
                                                        RunningParams.DOGS_TRAINING is True):
             tuple_with_path = ((query, explanations, model2_target, aug_query), target, query_path)
         else:
-            tuple_with_path = ((query, explanations, aug_query), target, query_path)
+            tuple_with_path = ((query, explanations, model2_target, aug_query), target, query_path)
 
         return tuple_with_path
 

@@ -31,8 +31,8 @@ data_transform = transforms.Compose([transforms.Resize(256),
             transforms.ToTensor(),
             normalize,
         ])
-full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/{RunningParams.train_path}',
-                                     data_transform)
+# full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/{RunningParams.train_path}',
+#                                      data_transform)
 
 PRODUCT_OF_EXPERTS = RunningParams.PRODUCT_OF_EXPERTS
 depth = 0
@@ -42,10 +42,10 @@ if __name__ == '__main__':
     parser.add_argument('--ckpt', type=str,
                         # default='best_model_zesty-mountain-3152.pt',
                         # default='best_model_spring-field-3157.pt',  # RN34
-                        # default='best_model_robust-sunset-3158.pt',  # RN50
+                        default='best_model_robust-sunset-3158.pt',  # RN50
                         # default='best_model_divine-cherry-3160.pt',  # RN18
                         # default='best_model_wandering-capybara-3189.pt',  # RN50 run 2
-                        default='best_model_different-lion-3192.pt',  # RN50 run 3
+                        # default='best_model_different-lion-3192.pt',  # RN50 run 3
                         help='Model check point')
 
     args = parser.parse_args()
@@ -91,7 +91,7 @@ if __name__ == '__main__':
     print('F1 score: {:.4f}'.format(f1))
 
     print(f'PRODUCT_OF_EXPERTS: {PRODUCT_OF_EXPERTS}')
-
+    print("k_value: ", RunningParams.k_value)
 
     model.eval()
 
@@ -104,7 +104,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=16,
+            batch_size=2,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -130,12 +130,12 @@ if __name__ == '__main__':
             x = data[0].cuda()
             labels = data[-1].cuda()
 
-            if len(data_loader.dataset.classes) < 120:
-                for sample_idx in range(x.shape[0]):
-                    tgt = gt[sample_idx].item()
-                    class_name = data_loader.dataset.classes[tgt]
-                    id = full_cub_dataset.class_to_idx[class_name]
-                    gt[sample_idx] = id
+            # if len(data_loader.dataset.classes) < 120:
+            #     for sample_idx in range(x.shape[0]):
+            #         tgt = gt[sample_idx].item()
+            #         class_name = data_loader.dataset.classes[tgt]
+            #         id = full_cub_dataset.class_to_idx[class_name]
+            #         gt[sample_idx] = id
 
             if PRODUCT_OF_EXPERTS is True:
                 ########################################################
@@ -159,9 +159,17 @@ if __name__ == '__main__':
                 explanation = data[1][:, class_idx, :, :, :, :]
                 explanation = explanation[:, 0:RunningParams.k_value, :, :, :]
 
-                # print(explanation.shape)
-                output, _, _, _ = model(images=x, explanations=explanation, scores=None)
-                output = output.squeeze()
+                nn_output_tensors = []
+                for nn_idx in range(RunningParams.k_value):
+                    nn_th_explanation = explanation[:, nn_idx, :, :, :]
+                    nn_th_output, _, _, _ = model(images=x, explanations=nn_th_explanation, scores=None)
+                    nn_output_tensors.append(nn_th_output)
+
+                stacked_tensors = torch.stack(nn_output_tensors, dim=1)
+                output = torch.mean(stacked_tensors, dim=1).squeeze()
+
+                # output, _, _, _ = model(images=x, explanations=explanation, scores=None)
+                # output = output.squeeze()
                 output_tensors.append(output)
 
             logits = torch.stack(output_tensors, dim=1)
@@ -262,4 +270,7 @@ if __name__ == '__main__':
 
         plt.show()
         plt.savefig(f'{RunningParams.prj_dir}/Reliability_AdvNet_Diagram_test_top1_HP_MODEL1_HP_FE.png')
+
+    print("k_value: ", RunningParams.k_value)
+
 

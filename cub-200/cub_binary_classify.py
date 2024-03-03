@@ -43,31 +43,38 @@ if __name__ == '__main__':
     parser.add_argument('--ckpt', type=str,
                         # default='best_model_' + RunningParams.wandb_sess_name + '.pt',
                         # default='best_model_' + 'bs256-p1.0-dropout-0.0-NNth-1' + '.pt',
-                        # default='best_model_different-grass-3212.pt', # Normal model
-                        # default='best_model_blooming-sponge-3236.pt', # 2nd NNs
-                        default='best_model_decent-pyramid-3156.pt', # Normal model, top10, run1
+                        # default='best_model_faithful-rain-3211.pt', # Train conv layers and remove transformer layers 1
+                        # default='best_model_glowing-peony-3349.pt', # Train conv layers and remove transformer layers 2
+                        # default='best_model_prosperous-wonton-3350.pt', # Train conv layers and remove transformer layers 3
+
+                        # default='best_model_different-grass-3212.pt', # Freeze conv layers and remove transformer layers
+                        # default='best_model_olive-dream-3169.pt',  # Freeze conv layers and train transformer layers
+                        default='best_model_decent-pyramid-3156.pt', # Normal model, top10, run1, 94.37
+                        # default='best_model_eager-field-3187.pt',  # Normal model, top10, run2, 94.53
+                        # default='best_model_light-cosmos-3188.pt',  # Normal model, top10, run3, 94.44
                         # default='best_model_avid-cosmos-3201.pt', # M=N=L=1 model
                         # default='best_model_serene-sound-3240.pt',  # M=N=L=2 model
-                        # default='best_model_rare-shadow-3213.pt', # M=N=L=1 model convs only
-                        # default='best_model_decent-mountain-3215.pt', # M=N=L=1 model convs only, no SA
+                        # default='best_model_decent-mountain-3215.pt', # M=L=H=1 N=0
                         # default='best_model_legendary-durian-3216.pt', # Random negative samples data sampling, RN50, 1st NN
 
+                        # default='best_model_blooming-sponge-3236.pt', # 2nd NNs
                         # default='best_model_lilac-waterfall-3238.pt',  # 3rd NNs
 
-                        # default='best_model_faithful-rain-3211.pt', # M=N=L=1 model convs only, no SA
                         # default='best_model_cosmic-waterfall-3174.pt', # no CA --> have no cross attn to visualize
-                        # default='best_model_young-planet-3170.pt',  # no SA --> clear heatmaps
-                        # default='best_model_serene-field-3176.pt',  # no SA --> depth2 head2
+                        # default='best_model_young-planet-3170.pt',  # no SA --> clear heatmaps,
+                        # default='best_model_serene-field-3176.pt',  # no SA --> depth2 head2, CA depth=2
+                        # default='best_model_brilliant-lamp-3343.pt',  # no SA --> depth2 head2, CA depth=1
+                        # default='best_model_fortuitous-noodles-3346.pt',  # no SA --> depth2 head2, CA depth=4
+
                         # default='best_model_warm-disco-3178.pt',  # no SA --> depth2 head1
+
+                        # default='best_model_prime-forest-3183.pt',  # Normal model, top3
+                        # default='best_model_colorful-dragon-3182.pt',  # Normal model, top5
                         # default='best_model_cerulean-sponge-3186.pt',  # Normal model, top15
-                        # default='best_model_eager-field-3187.pt',  # Normal model, top10, run2
-                        # default='best_model_light-cosmos-3188.pt',  # Normal model, top10, run3
+
                         # default='best_model_amber-darkness-3332.pt',  # test --> can remove later if like
 
-                        # default='best_model_colorful-dragon-3182.pt',  # Normal model, top5
-                        # default='best_model_prime-forest-3183.pt',  # Normal model, top3
                         # default='best_model_skilled-night-3167.pt',  # no augmentation
-                        # default='best_model_olive-dream-3169.pt',  # no training conv layers
                         help='Model check point')
 
     args = parser.parse_args()
@@ -86,7 +93,7 @@ if __name__ == '__main__':
 
     checkpoint = torch.load(model_path)
     running_params = checkpoint['running_params']
-    breakpoint()
+
     MODEL2.load_state_dict(checkpoint['model_state_dict'])
     epoch = checkpoint['epoch']
     loss = checkpoint['val_loss']
@@ -97,7 +104,8 @@ if __name__ == '__main__':
     print(RunningParams.__dict__)
 
     MODEL2.eval()
-    test_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'  ##################################
+    # test_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'  ##################################
+    test_dir = RunningParams.aug_data_dir  ##################################
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'])
@@ -159,12 +167,7 @@ if __name__ == '__main__':
         if RunningParams.resnet == 34 or RunningParams.resnet == 18 or (
                 RunningParams.resnet == 50 and RunningParams.RN50_INAT is False):
             resnet.fc = resnet.fc[0]
-        ###
-        conv_features = list(resnet.children())[:RunningParams.conv_layer - 5]  # delete the last fc layer
-        feat_extractor = nn.Sequential(*conv_features)
 
-        feat_extractor = nn.DataParallel(feat_extractor).cuda()
-        ###
         MODEL1 = resnet.cuda()
 
     MODEL1.eval()
@@ -178,9 +181,9 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=17,
+            batch_size=64,
             shuffle=True,  # turn shuffle to False
-            num_workers=16,
+            num_workers=8,
             pin_memory=True,
             drop_last=False  # Do not remove drop last because it affects performance
         )
@@ -247,14 +250,14 @@ if __name__ == '__main__':
             model1_score, index = torch.topk(model1_p, 1, dim=1)
             _, model1_ranks = torch.topk(model1_p, 200, dim=1)
             predicted_ids = index.squeeze()
-            # pdb.set_trace()
+
             # MODEL1 Y/N label for input x
             for sample_idx in range(x.shape[0]):
                 query = pths[sample_idx]
                 base_name = os.path.basename(query)
 
-            model2_gt = (predicted_ids == gts) * 1  # 0 and 1
-            labels = model2_gt
+            # breakpoint()
+            labels = data[2].cuda()
 
             # Get the idx of wrong predictions
             idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
@@ -283,24 +286,12 @@ if __name__ == '__main__':
                 torch.manual_seed(42)
                 explanation = explanation[torch.randperm(explanation.size(0))]
 
+            breakpoint()
             # Forward input, explanations, and softmax scores through MODEL2
-            # output, _, _, _ = MODEL2(images=x, explanations=explanation, scores=model1_score)
+            output, _, _, _ = MODEL2(images=x, explanations=explanation, scores=model1_score)
 
-            #####
-            x_conv = feat_extractor(x.squeeze()).squeeze()
-            ex_conv = feat_extractor(explanation.squeeze()).squeeze()
-            from torch.nn.functional import cosine_similarity
-
-            output = cosine_similarity(x_conv, ex_conv, dim=1)
-            # breakpoint()
-
-            # Normalize the cosine similarity values to [0, 1] for binary classification
-            # p = (output + 1) / 2
-            p = output 
-            ####
-
-            # # convert logits to probabilities using sigmoid function
-            # p = torch.sigmoid(output)
+            # convert logits to probabilities using sigmoid function
+            p = torch.sigmoid(output)
 
             # classify inputs as 0 or 1 based on the threshold of 0.5
             preds = (p >= 0.5).long().squeeze()

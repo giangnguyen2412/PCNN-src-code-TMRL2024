@@ -18,7 +18,7 @@ RunningParams = RunningParams('CUB')
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
 
 torch.manual_seed(42)
 
@@ -26,6 +26,8 @@ full_cub_dataset = ImageFolderForNNs(f'{RunningParams.parent_dir}/{RunningParams
                                      Dataset.data_transforms['train'])
 
 from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
+
+first_cnt = 0
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -50,7 +52,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=17,
+            batch_size=2,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -90,15 +92,21 @@ if __name__ == '__main__':
                 output = cosine_similarity(x_conv, ex_conv, dim=1)
                 output_tensors.append(output)
 
+            # breakpoint()
             logits = torch.stack(output_tensors, dim=1)
             # convert logits to probabilities using softmax function
             p = torch.softmax(logits, dim=1)
 
             # Compute top-1 predictions and accuracy
             score, index = torch.topk(p, 1, dim=1)
+
+            # Count the number of 0's
+            first_cnt += torch.sum(index.eq(0)).item()
+
             index = labels[torch.arange(len(index)), index.flatten()]
 
             running_corrects += torch.sum(index.squeeze() == gt.cuda())
             total_cnt += data[0].shape[0]
 
+            print("First count: {}".format(first_cnt * 100 / total_cnt))
             print("Top-1 Accuracy: {}".format(running_corrects * 100 / total_cnt))

@@ -17,19 +17,19 @@ from tqdm import tqdm
 from helpers import HelperFunctions
 
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
 RunningParams = RunningParams()
 HelperFunctions = HelperFunctions()
 Dataset = Dataset()
 
-ORIGINAL_FE = False
+ORIGINAL_FE = True
 if ORIGINAL_FE is True:
     from iNat_resnet import ResNet_AvgPool_classifier, Bottleneck
 
     resnet = ResNet_AvgPool_classifier(Bottleneck, [3, 4, 6, 4])
     my_model_state_dict = torch.load(
-        'pretrained_models/iNaturalist_pretrained_RN50_85.83.pth')
+                f'{RunningParams.prj_dir}/pretrained_models/cub-200/iNaturalist_pretrained_RN50_85.83.pth')
 
     resnet.load_state_dict(my_model_state_dict, strict=True)
     MODEL1 = resnet.cuda()
@@ -65,6 +65,8 @@ else:
     feature_extractor.cuda()
     feature_extractor = nn.DataParallel(feature_extractor)
 
+from torch.nn.functional import cosine_similarity
+
 train_data = ImageFolder(
     # ImageNet train folder
     root=f"{RunningParams.parent_dir}/datasets/CUB/train1", transform=Dataset.data_transforms['train']
@@ -74,7 +76,7 @@ train_loader = torch.utils.data.DataLoader(
             train_data,
             batch_size=32,
             shuffle=False,
-            num_workers=0,
+            num_workers=8,
             pin_memory=True,
         )
 
@@ -87,7 +89,7 @@ test_loader = torch.utils.data.DataLoader(
             val_data,
             batch_size=32,
             shuffle=False,
-            num_workers=0,
+            num_workers=8,
             pin_memory=True,
         )
 
@@ -120,7 +122,7 @@ if True:
     Query = Query.cuda()
     Query = F.normalize(Query, dim=1)
 
-    saved_results = []
+    all_similarity_scores = []
     target_labels = []
 
     with torch.no_grad():
@@ -131,22 +133,30 @@ if True:
             labels = HelperFunctions.to_np(target)
 
             embeddings = feature_extractor(data)
-            embeddings = embeddings.view(-1, 2048)
-            embeddings = F.normalize(embeddings, dim=1)
+            embeddings = embeddings.view(-1, 2048)  # Using conv4 with 100352-sized embeddings only scores 78.03% at K=20
+            embeddings = F.normalize(embeddings, dim=1)  # Same results if using F.cosine_similarity
             q_results = torch.einsum("id,jd->ij", Query, embeddings).to("cpu")
 
-            saved_results.append(q_results)
+            all_similarity_scores.append(q_results)
             target_labels.append(target)
 
     # Convert to numpy arrays
     labels_np = torch.cat(target_labels, -1)
     val_labels_np = np.concatenate(all_val_labels)
 
-    saved_results = torch.cat(saved_results, 1)
+    all_similarity_scores = torch.cat(all_similarity_scores, 1)
 
     # Compute the top-1 accuracy of KNNs, save the KNN dictionary
     scores = {}
-    import torch
+
+    # Convert all_similarity_scores to a NumPy array if it's not already one
+    all_similarity_scores_np = all_similarity_scores.numpy()
+
+    # Save the NumPy array to disk
+    np.save('cub_knn_algorithm_sim.npy', all_similarity_scores_np)
+    np.save('cub_knn_algorithm_val_labels.npy', val_labels_np)
+
+    print("Saved all_similarity_scores to disk as 'cub_knn_algorithm.npy'")
 
     K_values = [5, 10, 20, 50, 100, 200]
     # K_values = [5, 10]
@@ -155,7 +165,7 @@ if True:
         # print("K = {}".format(K))
         correct_cnt = 0
         for i in tqdm(range(N_test)):
-            concat_ts = saved_results[i].cuda()
+            concat_ts = all_similarity_scores[i].cuda()
             sorted_ts = torch.argsort(concat_ts).cuda()
             sorted_topk = sorted_ts[-K:]
             scores[i] = torch.flip(

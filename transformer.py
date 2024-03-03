@@ -22,7 +22,7 @@ class BinaryMLP(nn.Module):
             nn.Linear(512, hidden_dim),
             nn.BatchNorm1d(hidden_dim),  # Make sure to use `hidden_dim` instead of fixed number
             nn.GELU(),
-            nn.Linear(hidden_dim, 2),  # 2 for binary classification
+            nn.Linear(hidden_dim, 2),
         )
 
     def forward(self, x):
@@ -73,17 +73,11 @@ if RunningParams.CUB_TRAINING is True:
                     self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
 
                 def forward(self, feat, k_value):
-                    if k_value == 1:
-                        b, n, _ = feat.shape
-                        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b=b)
-                        x = torch.cat((cls_tokens, feat), dim=1)
-                    else:
-                        b, k, n, _ = feat.shape
-                        cls_tokens = repeat(self.cls_token, '() n d -> b k n d', b=b, k=k)
-                        x = torch.cat((cls_tokens, feat), dim=2)
+                    b, n, _ = feat.shape
+                    cls_tokens = repeat(self.cls_token, '() n d -> b n d', b=b)
+                    x = torch.cat((cls_tokens, feat), dim=1)
 
                     x += self.pos_embedding[:, :(n + 1)]
-
                     return x
 
             self.transformer_feat_embedder = transformer_feat_embedder(RunningParams.feat_map_size[RunningParams.conv_layer],
@@ -102,10 +96,7 @@ if RunningParams.CUB_TRAINING is True:
             self.branch3 = BinaryMLP(
                 2 * RunningParams.conv_layer_size[RunningParams.conv_layer] + 2, 32)
 
-            if RunningParams.k_value == 1:
-                self.agg_branch = nn.Linear(2, 1).cuda()
-            else:
-                self.agg_branch = nn.Linear(6, 1).cuda()
+            self.agg_branch = nn.Linear(2, 1).cuda()
 
             # initialize all fc layers to xavier
             # TODO: Check if this initialization destroy the information from the pretrained conv layers
@@ -120,140 +111,61 @@ if RunningParams.CUB_TRAINING is True:
             input_spatial_feats = input_spatial_feats.flatten(start_dim=2)  # bsxcx49
 
             # Process the nearest neighbors
-            if RunningParams.k_value == 1:
-                explanations = explanations.squeeze()
-                explanation_spatial_feats = self.conv_layers(explanations)
-                explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
-            else:  # K > 1
-                explanation_spatial_feats = []
-                for sample_idx in range(RunningParams.k_value):
-                    data = explanations[:, sample_idx, :]  # TODO: I traced to be at least correct here
-                    explanation_spatial_feat = self.conv_layers(data)
-                    explanation_spatial_feat = explanation_spatial_feat.flatten(start_dim=2)  #
-                    explanation_spatial_feats.append(explanation_spatial_feat)
+            explanations = explanations.squeeze()
+            if len(explanations.shape) == 3:
+                explanations = explanations.unsqueeze(0)
+            explanation_spatial_feats = self.conv_layers(explanations)
+            explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
 
-                # bsxKx2048x49
-                explanation_spatial_feats = torch.stack(explanation_spatial_feats, dim=1)
 
             # change from 2048x49 -> 49x2048
             # 49 tokens for an image
             input_spatial_feats = torch.transpose(input_spatial_feats, 1, 2)
-            if RunningParams.k_value == 1:
-                explanation_spatial_feats = torch.transpose(explanation_spatial_feats, 1, 2)
-            else:
-                explanation_spatial_feats = torch.transpose(explanation_spatial_feats, 2, 3)  # 4x3x49x2048
-
+            explanation_spatial_feats = torch.transpose(explanation_spatial_feats, 1, 2)
             sep_token = torch.zeros([explanations.shape[0], 1], requires_grad=False).cuda()
 
             transformer_encoder_depth = RunningParams.L
 
-            if RunningParams.k_value == 1:
-                # Add the cls token and positional embedding --> 50x2048
-                input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, 1)
-                explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats, 1)
+            # Add the cls token and positional embedding --> 50x2048
+            input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, 1)
+            explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats, 1)
 
-                # TODO: as the output of the first layer does not propagate to the second layer, then transformer_encoder_depth should be 1
-                for _ in range(transformer_encoder_depth):
-                    # Self-attention --> 50x2048; both cls and image tokens are transformed.
+            # TODO: as the output of the first layer does not propagate to the second layer, then transformer_encoder_depth should be 1
+            for _ in range(transformer_encoder_depth):
+                # Self-attention --> 50x2048; both cls and image tokens are transformed.
 
-                    if self.transformer is not None:
-                        input_spt_feats = self.transformer(input_spatial_feats)
-                        exp_spt_feats = self.transformer(explanation_spatial_feats)
-                    else:
-                        input_spt_feats = input_spatial_feats
-                        exp_spt_feats = explanation_spatial_feats
-
-                    if self.cross_transformer is not None:
-                        # Cross-attention --> 50x2048; only the cls tokens are transformed. Image tokens are kept the same.
-                        input_spatial_feats, explanation_spatial_feats, i2e_attn, e2i_attn = self.cross_transformer(input_spt_feats, exp_spt_feats)
-                    else:
-                        input_spatial_feats = input_spt_feats
-                        explanation_spatial_feats = exp_spt_feats
-
-                input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
-                input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
-
-                # Extracting the cls token --> 1x2048
-                input_cls, exp_cls = map(lambda t: t[:, 0], (input_emb, exp_emb))
-
-            else:
-                # Clone the input tensor K times along the second dimension
-                input_spatial_feats = input_spatial_feats.unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1).\
-                    view(input_spatial_feats.shape[0], RunningParams.k_value, 49, RunningParams.conv_layer_size[RunningParams.conv_layer])
-                input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, RunningParams.k_value)  # bsx50x2048
-                explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats, RunningParams.k_value)  # bsxKx50x2048
-
-                i2e_attns = []
-                e2i_attns = []
-                for depth_idx in range(transformer_encoder_depth):
-                    input_list = []
-                    explanation_list = []
-                    for prototype_idx in range(RunningParams.k_value):
-                        input = input_spatial_feats[:, prototype_idx, :]
-                        explanation = explanation_spatial_feats[:, prototype_idx, :]
-
-                        input = self.transformer(input)
-                        explanation = self.transformer(explanation)
-
-                        # TODO: Thử remove self-attention
-                        # TODO: với VIT hiện tại ko có model về patch (local) mà chỉ có global info
-                        # input = input_spatial_feats
-                        # explanation = explanation
-
-                        # Cross-attention --> bsx50x2048; only the cls tokens are transformed. Image tokens are kept the same.
-                        inp, exp, i2e_attn, e2i_attn = self.cross_transformer(input, explanation)
-
-                        # Extract attention from the last layer (i.e. closest to classification head)
-                        if depth_idx == transformer_encoder_depth - 1:
-                            i2e_attns.append(i2e_attn)
-                            e2i_attns.append(e2i_attn)
-
-                        input_list.append(inp)
-                        explanation_list.append(exp)
-
-                    input_spatial_feats = torch.stack(input_list, dim=1)
-                    explanation_spatial_feats = torch.stack(explanation_list, dim=1)
-
-                input_emb = input_spatial_feats
-                input_emb = input_emb.squeeze()
-                if RunningParams.k_value == 1:
-                    input_cls = input_emb[:, 0]
+                if self.transformer is not None:
+                    input_spt_feats = self.transformer(input_spatial_feats)
+                    exp_spt_feats = self.transformer(explanation_spatial_feats)
                 else:
-                    input_cls = input_emb[:, :, 0]
+                    input_spt_feats = input_spatial_feats
+                    exp_spt_feats = explanation_spatial_feats
 
-                exp_emb = explanation_spatial_feats
-                exp_emb = exp_emb.squeeze()
-                if RunningParams.k_value == 1:
-                    exp_cls = exp_emb[:, 0]
+                if self.cross_transformer is not None:
+                    # Cross-attention --> 50x2048; only the cls tokens are transformed. Image tokens are kept the same.
+                    input_spatial_feats, explanation_spatial_feats, i2e_attn, e2i_attn = self.cross_transformer(input_spt_feats, exp_spt_feats)
                 else:
-                    exp_cls = exp_emb[:, :, 0]
+                    input_spatial_feats = input_spt_feats
+                    explanation_spatial_feats = exp_spt_feats
 
-                i2e_attns = torch.cat(i2e_attns, dim=2)
-                e2i_attns = torch.cat(e2i_attns, dim=2)
+            input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
+            input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
+
+            # Extracting the cls token --> 1x2048
+            input_cls, exp_cls = map(lambda t: t[:, 0], (input_emb, exp_emb))
 
             pairwise_feats = []
 
-            if RunningParams.k_value == 1:
-                x = self.branch3(
-                    torch.cat([sep_token, input_cls, sep_token, exp_cls], dim=1))
+            x = self.branch3(
+                torch.cat([sep_token, input_cls, sep_token, exp_cls], dim=1))
 
-                output3 = x
-            else:
-                for prototype_idx in range(0, RunningParams.k_value):
-                    x = self.branch3(
-                        torch.cat([sep_token, input_cls[:, prototype_idx], sep_token, exp_cls[:, prototype_idx]], dim=1))
-                    pairwise_feats.append(x)
-
-                output3 = torch.cat(pairwise_feats, dim=1)
+            output3 = x
 
             output3 = self.agg_branch(output3)
 
             output = output3
 
-            if RunningParams.k_value == 1:
-                return output, input_feat, None, None
-            else:
-                return output, input_feat, i2e_attns, e2i_attns
+            return output, input_feat, None, None
 
     class CNN_AdvisingNetwork(nn.Module):
         def __init__(self):
@@ -274,10 +186,8 @@ if RunningParams.CUB_TRAINING is True:
             self.branch3 = BinaryMLP(
                 2 * RunningParams.conv_layer_size[RunningParams.conv_layer] + 2, 32)
 
-            if RunningParams.k_value == 1:
-                self.agg_branch = nn.Linear(2, 1).cuda()
-            else:
-                self.agg_branch = nn.Linear(RunningParams.k_value*2, 1).cuda()
+            self.agg_branch = nn.Linear(2, 1).cuda()
+
 
             # initialize all fc layers to xavier
             for m in self.modules():
@@ -308,10 +218,7 @@ if RunningParams.CUB_TRAINING is True:
 
             output = output3
 
-            if RunningParams.k_value == 1:
-                return output, input_feat, None, None
-            else:
-                return output, input_feat, None, None
+            return output, input_feat, None, None
 
     class ViT_AdvisingNetwork(nn.Module):
         def __init__(self):
@@ -347,10 +254,7 @@ if RunningParams.CUB_TRAINING is True:
             self.branch3 = BinaryMLP(
                 2 * 768 + 2, 32)
 
-            if RunningParams.k_value == 1:
-                self.agg_branch = nn.Linear(2, 1).cuda()
-            else:
-                self.agg_branch = nn.Linear(RunningParams.k_value*2, 1).cuda()
+            self.agg_branch = nn.Linear(2, 1).cuda()
 
             # initialize branch3 and agg_branch only
             for m in self.modules():
@@ -376,10 +280,7 @@ if RunningParams.CUB_TRAINING is True:
 
             output = output3
 
-            if RunningParams.k_value == 1:
-                return output, None, None, None
-            else:
-                return output, None, None, None
+            return output, None, None, None
 
 elif RunningParams.CARS_TRAINING is True:
     class Transformer_AdvisingNetwork(nn.Module):
@@ -415,15 +316,9 @@ elif RunningParams.CARS_TRAINING is True:
                     self.cls_token = nn.Parameter(torch.randn(1, 1, dim))
 
                 def forward(self, feat, k_value):
-                    if k_value == 1:
-                        b, n, _ = feat.shape
-                        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b=b)
-                        x = torch.cat((cls_tokens, feat), dim=1)
-                    else:
-                        b, k, n, _ = feat.shape
-                        cls_tokens = repeat(self.cls_token, '() n d -> b k n d', b=b, k=k)
-                        x = torch.cat((cls_tokens, feat), dim=2)
-
+                    b, n, _ = feat.shape
+                    cls_tokens = repeat(self.cls_token, '() n d -> b n d', b=b)
+                    x = torch.cat((cls_tokens, feat), dim=1)
                     x += self.pos_embedding[:, :(n + 1)]
 
                     return x
@@ -447,10 +342,7 @@ elif RunningParams.CARS_TRAINING is True:
             self.branch3 = BinaryMLP(
                 2 * RunningParams.conv_layer_size[RunningParams.conv_layer] + 2, 32)
 
-            if RunningParams.k_value == 1:
-                self.agg_branch = nn.Linear(2, 1).cuda()
-            else:
-                self.agg_branch = nn.Linear(RunningParams.k_value*2, 1).cuda()
+            self.agg_branch = nn.Linear(2, 1).cuda()
 
             # initialize all fc layers to xavier
             for m in self.modules():
@@ -465,137 +357,51 @@ elif RunningParams.CARS_TRAINING is True:
 
             # Process the nearest neighbors
 
-            if RunningParams.k_value == 1:
-                explanations = explanations.squeeze()
-                explanation_spatial_feats = self.conv_layers(explanations)
-                explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
-            else:  # K > 1
-                explanation_spatial_feats = []
-                for sample_idx in range(RunningParams.k_value):
-                    data = explanations[:, sample_idx, :]  # TODO: I traced to be at least correct here
-                    explanation_spatial_feat = self.conv_layers(data)
-                    explanation_spatial_feat = explanation_spatial_feat.flatten(start_dim=2)  #
-                    explanation_spatial_feats.append(explanation_spatial_feat)
-
-                # bsxKx2048x49
-                explanation_spatial_feats = torch.stack(explanation_spatial_feats, dim=1)
+            explanations = explanations.squeeze()
+            explanation_spatial_feats = self.conv_layers(explanations)
+            explanation_spatial_feats = explanation_spatial_feats.flatten(start_dim=2)
 
             # change from 2048x49 -> 49x2048
             # 49 tokens for an image
             input_spatial_feats = torch.transpose(input_spatial_feats, 1, 2)
-            if RunningParams.k_value == 1:
-                explanation_spatial_feats = torch.transpose(explanation_spatial_feats, 1, 2)
-            else:
-                explanation_spatial_feats = torch.transpose(explanation_spatial_feats, 2, 3)  # 4x3x49x2048
+            explanation_spatial_feats = torch.transpose(explanation_spatial_feats, 1, 2)
 
             sep_token = torch.zeros([explanations.shape[0], 1], requires_grad=False).cuda()
 
             transformer_encoder_depth = RunningParams.L
 
-            if RunningParams.k_value == 1:
-                # Add the cls token and positional embedding --> 50x2048
-                input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, 1)
-                explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats, 1)
+            # Add the cls token and positional embedding --> 50x2048
+            input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats, 1)
+            explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats, 1)
 
-                # TODO: as the output of the first layer does not propagate to the second layer, then transformer_encoder_depth should be 1
-                for _ in range(transformer_encoder_depth):
-                    # Self-attention --> 50x2048; both cls and image tokens are transformed.
-                    input_spt_feats = self.transformer(input_spatial_feats)
-                    exp_spt_feats = self.transformer(explanation_spatial_feats)
+            # TODO: as the output of the first layer does not propagate to the second layer, then transformer_encoder_depth should be 1
+            for _ in range(transformer_encoder_depth):
+                # Self-attention --> 50x2048; both cls and image tokens are transformed.
+                input_spt_feats = self.transformer(input_spatial_feats)
+                exp_spt_feats = self.transformer(explanation_spatial_feats)
 
-                    # Cross-attention --> 50x2048; only the cls tokens are transformed. Image tokens are kept the same.
-                    input_spatial_feats, explanation_spatial_feats, i2e_attn, e2i_attn = self.cross_transformer(
-                        input_spt_feats, exp_spt_feats)
+                # Cross-attention --> 50x2048; only the cls tokens are transformed. Image tokens are kept the same.
+                input_spatial_feats, explanation_spatial_feats, i2e_attn, e2i_attn = self.cross_transformer(
+                    input_spt_feats, exp_spt_feats)
 
-                input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
-                input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
+            input_emb, exp_emb = input_spatial_feats, explanation_spatial_feats
+            input_emb, exp_emb = input_emb.squeeze(), exp_emb.squeeze()
 
-                # Extracting the cls token --> 1x2048
-                input_cls, exp_cls = map(lambda t: t[:, 0], (input_emb, exp_emb))
-
-            else:
-                # Clone the input tensor K times along the second dimension
-                input_spatial_feats = input_spatial_feats.unsqueeze(1).repeat(1, RunningParams.k_value, 1, 1). \
-                    view(input_spatial_feats.shape[0], RunningParams.k_value, 49,
-                         RunningParams.conv_layer_size[RunningParams.conv_layer])
-                input_spatial_feats = self.transformer_feat_embedder(input_spatial_feats,
-                                                                     RunningParams.k_value)  # bsx50x2048
-                explanation_spatial_feats = self.transformer_feat_embedder(explanation_spatial_feats,
-                                                                           RunningParams.k_value)  # bsxKx50x2048
-
-                i2e_attns = []
-                e2i_attns = []
-                for depth_idx in range(transformer_encoder_depth):
-                    input_list = []
-                    explanation_list = []
-                    for prototype_idx in range(RunningParams.k_value):
-                        input = input_spatial_feats[:, prototype_idx, :]
-                        explanation = explanation_spatial_feats[:, prototype_idx, :]
-
-                        input = self.transformer(input)
-                        explanation = self.transformer(explanation)
-
-                        # TODO: Thử remove self-attention
-                        # TODO: với VIT hiện tại ko có model về patch (local) mà chỉ có global info
-                        # input = input_spatial_feats
-                        # explanation = explanation
-
-                        # Cross-attention --> bsx50x2048; only the cls tokens are transformed. Image tokens are kept the same.
-                        inp, exp, i2e_attn, e2i_attn = self.cross_transformer(input, explanation)
-
-                        # Extract attention from the last layer (i.e. closest to classification head)
-                        if depth_idx == transformer_encoder_depth - 1:
-                            i2e_attns.append(i2e_attn)
-                            e2i_attns.append(e2i_attn)
-
-                        input_list.append(inp)
-                        explanation_list.append(exp)
-
-                    input_spatial_feats = torch.stack(input_list, dim=1)
-                    explanation_spatial_feats = torch.stack(explanation_list, dim=1)
-
-                input_emb = input_spatial_feats
-                input_emb = input_emb.squeeze()
-                if RunningParams.k_value == 1:
-                    input_cls = input_emb[:, 0]
-                else:
-                    input_cls = input_emb[:, :, 0]
-
-                exp_emb = explanation_spatial_feats
-                exp_emb = exp_emb.squeeze()
-                if RunningParams.k_value == 1:
-                    exp_cls = exp_emb[:, 0]
-                else:
-                    exp_cls = exp_emb[:, :, 0]
-
-                i2e_attns = torch.cat(i2e_attns, dim=2)
-                e2i_attns = torch.cat(e2i_attns, dim=2)
+            # Extracting the cls token --> 1x2048
+            input_cls, exp_cls = map(lambda t: t[:, 0], (input_emb, exp_emb))
 
             pairwise_feats = []
 
-            if RunningParams.k_value == 1:
-                x = self.branch3(
-                    torch.cat([sep_token, input_cls, sep_token, exp_cls], dim=1))
+            x = self.branch3(
+                torch.cat([sep_token, input_cls, sep_token, exp_cls], dim=1))
 
-                output3 = x
-            else:
-                for prototype_idx in range(0, RunningParams.k_value):
-                    x = self.branch3(
-                        torch.cat(
-                            [sep_token, input_cls[:, prototype_idx], sep_token, exp_cls[:, prototype_idx]],
-                            dim=1))
-                    pairwise_feats.append(x)
-
-                output3 = torch.cat(pairwise_feats, dim=1)
+            output3 = x
 
             output3 = self.agg_branch(output3)
 
             output = output3
 
-            if RunningParams.k_value == 1:
-                return output, input_feat, None, None
-            else:
-                return output, input_feat, i2e_attns, e2i_attns
+            return output, input_feat, None, None
 
 elif RunningParams.DOGS_TRAINING is True:
     class Transformer_AdvisingNetwork(nn.Module):

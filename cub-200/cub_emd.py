@@ -152,7 +152,7 @@ RunningParams = RunningParams()
 Dataset = Dataset()
 
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
+# os.environ["CUDA_VISIBLE_DEVICES"] = "2,3"
 
 torch.manual_seed(42)
 
@@ -184,7 +184,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=17,
+            batch_size=12,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -212,7 +212,6 @@ if __name__ == '__main__':
                     id = full_cub_dataset.class_to_idx[class_name]
                     gt[sample_idx] = id
 
-
             output_tensors = []
             # Loop to get the logit for each class
             for class_idx in range(data[1].shape[1]):
@@ -221,9 +220,6 @@ if __name__ == '__main__':
 
                 x_conv = model(x)
                 ex_conv = model(explanation)
-
-                # output = cosine_similarity(x_conv, ex_conv, dim=1)
-                # output = cosine_similarity(x_conv, ex_conv, dim=1)
 
                 N_sample = x_conv.shape[0] - 1
                 output, cc_q2g_maps, cc_g2q_maps, T = EMDFunctions.compute_emd_sim(N_sample, x_conv, ex_conv, False, 5)

@@ -236,6 +236,7 @@ else:
     else:
         MODEL2 = CNN_AdvisingNetwork()
 
+print(MODEL2)
 criterion = nn.BCEWithLogitsLoss().cuda()
 
 # Observe all parameters that are being optimized

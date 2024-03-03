@@ -96,7 +96,7 @@ train_loader = torch.utils.data.DataLoader(
             train_data,
             batch_size=32,
             shuffle=False,
-            num_workers=0,
+            num_workers=8,
             pin_memory=True,
         )
 
@@ -109,7 +109,7 @@ test_loader = torch.utils.data.DataLoader(
             val_data,
             batch_size=32,
             shuffle=False,
-            num_workers=0,
+            num_workers=8,
             pin_memory=True,
         )
 

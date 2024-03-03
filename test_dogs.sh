@@ -1,6 +1,7 @@
 #!/bin/sh
 
 CUDA_VISIBLE_DEVICES=4 python stanford-dogs/dogs_extract_feature.py  # sampling for test set
+python stanford-dogs/clean_dups.py
 python stanford-dogs/augment_images.py
 CUDA_VISIBLE_DEVICES=4 python stanford-dogs/dogs_binary_classify.py  # binary classification
 

@@ -35,12 +35,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--ckpt', type=str,
                         # default='best_model_' + RunningParams.wandb_sess_name + '.pt',
-                        default='best_model_robust-sunset-3158.pt',  # RN50 run 1
-                        # default='best_model_wandering-capybara-3189.pt',  # RN50 run 2
-                        # default='best_model_different-lion-3192.pt',  # RN50 run 3
+                        default='best_model_robust-sunset-3158.pt',  # RN50 run 1, 94.97
+                        # default='best_model_wandering-capybara-3189.pt',  # RN50 run 2, 95.07
+                        # default='best_model_different-lion-3192.pt',  # RN50 run 3, 95.04
+
                         # default='best_model_spring-field-3157.pt',  # RN34
                         # default='best_model_divine-cherry-3160.pt',  # RN18
-                        # default='best_model_summer-waterfall-3168.pt',  # RN50 not data augmentation
+                        # default='best_model_summer-waterfall-3168.pt',  # RN50 not data augmentation, 93.50
                         help='Model check point')
 
     args = parser.parse_args()
@@ -98,7 +99,8 @@ if __name__ == '__main__':
 
     ################################################################
 
-    test_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'
+    # test_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'
+    test_dir = RunningParams.aug_data_dir
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, data_transform)
@@ -113,7 +115,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=11,
+            batch_size=64,
             shuffle=True,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -167,8 +169,9 @@ if __name__ == '__main__':
                 query = pths[sample_idx]
                 base_name = os.path.basename(query)
 
-            model2_gt = (predicted_ids == gts) * 1  # 0 and 1
-            labels = model2_gt
+            # model2_gt = (predicted_ids == gts) * 1  # 0 and 1
+            # labels = model2_gt
+            labels = data[2].cuda()
 
             # Get the idx of wrong predictions
             idx_0 = (labels == 0).nonzero(as_tuple=True)[0]
@@ -323,7 +326,7 @@ if __name__ == '__main__':
             true_cnt += sum(labels)
             # np.save('infer_results/{}.npy'.format(args.ckpt), infer_result_dict)
 
-        breakpoint()
+        # breakpoint()
         epoch_acc = running_corrects.double() / len(image_datasets[ds])
         yes_ratio = yes_cnt.double() / len(image_datasets[ds])
         true_ratio = true_cnt.double() / len(image_datasets[ds])

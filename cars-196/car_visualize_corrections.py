@@ -108,7 +108,7 @@ if __name__ == '__main__':
             x = data[0].cuda()
             labels = data[-1].cuda()
 
-            if len(data_loader.dataset.classes) < 196:
+            if len(data_loader.dataset.classes) < 120:
                 for sample_idx in range(x.shape[0]):
                     tgt = gt[sample_idx].item()
                     class_name = data_loader.dataset.classes[tgt]
@@ -191,36 +191,42 @@ if __name__ == '__main__':
                     sim_scores = sim_scores.tolist()
 
                     # Prepare figure and axes, increase the figsize to make sub-images larger
-                    fig, axs = plt.subplots(1, 6, figsize=(30, 5))
-                    fig.subplots_adjust(wspace=0.01, hspace=0.3)
-                    fig.suptitle('Initial class ranking by pretrained classifier C', color='red', size=26,
-                                 y=1.05)  # Add this line
+                    # fig, axs = plt.subplots(1, 6, figsize=(30, 5))
+                    # fig.subplots_adjust(wspace=0.01, hspace=0.3)
+                    # fig.suptitle('Initial class ranking by pretrained classifier C', color='red',
+                    #              size=20)  # Add this line
+
+                    # Prepare a single figure with multiple subplots
+                    fig, axs = plt.subplots(2, 6, figsize=(20, 8))  # Create a grid of 2 rows and 6 columns
+                    fig.subplots_adjust(wspace=0.01, hspace=0.4)
+
+                    fig.suptitle('Initial class ranking by pretrained classifier C', color='red', size=20, y=0.97)  # Add this line
 
                     # Load and plot the original image
                     original_img = Image.open(path)
                     original_img = resize_and_crop(original_img)
-                    axs[0].imshow(np.array(original_img))
-                    axs[0].set_title('Query: {}'.format(
-                        data_loader.dataset.classes[gt[sample_idx].item()].split('.')[1].replace('_', ' ')),
-                                     color='green', fontsize=22)
-                    axs[0].set_xticks([])
-                    axs[0].set_yticks([])
+                    axs[0,0].imshow(np.array(original_img))
+                    axs[0,0].set_title('Query: {}'.format(data_loader.dataset.classes[gt[sample_idx].item()]),
+                                     color='green', fontsize=10)
+                    axs[0,0].set_xticks([])
+                    axs[0,0].set_yticks([])
 
                     # For each original prediction, load the corresponding image, plot it, and show the similarity score
                     for i, pred in enumerate(original_preds):
                         pred_img = Image.open(nns[i])
                         pred_img = resize_and_crop(pred_img)
-                        axs[i + 1].imshow(np.array(pred_img))
+                        axs[0, i + 1].imshow(np.array(pred_img))
                         # axs[i + 1].set_title(
                         #     f'Top{i + 1} {data_loader.dataset.classes[pred]}, Confidence: {sim_scores[i]:.2f}')
 
-                        class_name = data_loader.dataset.classes[pred].split('.')[1].replace('_', ' ')
                         if data_loader.dataset.classes[pred] == data_loader.dataset.classes[gt[sample_idx].item()]:
                             color = 'green'
                         else:
                             color = 'black'
+
                         # Set the title for the plot (at the top by default)
-                        axs[i + 1].set_title(f'Top{i + 1}: {class_name}', color=color, fontsize=22)
+                        axs[0,i + 1].set_title(f'Top{i + 1}: {data_loader.dataset.classes[pred]}', color=color,
+                                             fontsize=10)
 
                         # Add the confidence at the bottom of the image
                         # axs[i + 1].text(0.5, -0.07, f'AdvNet\'s Confidence: {sim_scores[i]:.2f}', size=18, ha="center",
@@ -228,22 +234,24 @@ if __name__ == '__main__':
 
                         conf = nn_dict[i]['C_confidence']
                         sim = p_sigmoid[sample_idx][i]
-                        axs[i + 1].text(0.5, -0.07, f'RN50: {int(conf.item() * 100)}% | S: {sim:.2f}', size=22,
+                        axs[0,i + 1].text(0.5, -0.07, f'RN50: {int(conf * 100)}% | S: {sim:.2f}', size=14,
                                         ha="center",
-                                        transform=axs[i + 1].transAxes)
+                                        transform=axs[0,i + 1].transAxes)
 
-                        axs[i + 1].set_xticks([])
-                        axs[i + 1].set_yticks([])
+                        axs[0,i + 1].set_xticks([])
+                        axs[0,i + 1].set_yticks([])
 
-                    # Save the figure before clear
-                    plt.savefig('before.jpeg', bbox_inches='tight', pad_inches=0)  # reduced padding in saved figure
-                    plt.close()
+                    # # Save the figure before clear
+                    # plt.savefig('before.jpeg', bbox_inches='tight', pad_inches=0)  # reduced padding in saved figure
+                    # plt.close()
 
-                    # Repeat the same steps for the refined predictions
-                    fig, axs = plt.subplots(1, 6, figsize=(30, 5))
-                    fig.subplots_adjust(wspace=0.01, hspace=0.3)
-                    fig.suptitle('Refined class ranking by Product of Experts C x S', color='green', size=26,
-                                 y=1.05)  # Add this line
+                    # # Repeat the same steps for the refined predictions
+                    # fig, axs = plt.subplots(1, 6, figsize=(30, 5))
+                    # fig.subplots_adjust(wspace=0.01, hspace=0.3)
+                    # fig.suptitle('Refined class ranking by Product of Experts C x S', color='green',
+                    #              size=20)  # Add this line
+
+                    fig.text(x=0.5, y=0.50, s='Refined class ranking by Product of Experts C x S', fontsize=20, color='green', ha='center', va='center')
 
                     # Load the original image
                     original_img = Image.open(path)
@@ -254,8 +262,8 @@ if __name__ == '__main__':
                         np.full((original_img.size[1], original_img.size[0], 3), 255).astype(np.uint8))
 
                     # Plot the white image
-                    axs[0].imshow(np.array(white_img))
-                    axs[0].axis('off')  # This removes the border around the image
+                    axs[1,0].imshow(np.array(white_img))
+                    axs[1,0].axis('off')  # This removes the border around the image
                     # axs[0].set_xticks([])
                     # axs[0].set_yticks([])
 
@@ -263,50 +271,42 @@ if __name__ == '__main__':
                     for i, pred in enumerate(refined_preds):
                         pred_img = Image.open(nns[original_preds.index(pred)])
                         pred_img = resize_and_crop(pred_img)
-                        axs[i + 1].imshow(np.array(pred_img))
+                        axs[1, i + 1].imshow(np.array(pred_img))
 
-                        class_name = data_loader.dataset.classes[pred].split('.')[1].replace('_', ' ')
                         if data_loader.dataset.classes[pred] == data_loader.dataset.classes[gt[sample_idx].item()]:
                             color = 'green'
                         else:
                             color = 'black'
-
-                        # Set the title for the plot (at the top by default)
-                        axs[i + 1].set_title(f'Top{i + 1}: {class_name}', color=color, fontsize=22)
+                            # Set the title for the plot (at the top by default)
+                        axs[1, i + 1].set_title(f'Top{i + 1}: {data_loader.dataset.classes[pred]}', color=color,
+                                             fontsize=10)
 
                         sim_scores = sorted(sim_scores, reverse=True)
 
-                        axs[i + 1].text(0.5, -0.07, f'RN50 x S: {int(sim_scores[i] * 100)}%', size=22, ha="center",
-                                        transform=axs[i + 1].transAxes)
+                        axs[1, i + 1].text(0.5, -0.07, f'RN50 x S: {int(sim_scores[i] * 100)}%', size=14, ha="center",
+                                        transform=axs[1, i + 1].transAxes)
 
-                        axs[i + 1].set_xticks([])
-                        axs[i + 1].set_yticks([])
+                        axs[1, i + 1].set_xticks([])
+                        axs[1, i + 1].set_yticks([])
 
                     # Save the figure before clear
-                    plt.savefig('after.jpeg', bbox_inches='tight', pad_inches=0)  # reduced padding in saved figure
-                    plt.close()
+                    # plt.savefig('after.jpeg', bbox_inches='tight', pad_inches=0)  # reduced padding in saved figure
+                    # plt.close()
 
-                    # Use ImageMagick to stack images vertically
                     # subprocess.call(
-                    #     'convert before.png after.png -append corrections/stacked_{}_{}.png'.format(batch_idx,
-                    #                                                                                 sample_idx),
+                    #     'montage before.jpeg after.jpeg -tile 1x2 -geometry +20+20 {}/corrections/cars/{}_{}_{}.jpeg'.
+                    #     format(RunningParams.prj_dir, data_loader.dataset.classes[gt[sample_idx].item()].replace(' ', '_'), batch_idx,
+                    #            sample_idx),
                     #     shell=True)
 
-                    # subprocess.call(
-                    #     'convert before.png after.png -append corrections/stacked.png', shell=True)
-
-                    subprocess.call(
-                        'montage before.jpeg after.jpeg -tile 1x2 -geometry +20+20 {}/corrections/cars/{}_{}_{}.jpeg'.
-                        format(RunningParams.prj_dir, data_loader.dataset.classes[gt[sample_idx].item()], batch_idx,
-                               sample_idx), shell=True)
-
                     jpeg_path = '{}/corrections/cars/{}_{}_{}.jpeg'.format(
-                        RunningParams.prj_dir, data_loader.dataset.classes[gt[sample_idx].item()], batch_idx,
-                        sample_idx)
+                        RunningParams.prj_dir, data_loader.dataset.classes[gt[sample_idx].item()].replace(' ', '_'), batch_idx, sample_idx)
                     pdf_path = jpeg_path.replace('.jpeg', '.pdf')
 
-                    subprocess.call('convert {} {}'.format(jpeg_path, pdf_path), shell=True)
-                    os.remove(jpeg_path)
+                    plt.savefig(f'{pdf_path}', bbox_inches='tight', pad_inches=0.1)
+                    plt.close()
+                    # subprocess.call('convert {} {}'.format(jpeg_path, pdf_path), shell=True)
+                    # os.remove(jpeg_path)
 
             # running_corrects += torch.sum(index.squeeze() == gt.cuda())
             # total_cnt += data[0].shape[0]

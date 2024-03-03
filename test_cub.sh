@@ -1,6 +1,7 @@
 #!/bin/sh
 
 CUDA_VISIBLE_DEVICES=4 python cub-200/cub_extract_feature.py  # sampling for test set
+python cub-200/clean_dups.py
 python cub-200/augment_images.py
 CUDA_VISIBLE_DEVICES=4 python cub-200/cub_binary_classify.py  # binary classification
 

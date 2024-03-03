@@ -24,7 +24,6 @@ plt.ion()   # interactive mode
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 # os.environ["CUDA_VISIBLE_DEVICES"] = "4,5"
 
-
 Dataset = Dataset()
 RunningParams = RunningParams('CUB')
 
@@ -201,8 +200,8 @@ train_loader = torch.utils.data.DataLoader(
 
 depth_of_pred = RunningParams.Q
 
-if RunningParams.set == 'test':
-    depth_of_pred = 1
+# if RunningParams.set == 'test':
+#     depth_of_pred = 1
 correct_cnt = 0
 total_cnt = 0
 

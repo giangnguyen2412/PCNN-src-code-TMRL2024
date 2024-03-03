@@ -41,11 +41,11 @@ if __name__ == '__main__':
                         # default='best_model_' + RunningParams.wandb_sess_name + '.pt',
                         # default='best_model_copper-moon-3322.pt',  # RN18
                         # default='best_model_woven-deluge-3324.pt',  # RN34
-                        default='best_model_dainty-blaze-3325.pt',  # RN50 run 1
+                        # default='best_model_dainty-blaze-3325.pt',  # RN50 run 1, 92.01
                         # default='best_model_quiet-bee-3327.pt',  # RN50 run 2
                         # default='best_model_likely-dragon-3328.pt',  # RN50 run 3
                         # default='best_model_amber-darkness-3332.pt',  # test --> can remove later if like
-                        # default='best_model_driven-smoke-3329.pt',  # RN50 no augmentation
+                        default='best_model_driven-smoke-3329.pt',  # RN50 no augmentation
                         help='Model check point')
 
     args = parser.parse_args()
@@ -71,7 +71,9 @@ if __name__ == '__main__':
     print(RunningParams.__dict__)
 
     MODEL2.eval()
-    test_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'
+    # test_dir = f'{RunningParams.parent_dir}/{RunningParams.test_path}'
+    test_dir = RunningParams.aug_data_dir
+    print(test_dir)
 
     image_datasets = dict()
     image_datasets['cub_test'] = ImageFolderForNNs(test_dir, Dataset.data_transforms['val'])
@@ -123,7 +125,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=17,
+            batch_size=64,
             shuffle=True,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -199,8 +201,9 @@ if __name__ == '__main__':
                 query = pths[sample_idx]
                 base_name = os.path.basename(query)
 
-            model2_gt = (predicted_ids == gts) * 1  # 0 and 1
-            labels = model2_gt
+            labels = data[2].cuda()
+            # model2_gt = (predicted_ids == gts) * 1  # 0 and 1
+            # labels = model2_gt
 
             # print(labels.shape)
 

@@ -31,7 +31,7 @@ import torchvision
 
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
-ORIGINAL_FE = False
+ORIGINAL_FE = True
 if ORIGINAL_FE is True:
 
     model = torchvision.models.resnet50(pretrained=True).cuda()
@@ -88,7 +88,7 @@ train_loader = torch.utils.data.DataLoader(
             train_data,
             batch_size=32,
             shuffle=False,
-            num_workers=0,
+            num_workers=8,
             pin_memory=True,
         )
 
@@ -101,7 +101,7 @@ test_loader = torch.utils.data.DataLoader(
             val_data,
             batch_size=32,
             shuffle=False,
-            num_workers=0,
+            num_workers=8,
             pin_memory=True,
         )
 
