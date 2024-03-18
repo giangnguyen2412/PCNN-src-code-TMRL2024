@@ -41,11 +41,11 @@ if __name__ == '__main__':
                         # default='best_model_' + RunningParams.wandb_sess_name + '.pt',
                         # default='best_model_copper-moon-3322.pt',  # RN18
                         # default='best_model_woven-deluge-3324.pt',  # RN34
-                        # default='best_model_dainty-blaze-3325.pt',  # RN50 run 1, 92.01
+                        default='best_model_dainty-blaze-3325.pt',  # RN50 run 1,
                         # default='best_model_quiet-bee-3327.pt',  # RN50 run 2
                         # default='best_model_likely-dragon-3328.pt',  # RN50 run 3
                         # default='best_model_amber-darkness-3332.pt',  # test --> can remove later if like
-                        default='best_model_driven-smoke-3329.pt',  # RN50 no augmentation
+                        # default='best_model_driven-smoke-3329.pt',  # RN50 no augmentation
                         help='Model check point')
 
     args = parser.parse_args()

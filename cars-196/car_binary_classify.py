@@ -127,6 +127,7 @@ if __name__ == '__main__':
 
         top1_cnt, top1_crt_cnt = 0, 0
 
+
         yes_cnt = 0
         true_cnt = 0
         confidence_dict = dict()
@@ -147,6 +148,14 @@ if __name__ == '__main__':
 
         labels_val = []
         preds_val = []
+
+        # Sanity checks for binary classification
+        SAME = False
+        RAND = False
+        RAND_REAL = True
+
+        print('Sanity checks in binary classification!')
+        print(SAME, RAND, RAND_REAL)
 
         for batch_idx, (data, gt, pths) in enumerate(tqdm(data_loader)):
             x = data[0].cuda()
@@ -185,8 +194,6 @@ if __name__ == '__main__':
             # Find the maximum value along each row
             max_values, _ = torch.max(model1_p, dim=1)
 
-            SAME = False
-            RAND = False
 
             if SAME is True:
                 model1_score.fill_(0.999)
@@ -198,6 +205,10 @@ if __name__ == '__main__':
                 explanation.cuda()
                 # Replace the maximum value with random guess
                 model1_score.fill_(1 / 196)
+
+            if RAND_REAL is True:
+                torch.manual_seed(42)
+                explanation = explanation[torch.randperm(explanation.size(0))]
 
             # explanation = explanation[torch.randperm(explanation.size(0))]
 

@@ -57,9 +57,9 @@ train_data = ImageFolder(
 
 train_loader = torch.utils.data.DataLoader(
             train_data,
-            batch_size=240,
+            batch_size=12000,
             shuffle=False,
-            num_workers=16,
+            num_workers=40,
             pin_memory=True,
         )
 
@@ -81,7 +81,7 @@ padded_test_loader = torch.utils.data.DataLoader(
     val_data,
     batch_size=60,  # Keep the batch size consistent with your original setup
     shuffle=False,
-    num_workers=16,
+    num_workers=8,
     pin_memory=True,
 )
 
@@ -97,7 +97,7 @@ def compute_similarity_chunked(transformer_model, query_images, reference_images
     scores = []
     for query_img in query_images:
         query_scores = []
-        for ref_chunk in torch.split(reference_images, 60):  # Adjust chunk size as needed
+        for ref_chunk in torch.split(reference_images, 12000):  # Adjust chunk size as needed
             chunk_scores, _, _, _ = transformer_model(query_img.unsqueeze(0).expand_as(ref_chunk), ref_chunk, None)
             # breakpoint()
             query_scores.append(chunk_scores)

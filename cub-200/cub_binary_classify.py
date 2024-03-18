@@ -286,7 +286,6 @@ if __name__ == '__main__':
                 torch.manual_seed(42)
                 explanation = explanation[torch.randperm(explanation.size(0))]
 
-            breakpoint()
             # Forward input, explanations, and softmax scores through MODEL2
             output, _, _, _ = MODEL2(images=x, explanations=explanation, scores=model1_score)
 

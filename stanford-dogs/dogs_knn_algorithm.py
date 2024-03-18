@@ -29,7 +29,7 @@ import torchvision
 
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
-ORIGINAL_FE = False
+ORIGINAL_FE = True
 if ORIGINAL_FE is True:
 
     if RunningParams.resnet == 50:
@@ -167,12 +167,18 @@ if True:
 
     saved_results = torch.cat(saved_results, 1)
 
+    # Convert all_similarity_scores to a NumPy array if it's not already one
+    all_similarity_scores_np = saved_results.numpy()
+
+    # Save the NumPy array to disk
+    np.save('dogs_knn_algorithm_scores.npy', all_similarity_scores_np)
+
     # Compute the top-1 accuracy of KNNs, save the KNN dictionary
     scores = {}
     import torch
 
-    K_values = [5, 10, 20, 50, 100, 200]
-    # K_values = [5, 10]
+    # K_values = [5, 10, 20, 50, 100, 200]
+    K_values = [5]
 
     for K in K_values:
         # print("K = {}".format(K))
