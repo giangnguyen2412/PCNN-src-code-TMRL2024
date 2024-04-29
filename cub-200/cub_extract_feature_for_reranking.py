@@ -132,7 +132,10 @@ else:
 
             stack_embeddings.append(embeddings.cpu().detach().numpy())
         stack_embeddings = np.concatenate(stack_embeddings, axis=0)
+        # descriptors = np.vstack(stack_embeddings)
+
         descriptors = np.vstack(stack_embeddings)
+        faiss.normalize_L2(descriptors)
 
         cpu_index = faiss.IndexFlatL2(in_features)
         # faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
@@ -361,7 +364,13 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             nn_list = list()
 
             key = i
-            _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 6)
+            # _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 6)
+            query_vector = embeddings[sample_idx].reshape([1, in_features])
+            faiss.normalize_L2(query_vector)
+            # breakpoint()
+            scores, indices = faiss_index.search(query_vector, 6)
+
+            # _, indices = faiss_index.search_by_vector(embeddings[sample_idx].reshape([1, in_features]), 6)
 
             for id in range(indices.shape[1]):
                 id = loader.dataset.indices[indices[0, id]]
