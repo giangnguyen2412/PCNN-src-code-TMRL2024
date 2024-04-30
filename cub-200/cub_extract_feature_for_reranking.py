@@ -23,6 +23,7 @@ from torchvision import datasets, models, transforms
 from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
+from dreamsim import dreamsim
 
 torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
@@ -37,6 +38,12 @@ MODEL1_RESNET = True
 depth_of_pred = 10
 print(depth_of_pred)
 set = 'test'
+
+import faiss
+import numpy as np
+
+import faiss
+import numpy as np
 
 torch.manual_seed(42)
 
@@ -84,8 +91,12 @@ elif RunningParams.resnet == 50:
 
 print("Building FAISS index...! Training set is the knowledge base.")
 
+dreamsim_model, preprocess = dreamsim(pretrained=True)
+
+# We need to use preprocess from dreamsim so that it can return the correct dreamsim distances
 faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/{RunningParams.train_path}',
-                                     transform=Dataset.data_transforms['train'])
+                                     # transform=Dataset.data_transforms['train'])
+                                     transform=preprocess)
 
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
@@ -96,12 +107,35 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
+class DreamSimIndex(faiss.IndexFlat):
+    def __init__(self, d):
+        super(DreamSimIndex, self).__init__(d)
+        self.d = d
+
+    def distance_to_code(self, x, codes):
+        # Compute the DreamSim distance between the query vector x and the codes
+        distances = []
+        x_tensor = torch.from_numpy(x).unsqueeze(0)
+        codes_tensor = torch.from_numpy(codes)
+        for code in codes_tensor:
+            distance = dreamsim_model(x_tensor, code.unsqueeze(0))
+            distances.append(distance.item())
+        return np.array(distances)
+
+    def distance_to_code_approximated(self, x, codes):
+        # Approximate the DreamSim distance between the query vector x and the codes
+        # You can implement an approximation of the DreamSim distance function here
+        # or simply use the exact distance computation
+        return self.distance_to_code(x, codes)
+
+
 if MODEL1_RESNET is True:
-    INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cub/INAT_{RunningParams.RN50_INAT}_INDEX_file_adv_process_rn{RunningParams.resnet}.npy'
+    INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cub/INAT_{RunningParams.RN50_INAT}_INDEX_file_adv_process_rn{RunningParams.resnet}_dreamsim.npy'
 else:
     INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cub/INDEX_file_adv_process_NTSNET.npy'
 
 print(INDEX_FILE)
+
 
 if os.path.exists(INDEX_FILE):
     print("FAISS class index exists!")
@@ -114,6 +148,9 @@ if os.path.exists(INDEX_FILE):
         class_id_subset = torch.utils.data.Subset(faiss_dataset, faiss_data_loader_ids_dict[class_id])
         class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
         faiss_loader_dict[class_id] = class_id_loader
+
+    print(INDEX_FILE)
+    # breakpoint()
 else:
     print("FAISS class index NOT exists! Creating class index.........")
     targets = faiss_data_loader.dataset.targets
@@ -127,20 +164,22 @@ else:
         stack_embeddings = []
         for batch_idx, (data, label) in enumerate(class_id_loader):
             input_data = data.detach()
-            embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
+            embeddings = feature_extractor(data.squeeze().cuda())  # 512x1 for RN 18
             embeddings = torch.flatten(embeddings, start_dim=1)
 
             stack_embeddings.append(embeddings.cpu().detach().numpy())
         stack_embeddings = np.concatenate(stack_embeddings, axis=0)
         # descriptors = np.vstack(stack_embeddings)
-
+        # breakpoint()
         descriptors = np.vstack(stack_embeddings)
         faiss.normalize_L2(descriptors)
 
-        cpu_index = faiss.IndexFlatL2(in_features)
+        # cpu_index = faiss.IndexFlatL2(in_features)
         # faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
         #     cpu_index
         # )
+        cpu_index = DreamSimIndex(in_features)
+
         faiss_gpu_index = cpu_index
 
         faiss_gpu_index.add(descriptors)
@@ -230,6 +269,20 @@ if MODEL1_RESNET is True:
         num_workers=4,
         pin_memory=True,
     )
+
+    val_data_dreamsim = ImageFolderWithPaths(
+        # ImageNet train folder
+        root=data_dir, transform=preprocess
+    )
+
+    train_loader_dreamsim = torch.utils.data.DataLoader(
+        val_data_dreamsim,
+        batch_size=128,
+        shuffle=False,
+        num_workers=4,
+        pin_memory=True,
+    )
+
     print('Running MODEL1 being RN50!!!')
 
 else:
@@ -280,6 +333,11 @@ else:
         root=data_dir, transform=Dataset.data_transforms['val']
     )
 
+    val_data_dreamsim = ImageFolderWithPaths(
+        # ImageNet train folder
+        root=data_dir, transform=preprocess
+    )
+
     nts_train_loader = torch.utils.data.DataLoader(
         nts_val_data,
         batch_size=16,
@@ -291,6 +349,15 @@ else:
 
     train_loader = torch.utils.data.DataLoader(
         val_data,
+        batch_size=16,
+        shuffle=False,
+        num_workers=8,
+        pin_memory=True,
+        drop_last=False
+    )
+
+    train_loader_dreamsim = torch.utils.data.DataLoader(
+        val_data_dreamsim,
         batch_size=16,
         shuffle=False,
         num_workers=8,
@@ -313,17 +380,13 @@ cnt = 0
 # bucket_limits = torch.linspace(0, 1, M + 1)
 # bucket_data = {'accuracies': torch.zeros(M), 'confidences': torch.zeros(M), 'counts': torch.zeros(M)}
 
-for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
+# for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
 # for (data, label, paths), (data2, label2, paths2) in tqdm(zip(nts_train_loader, train_loader)):
-    if len(train_loader.dataset.classes) < 200:
-        for sample_idx in range(data.shape[0]):
-            tgt = label[sample_idx].item()
-            class_name = train_loader.dataset.classes[tgt]
-            id = faiss_dataset.class_to_idx[class_name]
-            label[sample_idx] = id
+for (data, label, paths), (data2, label2, paths2) in tqdm(zip(train_loader, train_loader_dreamsim)):
 
+    # For feature embeddings, use dreamsim data
     if MODEL1_RESNET is True:
-        embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
+        embeddings = feature_extractor(data2.squeeze().cuda())  # 512x1 for RN 18
     else:
         embeddings = feature_extractor(data2.cuda())  # 512x1 for RN 18
 
@@ -331,6 +394,7 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
     embeddings = embeddings.cpu().detach().numpy()
 
     if MODEL1_RESNET is True:
+        # To infer the top predicted classes, use normal data
         out = MODEL1(data.cuda())
         # uncomment this if trying to rerank ViT models
         # out, _ = MODEL1(data.cuda())
@@ -365,14 +429,21 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
 
             key = i
             # _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 6)
+            # query_vector = embeddings[sample_idx].reshape([1, in_features])
+            # faiss.normalize_L2(query_vector)
+            # breakpoint()
+            # scores, indices = faiss_index.search(query_vector, 6)
+            # breakpoint()
             query_vector = embeddings[sample_idx].reshape([1, in_features])
-            faiss.normalize_L2(query_vector)
             # breakpoint()
             scores, indices = faiss_index.search(query_vector, 6)
 
             # _, indices = faiss_index.search_by_vector(embeddings[sample_idx].reshape([1, in_features]), 6)
 
             for id in range(indices.shape[1]):
+                # print(id)
+                # print(indices[0, id])
+                # breakpoint()
                 id = loader.dataset.indices[indices[0, id]]
                 nn_list.append(loader.dataset.dataset.imgs[id][0])
 
