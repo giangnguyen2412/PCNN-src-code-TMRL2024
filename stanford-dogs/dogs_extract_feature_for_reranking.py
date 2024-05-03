@@ -24,6 +24,13 @@ from params import RunningParams
 from datasets import Dataset, ImageFolderWithPaths, ImageFolderForNNs
 from helpers import HelperFunctions
 
+from dreamsim import dreamsim
+import faiss
+import numpy as np
+
+import faiss
+import numpy as np
+
 torch.backends.cudnn.benchmark = True
 plt.ion()   # interactive mode
 
@@ -34,7 +41,7 @@ Dataset = Dataset()
 RunningParams = RunningParams('DOGS')
 
 MODEL1_RESNET = True
-depth_of_pred = 5
+depth_of_pred = 10
 print(depth_of_pred)
 set = 'test'
 
@@ -77,7 +84,7 @@ elif RunningParams.resnet == 50:
     in_features = 2048
 
 print("Building FAISS index...! Training set is the knowledge base.")
-
+dreamsim_model, preprocess = dreamsim(pretrained=True)
 normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
 data_transform = transforms.Compose([transforms.Resize(256),
@@ -88,7 +95,29 @@ data_transform = transforms.Compose([transforms.Resize(256),
 
 # faiss dataset contains images using as the knowledge based for KNN retrieval
 faiss_dataset = datasets.ImageFolder(f'{RunningParams.parent_dir}/{RunningParams.train_path}',
-                                     transform=data_transform)
+                                     # transform=data_transform)
+                                     transform=preprocess)
+
+class DreamSimIndex(faiss.IndexFlat):
+    def __init__(self, d):
+        super(DreamSimIndex, self).__init__(d)
+        self.d = d
+
+    def distance_to_code(self, x, codes):
+        # Compute the DreamSim distance between the query vector x and the codes
+        distances = []
+        x_tensor = torch.from_numpy(x).unsqueeze(0)
+        codes_tensor = torch.from_numpy(codes)
+        for code in codes_tensor:
+            distance = dreamsim_model(x_tensor, code.unsqueeze(0))
+            distances.append(distance.item())
+        return np.array(distances)
+
+    def distance_to_code_approximated(self, x, codes):
+        # Approximate the DreamSim distance between the query vector x and the codes
+        # You can implement an approximation of the DreamSim distance function here
+        # or simply use the exact distance computation
+        return self.distance_to_code(x, codes)
 
 faiss_data_loader = torch.utils.data.DataLoader(
     faiss_dataset,
@@ -99,7 +128,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
     pin_memory=True,
 )
 
-INDEX_FILE = f'{RunningParams.prj_dir}/faiss/dogs/INDEX_file_adv_process_rn{RunningParams.resnet}.npy'
+INDEX_FILE = f'{RunningParams.prj_dir}/faiss/dogs/INDEX_file_adv_process_rn{RunningParams.resnet}_dreamsim.npy'
 print(INDEX_FILE)
 
 if os.path.exists(INDEX_FILE):
@@ -126,17 +155,20 @@ else:
         stack_embeddings = []
         for batch_idx, (data, label) in enumerate(class_id_loader):
             input_data = data.detach()
-            embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
+            # embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
+            embeddings = feature_extractor(data.squeeze().cuda())  # 512x1 for RN 18
             embeddings = torch.flatten(embeddings, start_dim=1)
 
             stack_embeddings.append(embeddings.cpu().detach().numpy())
         stack_embeddings = np.concatenate(stack_embeddings, axis=0)
         descriptors = np.vstack(stack_embeddings)
+        faiss.normalize_L2(descriptors)
 
-        cpu_index = faiss.IndexFlatL2(in_features)
+        # cpu_index = faiss.IndexFlatL2(in_features)
         # faiss_gpu_index = faiss.index_cpu_to_all_gpus(  # build the index
         #     cpu_index
         # )
+        cpu_index = DreamSimIndex(in_features)
         faiss_gpu_index = cpu_index
 
         faiss_gpu_index.add(descriptors)
@@ -159,6 +191,19 @@ if MODEL1_RESNET is True:
         pin_memory=True,
     )
 
+    val_data_dreamsim = ImageFolderWithPaths(
+        # ImageNet train folder
+        root=data_dir, transform=preprocess
+    )
+
+    train_loader_dreamsim = torch.utils.data.DataLoader(
+        val_data_dreamsim,
+        batch_size=128,
+        shuffle=False,
+        num_workers=4,
+        pin_memory=True,
+    )
+
 ########################################################################
 
 correct_cnt = 0
@@ -167,8 +212,9 @@ total_cnt = len(image_datasets['train'])
 faiss_nn_dict = dict()
 cnt = 0
 
-for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
+# for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
 # for (data, label, paths), (data2, label2, paths2) in tqdm(zip(train_loader, std_train_loader)):
+for (data, label, paths), (data2, label2, paths2) in tqdm(zip(train_loader, train_loader_dreamsim)):
     if len(train_loader.dataset.classes) < 120:
         for sample_idx in range(data.shape[0]):
             tgt = label[sample_idx].item()
@@ -177,7 +223,8 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             label[sample_idx] = id
 
     if MODEL1_RESNET is True:
-        embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
+        # embeddings = feature_extractor(data.cuda())  # 512x1 for RN 18
+        embeddings = feature_extractor(data2.squeeze().cuda())  # 512x1 for RN 18
     else:
         embeddings = feature_extractor(data2.cuda())  # 512x1 for RN 18
 
@@ -212,8 +259,24 @@ for batch_idx, (data, label, paths) in enumerate(tqdm(train_loader)):
             nn_list = list()
 
             key = i
-            _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 6)
+            # _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 6)
 
+            # _, indices = faiss_index.search(embeddings[sample_idx].reshape([1, in_features]), 6)
+            query_vector = embeddings[sample_idx].reshape([1, in_features])
+            # faiss.normalize_L2(query_vector)
+            # breakpoint()
+            scores, indices = faiss_index.search(query_vector, 5)
+
+            # Using ramdom NNs
+            # indices = np.random.choice(faiss_index.ntotal, size=(1, 6), replace=False)
+
+            # Shuffle the retrieved NNs -- because we only compare with the first --> randomly get the 1st NNs
+            # breakpoint()
+            np.random.shuffle(indices[0])
+
+            # _, indices = faiss_index.search_by_vector(embeddings[sample_idx].reshape([1, in_features]), 6)
+
+            # breakpoint()
             for id in range(indices.shape[1]):
                 id = loader.dataset.indices[indices[0, id]]
                 nn_list.append(loader.dataset.dataset.imgs[id][0])
