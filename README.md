@@ -63,3 +63,8 @@ Step 2:
 ![](figs/heatmaps1.png)
 
 Same steps repeated for Cars-196 and Dogs-120.
+
+
+## Human study data
+
+We share the samples that we used for CUB-200 and Cars-196 human studies at [this link](https://drive.google.com/drive/folders/1yNIOfypfy1vvI3Q3MAq9LNIVlyQ3WY-V?usp=sharing).
