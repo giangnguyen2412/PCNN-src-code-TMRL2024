@@ -247,7 +247,7 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=2,
+            batch_size=11,
             shuffle=False,  # turn shuffle to False
             num_workers=16,
             pin_memory=True,
@@ -297,7 +297,7 @@ if __name__ == '__main__':
                 score, index_top1 = torch.topk(model1_p, 1, dim=1)
 
             output_tensors = []
-            depth = # TODO
+            depth = 10
 
             # Loop to get the logit for each class
             # breakpoint()
