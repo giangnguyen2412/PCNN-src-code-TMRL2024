@@ -198,7 +198,7 @@ The reviewer can try out the human study on Stanford Dogs-120 via this [link](TB
 
 > 9. (Potential Changes 3) Provide a theoretical analysis or insights into the effectiveness of the proposed approach, potentially drawing connections to existing theories or principles in machine learning or cognitive science.
 
-Please see our response in <Requested Changes 5>.
+Please see our response in <Questions 5>.
 
 > 10. (Weaknesses 2) The method relies on the availability of a well-trained comparator S, which may not be feasible or practical in certain scenarios.
 
