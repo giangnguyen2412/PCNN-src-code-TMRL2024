@@ -147,10 +147,6 @@ We innovate by proposing a sampling strategy that selects the negative samples b
 
 Sorry for the confusion. We revised the writing and changed "CUB-200 classifier" to "classifier trained on CUB-200" in the paper to avoid any misunderstanding.
 
-
-[Refer to the definition of CUB-200 classifier]
-[Tell him that we do that to improve specity]
-
 > 7. (Potential Changes 1) Explore techniques to reduce the computational overhead introduced by the re-ranking process, such as efficient nearest neighbour search or pruning strategies.
 
 Thanks for bringing up this point, and it really encourages us to optimize the runtime of our method! 
@@ -169,10 +165,10 @@ Currently, we are setting this to 10 as we always examine the top-10 most probab
 Yet, there always exists classes receiving < 1% by ResNet50 (see Fig. 5), which are likely never to be the top-1 after reranking.
 Reducing the number of K can save a lot of computation at a minimal cost of accuracy.
 
-For that, we run an experiment where we instead of re-ranking the whole top-10, we only re-rank the classes that have a probability >= 1% by the base classifier C.
+For that, we run an experiment for CUB-200 where we instead of re-ranking the whole top-10, we only re-rank the classes that have a probability >= 1% by the base classifier C.
 By doing so, we found:
-- The PoE model performance on CUB-200 drops very marginally from 88.59% to 88.51%
-- However, the runtime of the re-ranking process is improved by 77.32% (from 46.04 seconds to only 10.44 seconds), as reflected in the below Table.
+- The PoE model performance on CUB-200 drops very marginally by 0.08% (from 88.59% to 88.51%).
+- However, the runtime of the re-ranking process is significantly improved by 77.32% (from 46.04 seconds to only 10.44 seconds), as reflected in the below Table.
 
 | Model                    | Time (s)        |
 |--------------------------|-----------------|
@@ -183,7 +179,7 @@ By doing so, we found:
 | RN50 xS                  | 64.55 ± 0.35    |
 | **RN50 xS (with threshold)** | 28.95 ± 0.35    |
 
-Again, thanks for the suggestion and we will include this in the revised version of the paper.
+Again, thanks for the suggestion, and we will include this in the revised version of the paper.
 
 > 8. (Potential Changes 2) Extend the human study to other datasets and domains to further evaluate the interpretability and usefulness of PCNN explanations.
 
@@ -206,8 +202,9 @@ Please see our response in <Requested Changes 5>.
 
 > 10. (Weaknesses 2) The method relies on the availability of a well-trained comparator S, which may not be feasible or practical in certain scenarios.
 
-TBA
+Our method has been proven to work very well on small-size, fine-grained datasets (e.g. CUB-200, Dogs-120) where the comparator S can be trained successfully.
 
-[mentioned that S works werll for sample-efficient (i.e.g small-size dataset) scenarios]
-[think about what scenarios that S could not be achived]
-[Therea re a lot of research in image similarity --> wwe already have S for general images (e.g. DreamSim, DINO))] The model that was trained on contrastive data --> we can convert them into S.
+For large-scale, general domains, we can leverage existing state-of-the-art image similarity metrics like [DreamSim](https://arxiv.org/pdf/2306.09344) or [DINO](https://arxiv.org/abs/2104.14294) that were trained on large-scale and contrastive data.
+In the Related Work section of [DreamSim paper](https://arxiv.org/pdf/2306.09344), you can find several other alternative metrics for general domains (e.g. ImageNet).
+Using these metrics in our PoE model is straightforward as what we did with cosine or Earth Mover's Distance in Tab. 7 in the paper.
+
