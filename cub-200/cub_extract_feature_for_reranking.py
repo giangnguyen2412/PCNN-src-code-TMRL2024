@@ -436,8 +436,13 @@ for (data, label, paths), (data2, label2, paths2) in tqdm(zip(train_loader, trai
             # breakpoint()
             query_vector = embeddings[sample_idx].reshape([1, in_features])
             # breakpoint()
-            scores, indices = faiss_index.search(query_vector, 6)
+            scores, indices = faiss_index.search(query_vector, 5)
 
+            # Random NNs
+            # indices = np.random.choice(faiss_index.ntotal, size=(1, 6), replace=False)
+
+            # Shuffle the retrieved NNs -- because we only compare with the first --> randomly get the 1st NNs
+            np.random.shuffle(indices[0])
             # _, indices = faiss_index.search_by_vector(embeddings[sample_idx].reshape([1, in_features]), 6)
 
             for id in range(indices.shape[1]):

@@ -30,7 +30,7 @@ import subprocess
 import os
 
 TOP1_NN = False
-PRODUCT_OF_EXPERTS = True
+PRODUCT_OF_EXPERTS = True  # We already store the confidence scores of the C classifier ResNet in the faiss dict
 
 # Function to resize and crop the image
 def resize_and_crop(image):
