@@ -259,6 +259,7 @@ if __name__ == '__main__':
         total_cnt = 0
 
         first_cnt = 0
+        ignore_labels = 0
 
         yes_cnt = 0
         true_cnt = 0
@@ -338,7 +339,16 @@ if __name__ == '__main__':
                 batch_index = torch.arange(0, index_topk.size(0)).unsqueeze(1)
                 index_topk = labels[batch_index, index_topk]
 
+                # breakpoint()
+
+                count = (score_topk < 0.01).sum().item()
+                ignore_labels += count
+
+                # Setting the score to 0 if the score is less than 0.01
+                score_topk = torch.where(score_topk < 0.01, torch.tensor(0.0), score_topk)
+
                 final_confidence_score = conf_score_advnet.cpu()*score_topk
+
                 score, final_preds = torch.topk(final_confidence_score, 1, dim=1)
                 index = index_topk[torch.arange(index_topk.size(0)), final_preds.squeeze()]
 
@@ -438,6 +448,9 @@ if __name__ == '__main__':
         plt.savefig(f'{RunningParams.prj_dir}/Reliability_AdvNet_Diagram_test_top1_HP_MODEL1_HP_FE.png')
 
     print("k_value: ", RunningParams.k_value)
+
+    print('The number of labels that were ignored: ', ignore_labels)
+    print('The ratio of ignored labels: ', (ignore_labels*100) / (total_cnt*depth))
 
 
 
