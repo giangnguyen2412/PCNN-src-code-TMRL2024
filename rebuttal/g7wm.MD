@@ -23,7 +23,7 @@ associated with only one label.
 
 We took the below Figure from [C-Tran paper](https://arxiv.org/pdf/2011.14027) and will base on it to give examples.
 
-![](images/person%200.83.png)
+Figure: [An example of prediction in multi-label image classification](https://drive.google.com/file/d/1ltlCz-pIVm1e7s8133XMeCGWfkgP-aRn/view?usp=sharing)
 
 Here is an example of prediction in multi-label image classification. 
 The ground-truth y is a binary vectors indicating the presence of ℓ classes {y1, y2, ..., yℓ}, yi ∈ {0, 1}. {y1, y2, ..., yℓ}, yi ∈ {0, 1}.
@@ -61,7 +61,7 @@ making the re-ranking weights more uniform across the classes, and thus reducing
 However, the final PoE performance will be also affected by the performance of the classifier C, which will be changed accordingly to the change in the number of classes as shown in Fig. 6.
 If the reviewer has any specific experiments in mind, we are more than happy to run.
 
-![](images/img_3.png)
+Figure: [PoE Re-ranking algorithm from PCNN submission](https://drive.google.com/file/d/1nGgf18xVLF_i26omjy0_M8l3WBdGuNsZ/view?usp=sharing)
 
 When the size of the dataset increases (b), the performance of the PoE model will likely increase because the image comparator S will have more data to learn from and 
 combat with variations better. 
@@ -69,7 +69,7 @@ For example, in CUB-200 datasets, within a class, there are many variations in t
 Having more data will help the comparator S more robust to these variations, thus improving the PoE model CxS.
 In addition, having more data will help the base classifier C to yield better performance, which will also influence the impact of PoE as shown in Fig. 6.
 
-![](images/img.png)
+Figure: [The impact of the base classifier C to the PoE performance](https://drive.google.com/file/d/1IU-_sjf_uUgOcWHIOt-aBuBaVAyMnqT1/view?usp=sharing)
 
 Regarding (c), we found that when C is low-performing, adding S (via PoE) will be very useful.
 However, when C is already high-performing, adding S will not help much.
@@ -83,11 +83,23 @@ Thank you for the insightful question! We suppose the reviewer refers to the tes
 
 We want to break down the answer into two parts:
 
-a. Given the NNs being found, we tested using different functions to measure the similarity between the input image and the NNs for reranking (See Tab. 7 in page 19).
-![](images/img_1.png)
-We found our comparator S works the best for the reranking algorithm.
+a. Given the NNs being found, we tested using different functions to measure the similarity between the input image and the NNs for reranking (See Tab. 7 in page 19) or the below Table.
 
-b. Fixing the similarity function as S, we tested using different distance metrics to find the nearest neighbors for reranking.
+[//]: # (![]&#40;images/img_1.png&#41;)
+
+| NN-th | Top-1 Acc | Top-1 Acc       | Top-1 Acc       | Top-1 Acc     | Top-1 Acc        |
+|-------|----------|-----------------|--------|------|------------------|
+|       | RN50 × S | Our trained S** | cosine | EMD  | 4-layer MLP only |
+| 1st   | 88.59    | 87.72           | 60.20  | 54.83 | 83.76            |
+| 2nd   | 88.06    | 87.34           | 58.84  | 57.05 | 84.33            |
+| 3rd   | 88.21    | 87.43           | 57.47  | 57.14 | 83.93            |
+
+** S = shared feature extractor + 4-layer MLP for similarity function
+
+We found our comparator S works the best for the reranking algorithm.
+When combining the scores of RN50 and S via PoE, we even found it more effective.
+
+b. Fixing the reranking method, we tested using different distance metrics to find the nearest neighbors for reranking as suggested.
 Here we assess the PoE performance on cosine similarity and [DreamSim](https://dreamsim-nights.github.io/).
 Compared to using L2 as reported in our paper, cosine similarity measure the global similarity between two images while DreamSim
 is a human-aligned similarity measure.
@@ -98,6 +110,8 @@ is a human-aligned similarity measure.
 | L2                                             | 88.59%               | 86.31%                |
 | Cosine                                         | 88.33%               | 86.25%                |
 | [DreamSim](https://dreamsim-nights.github.io/) | 88.38%               | 86.56%                |
+
+
 
 [//]: # (| Random &#40;top-5 of DreamSim&#41;                     | 88.37%               | 86.34%                |)
 
@@ -130,11 +144,20 @@ and ask them to judge if the two images are of the same class or not.
 
 **To compare the two images**, we are inspired by [Siamese neural networks](https://www.cs.cmu.edu/~rsalakhu/papers/oneshot1.pdf) where the feature extractor
 is shared between two branches and the similarity function could be learnable (see the Figure below).
-![](images/img_5.png)
+
+Figure: [Siamese neural networks](https://drive.google.com/file/d/1xXblL8rHRqz1FWr6ulDbo0gKgKoP7yBG/view?usp=sharing)
 
 In the experiment in Tab. 7, we found that this architecture (shared feature extractor + 4-layer MLP for similarity function) works the best for PoE model.
-![](images/img_2.png)
 
+
+| NN-th | Top-1 Acc | Top-1 Acc       | Top-1 Acc       | Top-1 Acc     | Top-1 Acc        |
+|-------|----------|-----------------|--------|------|------------------|
+|       | RN50 × S | Our trained S** | cosine | EMD  | 4-layer MLP only |
+| 1st   | 88.59    | 87.72           | 60.20  | 54.83 | 83.76            |
+| 2nd   | 88.06    | 87.34           | 58.84  | 57.05 | 84.33            |
+| 3rd   | 88.21    | 87.43           | 57.47  | 57.14 | 83.93            |
+
+** S = shared feature extractor + 4-layer MLP for similarity function
 
 **In training of S**, we are inspired by a long line of work in [contrastive learning](https://arxiv.org/pdf/2002.05709) that aims to learn discriminative feature representations via 
 same-class samples and different-class samples.
@@ -166,18 +189,13 @@ Reducing the number of K can save a lot of computation at a minimal cost of accu
 For that, we run an experiment for CUB-200 where we instead of re-ranking the whole top-10, we only re-rank the classes that have a probability >= 1% by the base classifier C.
 By doing so, we found:
 - The PoE model performance on CUB-200 drops very marginally by 0.08% (from 88.59% → 88.51%).
-- However, the runtime of the image comparator was reduced by 4x (from 46.04 seconds to just 10.44 seconds), as reflected in the table below.
+- However, the number of queries to the image comparator S was reduced by 4x (from 10 to just about 2.5 queries per image).
 This leads to a 2.5x speedup in the overall runtime of the PoE model (from 64.55 seconds to 28.95 seconds).
 
-
-| Model                    | Time (s)        |
-|--------------------------|-----------------|
-| RN50                     | 8.81 ± 0.14     |
-| kNN                      | 9.70 ± 0.32     |
-| S                        | 46.04 ± 0.04    |
-| **S (with threshold)**       | 10.44 ± 0.04    |
-| RN50 xS                  | 64.55 ± 0.35    |
-| **RN50 xS (with threshold)** | 28.95 ± 0.35    |
+| Model                        |   Time (s)   | Top-1 Acc (%) |
+|:----------------------------:|:------------:|:-------------:|
+| RN50 xS                      | 64.55 ± 0.35 |     88.59     |
+| **RN50 xS (with threshold)** | 28.95 ± 0.11 |     88.51     |
 
 Again, thanks for the suggestion, and we will include this in the revised version of the paper.
 
@@ -192,7 +210,7 @@ misclassified query samples determined by the RN50 × S classifier, amounting to
 - Participants: We recruit 28 participants for the study, with 15 participants for the top-1 and 13 participants for PCNN experiments. 
 The participants are encouraged to perform responsibly, and we consider only the data from those who complete all the 30 test trials.
 
-![](images/dogs_data.png)
+Figure: [User accuracy on Stanford Dogs](https://drive.google.com/file/d/1AF3CpBq6esrfBa16Sz1n9ueUWD0cxZnb/view?usp=sharing)
 
 - Findings: Based on the below table, we observe that presenting human participants with PCNN explanations improves their accuracy. 
 When the AI is correct, participants achieve a lower mean accuracy of 82.65% (± 10.20) with PCNN explanations, compared to 89.59% (± 9.17) with top-1 nearest neighbors. 
@@ -209,7 +227,7 @@ The results from the Stanford Dogs-120 dataset corroborate the findings from the
 | PCNN       | AI is Correct  | 82.65    | 10.20   | 364              |
 | Overall    | ---            | 68.84    | 14.78   | 728              |
 
-The reviewer can try out the human study on Stanford Dogs-120 via this [link](https://huggingface.co/spaces/XAI/PCNN-StanfordDogs-HumanStudy).
+The reviewer can try out the human study on Stanford Dogs-120 via this [link](https://huggingface.co/spaces/xairesearch2023-advnet/HumanStudy-Dogs).
 
 [//]: # ([need to anonymize the demo -e.g. video or anonymous link])
 
@@ -224,4 +242,3 @@ Our method has been proven to work very well on small-size, fine-grained dataset
 For large-scale, general domains, we can leverage existing state-of-the-art image similarity metrics like [DreamSim](https://arxiv.org/pdf/2306.09344) or [DINO](https://arxiv.org/abs/2104.14294) that were trained on large-scale and contrastive data.
 In the Related Work section of [DreamSim paper](https://arxiv.org/pdf/2306.09344), you can find several other alternative metrics for general domains (e.g. ImageNet).
 Adapting these metrics in our PoE model is straightforward as what we did with cosine or Earth Mover's Distance in Tab. 7 in the paper.
-
