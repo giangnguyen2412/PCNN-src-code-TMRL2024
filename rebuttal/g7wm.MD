@@ -214,7 +214,7 @@ misclassified query samples determined by the RN50 × S classifier, amounting to
 - Participants: We recruit 30 participants for the study, with 16 participants for the top-1 and 14 participants for PCNN experiments. 
 The participants are encouraged to perform responsibly, and we consider only the data from those who complete all the 30 test trials.
 
-Figure: [User accuracy on Stanford Dogs](https://drive.google.com/file/d/1AF3CpBq6esrfBa16Sz1n9ueUWD0cxZnb/view?usp=sharing)
+Figure: [User accuracy on Stanford Dogs](https://drive.google.com/file/d/1Fh3GrO6blL3muijc2-hGTnp-NwCUoYAU/view?usp=sharing)
 
 - Findings: Based on the below table, we observe that presenting human participants with PCNN explanations improves their mean accuracy by 5.26%.
 When the AI is correct, participants achieve a lower mean accuracy of 82.55% (± 9.80) with PCNN explanations, compared to 89.07% (± 9.10) with top-1 nearest neighbors. 
