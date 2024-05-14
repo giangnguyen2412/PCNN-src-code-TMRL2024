@@ -151,24 +151,24 @@ Sorry for the confusion. We revised the writing and changed "CUB-200 classifier"
 
 Thanks for bringing up this point, and it really encourages us to optimize the runtime of our method! 
 We agree that the re-ranking process can be computationally expensive, especially when the dataset is large.
-The computational overhead comes from a) finding the nearest neighbors or b) querying the image comparator S for reranking weights.
+The computational overhead comes from (a) finding the nearest neighbors or (b) querying the image comparator S for reranking weights.
 
-We found that a) can be easily done by leveraging speedup options of faiss.
-For example, we can reduce the dimensionality of embeddings vectors from 2048 to 1024 or 512 by using earlier layers of the ResNet-50 for feature extraction.
-Also, as we are currently use CPU for faiss indexing (L137 in this [file](https://anonymous.4open.science/r/nearest-neighbor-XAI-FF2E/cub-200/cub_extract_feature_for_reranking.py)), using GPU by GpuIndexFlatL2 from faiss can provide significant speedups, especially for larger datasets.
+We found that **nearest neighbor retrieval** (a) can be easily sped up by leveraging the speedup options of as listed [here](https://github.com/facebookresearch/faiss/wiki/How-to-make-Faiss-run-faster).
+For example, as we are currently use CPU for faiss indexing (L137 in this [file](https://anonymous.4open.science/r/nearest-neighbor-XAI-FF2E/cub-200/cub_extract_feature_for_reranking.py)), using GPU by GpuIndexFlatL2 from faiss can provide significant speedups, especially for larger datasets.
+Also, we can reduce the dimensionality of embeddings vectors from 2048 to 1024 or 512 by using earlier layers of the ResNet-50 for feature extraction.
 Another option is to adjust the precision of computations (e.g., using floating-point 16 bits instead of 32 bits) which can increase speed at the cost of some accuracy.
 
-[//]: # ([quantify how much speedup is])
-
-For b), we can reduce the number of queries to the image comparator S by using a threshold on the reranking weights.
+For **image comparator S** (b), we can reduce the number of queries to the image comparator S by using a threshold on the reranking weights.
 Currently, we are setting this to 10 as we always examine the top-10 most probable classes.
 Yet, there always exists classes receiving < 1% by ResNet50 (see Fig. 5), which are likely never to be the top-1 after reranking.
 Reducing the number of K can save a lot of computation at a minimal cost of accuracy.
 
 For that, we run an experiment for CUB-200 where we instead of re-ranking the whole top-10, we only re-rank the classes that have a probability >= 1% by the base classifier C.
 By doing so, we found:
-- The PoE model performance on CUB-200 drops very marginally by 0.08% (from 88.59% to 88.51%).
-- However, the runtime of the re-ranking process is significantly improved by 77.32% (from 46.04 seconds to only 10.44 seconds), as reflected in the below Table.
+- The PoE model performance on CUB-200 drops very marginally by 0.08% (from 88.59% → 88.51%).
+- However, the runtime of the image comparator was reduced by 4x (from 46.04 seconds to just 10.44 seconds), as reflected in the table below.
+This leads to a 2.5x speedup in the overall runtime of the PoE model (from 64.55 seconds to 28.95 seconds).
+
 
 | Model                    | Time (s)        |
 |--------------------------|-----------------|
@@ -189,12 +189,29 @@ Therefore, we repeat the human study that compares top-1 nearest neighbors and P
 - Samples: Similar to CUB-200 study detailed in Section H, we select 300 correctly classified and 300
 misclassified query samples determined by the RN50 × S classifier, amounting to a total of 600 images for the study.
 
-- [ ] Participants:
-- [ ] Findings
+- Participants: We recruit 28 participants for the study, with 15 participants for the top-1 and 13 participants for PCNN experiments. 
+The participants are encouraged to perform responsibly, and we consider only the data from those who complete all the 30 test trials.
 
-The reviewer can try out the human study on Stanford Dogs-120 via this [link](TBA).
+![](images/dogs_data.png)
 
-[need to anonymize the demo -e.g. video or anonymous link]
+- Findings: Based on the below table, we observe that presenting human participants with PCNN explanations improves their accuracy. 
+When the AI is correct, participants achieve a lower mean accuracy of 82.65% (± 10.20) with PCNN explanations, compared to 89.59% (± 9.17) with top-1 nearest neighbors. 
+However, when the AI is incorrect, participants with PCNN explanations achieve a significantly higher mean accuracy of 52.40% (± 19.35) vs. 33.37% (± 24.56) accuracy of those with top-1 nearest neighbors.
+These findings suggest that PCNN explanations provide more informative cues for humans to discern the correctness of AI predictions, particularly in cases where the AI is incorrect. 
+The results from the Stanford Dogs-120 dataset corroborate the findings from the CUB-200 study, further demonstrating the usefulness of PCNN explanations across different domains.
+
+| Explanation | AI Correctness | mean (%) | std (%) | Numb. of Samples |
+|------------|----------------|----------|---------|------------------|
+| Top-1      | AI is Wrong    | 33.37    | 24.56   | 420              |
+| Top-1      | AI is Correct  | 89.59    | 9.17    | 420              |
+| Overall    | ---            | 63.23    | 16.87   | 840              |
+| PCNN       | AI is Wrong    | 52.40    | 19.35   | 364              |
+| PCNN       | AI is Correct  | 82.65    | 10.20   | 364              |
+| Overall    | ---            | 68.84    | 14.78   | 728              |
+
+The reviewer can try out the human study on Stanford Dogs-120 via this [link](https://huggingface.co/spaces/XAI/PCNN-StanfordDogs-HumanStudy).
+
+[//]: # ([need to anonymize the demo -e.g. video or anonymous link])
 
 > 9. (Potential Changes 3) Provide a theoretical analysis or insights into the effectiveness of the proposed approach, potentially drawing connections to existing theories or principles in machine learning or cognitive science.
 
@@ -206,5 +223,5 @@ Our method has been proven to work very well on small-size, fine-grained dataset
 
 For large-scale, general domains, we can leverage existing state-of-the-art image similarity metrics like [DreamSim](https://arxiv.org/pdf/2306.09344) or [DINO](https://arxiv.org/abs/2104.14294) that were trained on large-scale and contrastive data.
 In the Related Work section of [DreamSim paper](https://arxiv.org/pdf/2306.09344), you can find several other alternative metrics for general domains (e.g. ImageNet).
-Using these metrics in our PoE model is straightforward as what we did with cosine or Earth Mover's Distance in Tab. 7 in the paper.
+Adapting these metrics in our PoE model is straightforward as what we did with cosine or Earth Mover's Distance in Tab. 7 in the paper.
 
