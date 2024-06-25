@@ -33,6 +33,7 @@ We present the experimental data on CUB-200 and Dogs-120 below.
 | Dogs-120  | 100%   | 100               | 86.27        | 87.18       | 
 | Dogs-120  | 50%    | 50                | 86.32        | 71.02       |
 | Dogs-120  | 33%    | 33                | 86.42        | 65.52       |
+
 **_The top-1 accuracy and runtime of CxS on CUB-200 and Dogs-120 for different sizes of training data during inference. Runtime was computed over 1000 samples, similar to the setup in Appendix E._**
 
 We found that reducing the size of the training data has little-to-no impact on the inference-time performance.
@@ -74,6 +75,7 @@ We re-run our method with diffrent values of K and present the results below.
 | 5  | 88.28 (+2.45) | 41.53           | 85.91 (+0.09)         | 64.16           |
 | 10 | 88.42 (+2.59) | 64.55           | 86.27 (+0.45)         | 87.18           |
 | 15 | 88.00 (+2.17) | 87.57           | 85.86 (+0.04)         | 110.20          |
+
 **_The top-1 accuracy and runtime of CxS on CUB-200 and Dogs-120 for different K values. Runtime was computed over 1000 samples, similar to the setup in Appendix E._**
 
 We found that increasing K does not only hurt the classification performance but also increases the runtime.
