@@ -65,7 +65,7 @@ We tested three cases: (1) using high-performing classifiers C (e.g. >= 80% top-
 
 (3) We also show that we can exclude C in sampling. Please refer to the paragraph `Hard negatives are more useful than easy, random negatives in training S` in Sec 4.2.
 In this experiment, the negatives are randomly sampled from non-ground-truth classes, and the positives are the ground-truth class, defined by training annotations.
-This sampling still yield positive improvements in the top-1 accuracy for a CUB-200 iNaturalist-pretrained ResNet-50 from 85.85% to 86.55% (+0.70%).
+This sampling still yield positive improvements in the top-1 accuracy for a CUB-200 iNaturalist-pretrained ResNet-50 from 85.85% → 86.55% (+0.70%).
 
 
 > (Requested Changes 4) An analysis of errors introduced by the reranking step would have been useful.
