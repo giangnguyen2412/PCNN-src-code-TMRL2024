@@ -8,7 +8,7 @@ We want to note that a unified take-away from our work is that `showing explanat
 
 Yet, after re-reading the paper, we agree that the message could be more streamlined.
 In particular, we see the message that `showing explanations for the top-K classes` improves AI performance can be clearer.
-We will elaborate that: PCNN explanations help the AI model during training (i.e. training image comparator S) → eventually improve the overall top-1 classification accuracy of AI via re-ranking.
+We plan to elaborate in the final version that: PCNN explanations help the AI model during training (i.e. training image comparator S) → eventually improve the overall top-1 classification accuracy of AI via re-ranking.
 
 > (Weaknesses 2 Presentation) Another issue is the method name is not used consistently throughout the text. For instance, it is sometimes called C \times S, sometimes PoE; sometimes PCNN is an architecture, sometimes a new type of explanation; this is a bit confusing. I would prefer if the authors used PCNN everywhere, for simplicity.
 
@@ -56,11 +56,32 @@ While this question is very interesting; unfortunately and honestly, we did not 
 
 > (Requested Changes 3) The construction of the training set for S assumes C is already reasonably high-quality: is this always a reasonable assumption? Please add this to the Limitations section too.
 
-[TBA]
+Our answer is: Classifiers C is NOT strictly required to be `reasonably high-quality`.
+We tested three cases: (1) using high-performing classifiers C (e.g. >= 80% top-1 acc), (2) low-performing classifiers C (e.g. ~ 60% top-1 acc), and (3) excluding classifiers C from sampling process.
+
+(1) We perform sampling using high-performing classifiers C (e.g. ResNet-50 scores 85.83% on CUB-200, 89.73% on Cars-196, and 85.82% on Dogs-120) to train S and report numbers in Table 1.
+
+(2) We also test the case where we use low-performing classifiers C (e.g. ResNet classifiers pretrained on ImageNet).
+
+(3) We also show that we can exclude C in sampling. Please refer to the paragraph `Hard negatives are more useful than easy, random negatives in training S` in Sec 4.2.
+In this experiment, the negatives are randomly sampled from non-ground-truth classes, and the positives are the ground-truth class, defined by training annotations.
+This sampling still yield positive improvements in the top-1 accuracy for a CUB-200 iNaturalist-pretrained ResNet-50 from 85.85% to 86.55% (+0.70%).
+
 
 > (Requested Changes 4) An analysis of errors introduced by the reranking step would have been useful.
 
-[TBA]
+Thank you for the suggestion.
+
+We visualized 700 CUB-200 samples that were misclassified by our re-ranking method (CxS 88.59% in Table. 1) and shared with you [here](https://drive.google.com/drive/folders/1CJRAmuoBSLQQ2ES0dmCbiTDTCWZvewzM?usp=sharing).
+After manually inspecting the samples, we found that the majority of the misclassifications were due to the following reasons:
+1. Inter-class similarities: The species from different classes look very similar to each other. 
+2. Intra-class variations: The species from the same class have large variations in appearance because of  lighting or angles. This is expected because the birds are captured in the wild.
+3. Low initial confidence scores: The initial classifier C assigns too low confidence scores to the correct class because of using softmax. Therefore, even if the comparator S assigns high confidence scores, the final, combined score is not sufficient to be recognized as the top-1.
+
+We believe that both (1) and (2) are inherent to the dataset and not specific to our method. However, a possible remedy is data augmentation. We did not explore data augmentation extensively in this work, but we showed it can benefit S in Sec. 4.2.
+(3) can be addressed by re-normalizing the confidence scores of C or more advanced re-ranking methods.
+
+If the Reviewer has any specific experiments in mind, we would be happy to run them and report the results!
 
 > (Requested Changes 5) p 4: "We empirically test K = {1, 3, 5, 10} and find K = 10 to be optimal." The fact that the optimal value is at the very end of the spectrum begs the question whether increasing K could improve performance further. Did the authors evaluate what happens for larger values of K? Clearly, increasing K would not be ideal for human decision making, but it should not consistute for PCNNs proper.
 
@@ -86,8 +107,29 @@ Gordon et al., "Identifiability of Product of Experts Models." 2024.
 To me, conditional independence seems necessary to reinterpret the product of distributions as a factorization of a more complex joint distribution, which lies at the heart of PoEs.
 However, independence does not appear to hold for the CSP model. I would appreciate if the authors could clarify this point, and -- if independence is indeed a prerequisite of PoEs -- changed their wording accordingly.
 
-[TBA]
+Thank you for this insightful comment!
+
+First, let us reiterate the definition of PoE: 
+`A PoE model combines multiple probability distributions (experts) to form a more complex joint distribution, where each expert captures different aspects of the data, and their product forms the overall model.`
+Indeed, we agree with the Reviewer that conditional independence lies at the heart of PoEs because this enables factorization of distributions.
+
+Let's re-visit our CxS model:
+
+Model C: A pre-trained classifier producing a probability distribution over classes for a given input image.
+Model S: Image comparator, which compares an input image with its nearest neighbors and generates confidence scores.
+
+To verify if C and S can be considered experts in a PoE framework, we need to determine if their outputs are conditionally independent given the input data.
+Conditional independence implies that the probability distribution over classes from C should not influence the probability distribution from S, once we know the input image.
+
+However, the P(C) and P(S) are not conditionally independent given an input image. 
+This is because C produces a class distribution, and S refines this distribution based on nearest neighbors. The confidence score S assigns can be influenced by the initial ranking from C.
+Due to the dependency between C and S, our model does not strictly follow the PoE framework's requirement.
+
+Given that, we will change the wording in the final version. We truly appreciate the Reviewer for pointing out this discrepancy!
 
 > (Broader Impact) Broader impact should briefly discuss the potential impact of manipulating (in the case of PCNN, lowering) user confidence in machine predictions in, especially in time critical high-stakes scenarios.
 
-[TBA]
+Thank you for the suggestion.
+Indeed, trust calibration is a critical aspect of human-AI interaction, especially in high-stakes scenarios per the Reviewer's comment.
+We plan to add a section in the Broader Impact in the final version of the paper. We are also open to suggestions on how to mitigate 
+the potential negative impact of lowering user confidence in machine predictions.
