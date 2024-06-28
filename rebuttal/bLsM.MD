@@ -8,12 +8,11 @@ We want to note that a unified take-away from our work is that `showing explanat
 
 Yet, after re-reading the paper, we agree that the message could be more streamlined.
 In particular, we see the message that `showing explanations for the top-K classes` improves AI performance can be clearer.
-We plan to elaborate in the final version that: PCNN explanations help the AI model during training (i.e. training image comparator S) → eventually improve the overall top-1 classification accuracy of AI via re-ranking.
+We plan to elaborate in the next revision that: PCNN explanations help the AI model during training (i.e. training image comparator S) → eventually improve the overall top-1 classification accuracy of AI via re-ranking.
 
 > (Weaknesses 2 Presentation) Another issue is the method name is not used consistently throughout the text. For instance, it is sometimes called C \times S, sometimes PoE; sometimes PCNN is an architecture, sometimes a new type of explanation; this is a bit confusing. I would prefer if the authors used PCNN everywhere, for simplicity.
 
 We agree with this point and to reduce the confusion, we will use the term `CxS` consistently throughout the text.
-Also, we will write 1-2 sentences justifying how one can interpret it as a Product of Experts (PoE).
 
 For PCNN, indeed, it is a variant of nearest-neighbor explanations, and we will make sure to clarify this in the text.
 
@@ -46,13 +45,17 @@ Bottom line: showing more NNs to users makes them more skeptical, meaning they e
 This should be clearly stated in the introduction, at the bare minimum. 
 Instead, the authors focus on the benefits of PCNN only, and write: "A 60-user study finds that, compared to showing top-1 class examples, PCNN improves user performance on the distinction task by almost +10 points (pp) (54.55% vs. 64.58%) on CUB-200 (Sec. 4.6)." I don't think this is entirely fair and the text should be amended. This should also be listed in the Limitations section.
 
-We agree on that `showing more NNs to users makes them more skeptical` (and yes, we stated in the submission) but we hesitate to say that `they end up underestimating machine performance`.
-While our collected human data clearly shows that humans tend to accept less and reject more when shown PCNN explanations,
-it is not clear what is the bottom line of this behavior.
+Thank you for this thoughtful comment. 
 
+We agree on that `showing more NNs to users makes them more skeptical` (and we will revise accordingly in the next revision), but stating the bottom line is `human users end up underestimating machine performance` is strong and not supported by our data.
+
+This skeptical behavior can be attributed to other possible reasons.
 For example, we tried the human experiments ourselves and found that the reason we tend to accept less and reject more is that
-we see more similar species in top-2, top-3, etc. than in top-1, rather than `end up underestimating machine performance`.
-While this question is very interesting; unfortunately and honestly, we did not collect this behavioral data to make a definite claim on this.
+we see more similar species in classes top-2, top-3, etc. than in top-1.
+In this case, the bottom line might be `PCNN provides richer and contrastive information` rather than `humans ending up underestimating machine performance`.
+
+While the concern about the bottom line is very interesting and indeed important; honestly, we did not collect this perception data to give a definite answer.
+We will make sure to clarify this in the paper.
 
 > (Requested Changes 3) The construction of the training set for S assumes C is already reasonably high-quality: is this always a reasonable assumption? Please add this to the Limitations section too.
 
@@ -76,7 +79,7 @@ We visualized 700 CUB-200 samples that were misclassified by our re-ranking meth
 After manually inspecting the samples, we found that the majority of the misclassifications were due to the following reasons:
 1. Inter-class similarities: The species from different classes look very similar to each other. 
 2. Intra-class variations: The species from the same class have large variations in appearance because of  lighting or angles. This is expected because the birds are captured in the wild.
-3. Low initial confidence scores: The initial classifier C assigns too low confidence scores to the correct class because of using softmax. Therefore, even if the comparator S assigns high confidence scores, the final, combined score is not sufficient to be recognized as the top-1.
+3. Low initial confidence scores: The initial classifier C assigns too low confidence scores to the correct class because of using softmax. Therefore, even if the comparator S assigns high confidence scores, the CxS score is not sufficient to be recognized as the top-1.
 
 We believe that both (1) and (2) are inherent to the dataset and not specific to our method. However, a possible remedy is data augmentation. We did not explore data augmentation extensively in this work, but we showed it can benefit S in Sec. 4.2.
 (3) can be addressed by re-normalizing the confidence scores of C or more advanced re-ranking methods.
@@ -125,11 +128,11 @@ However, the P(C) and P(S) are not conditionally independent given an input imag
 This is because C produces a class distribution, and S refines this distribution based on nearest neighbors. The confidence score S assigns can be influenced by the initial ranking from C.
 Due to the dependency between C and S, our model does not strictly follow the PoE framework's requirement.
 
-Given that, we will change the wording in the final version. We truly appreciate the Reviewer for pointing out this discrepancy!
+Given that, we will change the wording in the next revision. We truly appreciate the Reviewer for pointing out this discrepancy!
 
 > (Broader Impact) Broader impact should briefly discuss the potential impact of manipulating (in the case of PCNN, lowering) user confidence in machine predictions in, especially in time critical high-stakes scenarios.
 
 Thank you for the suggestion.
 Indeed, trust calibration is a critical aspect of human-AI interaction, especially in high-stakes scenarios per the Reviewer's comment.
-We plan to add a section in the Broader Impact in the final version of the paper. We are also open to suggestions on how to mitigate 
+We plan to add a section in the Broader Impact in the next revision of the paper. We are also open to suggestions on how to mitigate 
 the potential negative impact of lowering user confidence in machine predictions.
