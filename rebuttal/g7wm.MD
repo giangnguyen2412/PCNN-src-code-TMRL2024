@@ -166,7 +166,7 @@ We innovate by proposing a sampling strategy that selects the negative samples b
 > 6. (Requested Changes 6) In section 4.3 you say “First, we test using cosine similarity in the pretrained feature space of a CUB-200 classifier” – why do you call CUB-200 a classifier? CUB-200 is mentioned 80+ across the paper.
 
 Sorry for the confusion. We revised the writing and changed `CUB-200 classifier` to `classifier trained on CUB-200` in the paper to avoid any misunderstanding.
-The change will be reflected in the revised version of the paper.
+The change can be seen in the current revision of the paper.
 
 > 7. (Potential Changes 1) Explore techniques to reduce the computational overhead introduced by the re-ranking process, such as efficient nearest neighbour search or pruning strategies.
 
@@ -241,4 +241,4 @@ For large-scale, general domains, we can leverage existing state-of-the-art imag
 In the Related Work section of [DreamSim paper](https://arxiv.org/pdf/2306.09344), you can find several other alternative metrics for general domains (e.g. ImageNet).
 Adapting these metrics in our PoE model is straightforward as what we did with cosine or Earth Mover's Distance in Tab. 7 in the paper.
 
-Again, we thank the Reviewer for the great suggestions, and we will include them in the revised version of the paper.
+Again, we thank the Reviewer for the great suggestions, and we have included them in the current revision of the paper.

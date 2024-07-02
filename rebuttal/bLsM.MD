@@ -1,20 +1,23 @@
-Thank you very much for your valuable and insightful feedback!
-Below, please see our responses to your comments.
+We sincerely thank the Reviewer for the valuable and insightful feedback!
+Below, please see our responses to your comments and questions:
 
 > (Weaknesses 1 in Presentation) The message comprises two disconnected pieces: 1) showing explanations for the top-K classes aids human decision making, 2) reranking predictions using NNs helps machine performance. This is not a big deal, but a more streamlined message would have helped. 
 
 Thank you for the suggestion.
-We want to note that a unified take-away from our work is that `showing explanations for the top-K classes improves both humans and AI performance`.
+We want to note that a unified take-away from our work is that `showing PCNN explanations for the top-K classes improves both humans and AI performance`.
+Reranking is a novel method to leverage these PCNN explanations to improve AI performance. 
+More specifically, PCNN explanations help train the image comparator S (the AI), which is later used in the re-ranking algorithm CxS to improve the overall top-1 classification accuracy.
 
-Yet, after re-reading the paper, we agree that the message could be more streamlined.
-In particular, we see the message that `showing explanations for the top-K classes` improves AI performance can be clearer.
-We plan to elaborate in the next revision that: PCNN explanations help the AI model during training (i.e. training image comparator S) → eventually improve the overall top-1 classification accuracy of AI via re-ranking.
+After re-reading the paper, we agree that the message could be more streamlined.
+To connect the two pieces more clearly, we added a message in the beginning of Section Results of the current revision.
 
 > (Weaknesses 2 Presentation) Another issue is the method name is not used consistently throughout the text. For instance, it is sometimes called C \times S, sometimes PoE; sometimes PCNN is an architecture, sometimes a new type of explanation; this is a bit confusing. I would prefer if the authors used PCNN everywhere, for simplicity.
 
 We agree with this point and to reduce the confusion, we will use the term `CxS` consistently throughout the text.
 
-For PCNN, indeed, it is a variant of nearest-neighbor explanations, and we will make sure to clarify this in the text.
+For PCNN, indeed, it is a variant of nearest-neighbor explanations. After revising the whole paper, we have made sure to use the term `PCNN` consistently to refer to the nearest-neighbor explanations.
+We just noted that PCNN can be confused with CNN, which is convolutional neural networks, and indeed an architecture.
+If the Reviewer sees this as a potential issue, we can consider adding a footnote to clarify this.
 
 > (Requested Changes 1) The authors are upfront about the fact that PCNN requires training data at test time (like all kNN-based predictors), but do not list this as an actual limitation in Section 5, while I think it is.
 There they mention run-time of PCNN is longer than other competitors, but the main issue is PCNN requires the training data to be available in entirety -- or, at least, the experiments do not study the impact of reducing the sice of the training data on inference-time performance. This is a clear downside compared to, say, ProtoPNets, which memorize relevant (part) prototypes instead.
@@ -40,22 +43,24 @@ Regarding the rune-time of PCNN being longer than other competitors, we also att
 
 TL;DR: We can speed up the inference time by `2.5x` times without sacrificing the accuracy.
 
+We added these details in Section. E of the current revision.
+
 > (Requested Changes 2) I don't think the results of the user study are reported appropriately in the introduction.
 Bottom line: showing more NNs to users makes them more skeptical, meaning they end up underestimating machine perforance. 
 This should be clearly stated in the introduction, at the bare minimum. 
 Instead, the authors focus on the benefits of PCNN only, and write: "A 60-user study finds that, compared to showing top-1 class examples, PCNN improves user performance on the distinction task by almost +10 points (pp) (54.55% vs. 64.58%) on CUB-200 (Sec. 4.6)." I don't think this is entirely fair and the text should be amended. This should also be listed in the Limitations section.
 
-Thank you for this thoughtful comment. 
+Thank you for this thoughtful comment!
 
-We agree on that `showing more NNs to users makes them more skeptical` (and we will revise accordingly in the next revision), but stating the bottom line is `human users end up underestimating machine performance` is strong and not supported by our data.
+We agree with the Reviewer that the introduction should clearly state the bottom line of the user study.
+We attribute the improvement in user performance to the reduced over-reliance (the established term) [1] where users are more skeptical of the machine predictions when shown PCNN explanations.
+This observation also aligns with the findings of Buçinca et al. [2] and Bansal et al. [3] that reduced over-reliance helps improve AI-assisted decision-making.
 
-This skeptical behavior can be attributed to other possible reasons.
-For example, we tried the human experiments ourselves and found that the reason we tend to accept less and reject more is that
-we see more similar species in classes top-2, top-3, etc. than in top-1.
-In this case, the bottom line might be `PCNN provides richer and contrastive information` rather than `humans ending up underestimating machine performance`.
+We added this bottom-line message to the Introduction in the current revision and at the end of Section 4.6.
 
-While the concern about the bottom line is very interesting and indeed important; honestly, we did not collect this perception data to give a definite answer.
-We will make sure to clarify this in the paper.
+[1] Appropriate reliance on AI advice: Conceptualization and the effect of explanations
+[2] To trust or to think: cognitive forcing functions can reduce overreliance on AI in AI-assisted decision-making.
+[3] Does the whole exceed its parts? the effect of ai explanations on complementary team performance.
 
 > (Requested Changes 3) The construction of the training set for S assumes C is already reasonably high-quality: is this always a reasonable assumption? Please add this to the Limitations section too.
 
@@ -73,9 +78,10 @@ This sampling still yield positive improvements in the top-1 accuracy for a CUB-
 
 > (Requested Changes 4) An analysis of errors introduced by the reranking step would have been useful.
 
-Thank you for the suggestion.
+Thank you for this suggestion!
 
-We visualized 700 CUB-200 samples that were misclassified by our re-ranking method (CxS 88.59% in Table. 1) and shared with you [here](https://drive.google.com/drive/folders/1CJRAmuoBSLQQ2ES0dmCbiTDTCWZvewzM?usp=sharing).
+To analyze where reranking failed, we visualized 700 CUB-200 samples that were misclassified by our re-ranking method (CxS 88.59% in Table. 1). You can also access them [here](https://drive.google.com/drive/folders/1CJRAmuoBSLQQ2ES0dmCbiTDTCWZvewzM?usp=sharing).
+
 After manually inspecting the samples, we found that the majority of the misclassifications were due to the following reasons:
 1. Inter-class similarities: The species from different classes look very similar to each other. 
 2. Intra-class variations: The species from the same class have large variations in appearance because of  lighting or angles. This is expected because the birds are captured in the wild.
@@ -89,7 +95,7 @@ If the Reviewer has any specific experiments in mind, we would be happy to run t
 > (Requested Changes 5) p 4: "We empirically test K = {1, 3, 5, 10} and find K = 10 to be optimal." The fact that the optimal value is at the very end of the spectrum begs the question whether increasing K could improve performance further. Did the authors evaluate what happens for larger values of K? Clearly, increasing K would not be ideal for human decision making, but it should not consistute for PCNNs proper.
 
 Thank you for this valuable comment!
-We re-run our method with diffrent values of K and present the results below.
+We re-run our method with different values of K and present the results below.
 
 | K  | CUB Perf (%)  | CUB Runtime (s) | Dogs Perf (%)         | Dogs Runtime(s) |
 |----|---------------|-----------------|-----------------------|-----------------|
@@ -128,11 +134,10 @@ However, the P(C) and P(S) are not conditionally independent given an input imag
 This is because C produces a class distribution, and S refines this distribution based on nearest neighbors. The confidence score S assigns can be influenced by the initial ranking from C.
 Due to the dependency between C and S, our model does not strictly follow the PoE framework's requirement.
 
-Given that, we will change the wording in the next revision. We truly appreciate the Reviewer for pointing out this discrepancy!
+Given that, we will change the wording in the final version. We truly appreciate the Reviewer for pointing out this discrepancy!
 
 > (Broader Impact) Broader impact should briefly discuss the potential impact of manipulating (in the case of PCNN, lowering) user confidence in machine predictions in, especially in time critical high-stakes scenarios.
 
 Thank you for the suggestion.
 Indeed, trust calibration is a critical aspect of human-AI interaction, especially in high-stakes scenarios per the Reviewer's comment.
-We plan to add a section in the Broader Impact in the next revision of the paper. We are also open to suggestions on how to mitigate 
-the potential negative impact of lowering user confidence in machine predictions.
+We included a discussion on the potential impact of manipulating user confidence in machine predictions in the Section 6. Discussion and Conclusion in the current revision.
