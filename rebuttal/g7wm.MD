@@ -166,7 +166,7 @@ We innovate by proposing a sampling strategy that selects the negative samples b
 > 6. (Requested Changes 6) In section 4.3 you say “First, we test using cosine similarity in the pretrained feature space of a CUB-200 classifier” – why do you call CUB-200 a classifier? CUB-200 is mentioned 80+ across the paper.
 
 Sorry for the confusion. We revised the writing and changed `CUB-200 classifier` to `classifier trained on CUB-200` in the paper to avoid any misunderstanding.
-The change can be seen in the current revision of the paper.
+The change can be seen in the latest revision of the paper.
 
 > 7. (Potential Changes 1) Explore techniques to reduce the computational overhead introduced by the re-ranking process, such as efficient nearest neighbour search or pruning strategies.
 
@@ -180,13 +180,13 @@ For example, as we are currently use CPU for faiss indexing (`L137` in the submi
 using GPU by `GpuIndexFlatL2` from faiss can provide significant speedups, especially for larger datasets.
 
 (b) For **image comparator S**, we can reduce the number of queries to the image comparator S by ignoring less probable labels.
-Currently, we are setting this to `K = 10` as we always examine the **top-10** most probable classes.
+latestly, we are setting this to `K = 10` as we always examine the **top-10** most probable classes.
 Yet, there always exists classes receiving `< 1%` by ResNet50 (see Fig. 5 in PCNN submission), which are likely never to be the top-1 after re-ranking.
 Reducing the number of `K` can save a lot of computation at a minimal cost of accuracy.
 
 To verify this, we run an experiment for CUB-200 where we instead of re-ranking the whole **top-10**, we only re-rank the classes that have a probability `>= 1%` assigned by the base classifier C.
 We found that:
-- The PoE model performance on CUB-200 drops very marginally by `only 0.08%` (from `88.59%` → `88.51%`).
+- The PoE model accuracy on CUB-200 drops very marginally by `only 0.08%` (from `88.59%` → `88.51%`).
 - However, the number of queries to the image comparator S was reduced by approx. `4x` (from `10` to just about `2.5` queries/image).
 This leads to a `2.5x` speedup in the overall runtime of the PoE model (from `64.55` seconds to `28.95` seconds), as shown in the following Table.
 
@@ -241,4 +241,4 @@ For large-scale, general domains, we can leverage existing state-of-the-art imag
 In the Related Work section of [DreamSim paper](https://arxiv.org/pdf/2306.09344), you can find several other alternative metrics for general domains (e.g. ImageNet).
 Adapting these metrics in our PoE model is straightforward as what we did with cosine or Earth Mover's Distance in Tab. 7 in the paper.
 
-Again, we thank the Reviewer for the great suggestions, and we have included them in the current revision of the paper.
+Again, we thank the Reviewer for the great suggestions, and we have included them in the latest revision of the paper.
