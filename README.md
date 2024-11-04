@@ -68,3 +68,16 @@ Same steps repeated for Cars-196 and Dogs-120.
 ## Human study data
 
 We share the samples that we used for CUB-200 and Cars-196 human studies at [this link](https://drive.google.com/drive/folders/1yNIOfypfy1vvI3Q3MAq9LNIVlyQ3WY-V?usp=sharing).
+
+## Citation
+
+    @article{
+    nguyen2024pcnn,
+    title={{PCNN}: Probable-Class Nearest-Neighbor Explanations Improve Fine-Grained Image Classification Accuracy for {AI}s and Humans},
+    author={Giang Nguyen and Valerie Chen and Mohammad Reza Taesiri and Anh Nguyen},
+    journal={Transactions on Machine Learning Research},
+    issn={2835-8856},
+    year={2024},
+    url={https://openreview.net/forum?id=OcFjqiJ98b},
+    note={}
+    }
