@@ -180,7 +180,7 @@ For example, as we are currently use CPU for faiss indexing (`L137` in the submi
 using GPU by `GpuIndexFlatL2` from faiss can provide significant speedups, especially for larger datasets.
 
 (b) For **image comparator S**, we can reduce the number of queries to the image comparator S by ignoring less probable labels.
-latestly, we are setting this to `K = 10` as we always examine the **top-10** most probable classes.
+Currently, we are setting this to `K = 10` as we always examine the **top-10** most probable classes.
 Yet, there always exists classes receiving `< 1%` by ResNet50 (see Fig. 5 in PCNN submission), which are likely never to be the top-1 after re-ranking.
 Reducing the number of `K` can save a lot of computation at a minimal cost of accuracy.
 

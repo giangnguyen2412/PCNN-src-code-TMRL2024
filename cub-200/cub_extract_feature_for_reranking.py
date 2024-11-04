@@ -34,7 +34,7 @@ Dataset = Dataset()
 RunningParams = RunningParams('CUB')
 
 MODEL1_RESNET = True
-depth_of_pred = 10
+depth_of_pred = 5
 print(depth_of_pred)
 set = 'test'
 
@@ -97,7 +97,7 @@ faiss_data_loader = torch.utils.data.DataLoader(
 )
 
 if MODEL1_RESNET is True:
-    INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cub/INAT_{RunningParams.RN50_INAT}_INDEX_file_adv_process_rn{RunningParams.resnet}.npy'
+    INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cub/INAT_{RunningParams.RN50_INAT}_INDEX_file_adv_process_rn{RunningParams.resnet}_100_perc.npy'
 else:
     INDEX_FILE = f'{RunningParams.prj_dir}/faiss/cub/INDEX_file_adv_process_NTSNET.npy'
 
@@ -113,6 +113,7 @@ if os.path.exists(INDEX_FILE):
         faiss_data_loader_ids_dict[class_id] = [x for x in range(len(targets)) if targets[x] == class_id] # check this value
         class_id_subset = torch.utils.data.Subset(faiss_dataset, faiss_data_loader_ids_dict[class_id])
         class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
+
         faiss_loader_dict[class_id] = class_id_loader
 else:
     print("FAISS class index NOT exists! Creating class index.........")
@@ -122,8 +123,15 @@ else:
     faiss_loader_dict = dict()
     for class_id in tqdm(range(len(faiss_data_loader.dataset.class_to_idx))):
         faiss_data_loader_ids_dict[class_id] = [x for x in range(len(targets)) if targets[x] == class_id]
-        class_id_subset = torch.utils.data.Subset(faiss_dataset, faiss_data_loader_ids_dict[class_id])
+
+        sampled_indices = random.sample(faiss_data_loader_ids_dict[class_id],
+                                        len(faiss_data_loader_ids_dict[class_id]) // 1)
+
+        class_id_subset = torch.utils.data.Subset(faiss_dataset, sampled_indices)
         class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
+
+        # class_id_subset = torch.utils.data.Subset(faiss_dataset, faiss_data_loader_ids_dict[class_id])
+        # class_id_loader = torch.utils.data.DataLoader(class_id_subset, batch_size=128, shuffle=False)
         stack_embeddings = []
         for batch_idx, (data, label) in enumerate(class_id_loader):
             input_data = data.detach()

@@ -150,8 +150,10 @@ if __name__ == '__main__':
                     nns.append(v['NNs'][0])
                 # breakpoint()
                 # If the new top1 matches the GT  && If the new top1 is different from the old top 1
-                if refined_preds[0].item() == gt[sample_idx].item() and \
-                        original_preds[0].item() != refined_preds[0].item():
+                # if refined_preds[0].item() == gt[sample_idx].item() and \
+                #         original_preds[0].item() != refined_preds[0].item():
+                # Visualize samples where reranking failed
+                if refined_preds[0].item() != gt[sample_idx].item():
 
                     import matplotlib.pyplot as plt
                     from PIL import Image
@@ -289,7 +291,7 @@ if __name__ == '__main__':
                     #     'montage before.jpeg after.jpeg -tile 1x2 -geometry +20+20 {}/corrections/cub/{}_{}_{}.jpeg'.
                     #     format(RunningParams.prj_dir, data_loader.dataset.classes[gt[sample_idx].item()], batch_idx, sample_idx), shell=True)
                     #
-                    jpeg_path = '{}/corrections/cub/{}_{}_{}.jpeg'.format(
+                    jpeg_path = '{}/corrections/cub/failures/{}_{}_{}.jpeg'.format(
                         RunningParams.prj_dir, data_loader.dataset.classes[gt[sample_idx].item()], batch_idx, sample_idx)
                     pdf_path = jpeg_path.replace('.jpeg', '.pdf')
 

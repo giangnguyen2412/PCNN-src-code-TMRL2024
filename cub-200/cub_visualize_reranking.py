@@ -89,9 +89,9 @@ if __name__ == '__main__':
     for ds in ['cub_test']:
         data_loader = torch.utils.data.DataLoader(
             image_datasets[ds],
-            batch_size=5,
+            batch_size=4,
             shuffle=True,  # turn shuffle to False
-            num_workers=8,
+            num_workers=16,
             pin_memory=True,
             drop_last=False  # Do not remove drop last because it affects performance
         )
